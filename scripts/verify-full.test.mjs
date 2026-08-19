@@ -41,6 +41,7 @@ test('full verification runs the CI gates in order', () => {
     'test',
     'test:integration',
     'api:check',
+    'modules:check',
     'build',
     'test:e2e',
   ])

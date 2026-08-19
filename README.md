@@ -61,8 +61,9 @@ TEST_DATABASE_URL=postgresql://yetano:yetano@localhost:5432/yetano_work pnpm ver
 ```
 
 `pnpm check` is the quick local gate. `pnpm verify:full` runs the same lint, typecheck,
-unit, integration, generated API, build, and end-to-end gates as CI. The full gate fails
-early unless `TEST_DATABASE_URL` is set, so a skipped integration suite cannot look green.
+unit, integration, generated API, generated module catalog, build, and end-to-end gates as CI. The
+full gate fails early unless `TEST_DATABASE_URL` is set, so a skipped integration suite cannot look
+green.
 
 ## AI-assisted development
 

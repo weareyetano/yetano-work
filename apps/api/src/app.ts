@@ -69,23 +69,26 @@ export function createApp({ container }: CreateAppOptions = {}) {
     })
     context.set('scope', scope)
 
-    return RequestContext.create(entityManager, async () => {
-      try {
-        const executionContext = await scope
-          .resolve('executionContextFactory')
-          .create(context.req.raw, context.get('requestId'))
-        context.set('executionContext', executionContext)
-        await next()
-      } catch (error) {
-        if (error instanceof AuthenticationRequiredError) {
-          return problem(context, 401, 'Unauthorized', error.message)
-        }
-        if (error instanceof AuthorizationDeniedError) {
-          return problem(context, 403, 'Forbidden', error.message)
-        }
-        throw error
+    return RequestContext.create(entityManager, next)
+  })
+
+  app.use('/api/v1/cases/*', async (context, next) => {
+    try {
+      const executionContext = await context
+        .get('scope')
+        .resolve('executionContextFactory')
+        .create(context.req.raw, context.get('requestId'))
+      context.set('executionContext', executionContext)
+      await next()
+    } catch (error) {
+      if (error instanceof AuthenticationRequiredError) {
+        return problem(context, 401, 'Unauthorized', error.message)
       }
-    })
+      if (error instanceof AuthorizationDeniedError) {
+        return problem(context, 403, 'Forbidden', error.message)
+      }
+      throw error
+    }
   })
 
   const apiRoutes = new Hono<AppEnvironment>()

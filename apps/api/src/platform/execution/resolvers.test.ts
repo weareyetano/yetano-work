@@ -37,6 +37,30 @@ describe('execution context resolvers', () => {
       'Protected modules require an authenticated actor resolver in production.',
     )
   })
+
+  it('accepts bounded correlation ids and falls back to the request id otherwise', async () => {
+    const factory = createExecutionContextFactory({
+      actorResolver: createDevActorResolver(),
+      capabilityResolver: createDevCapabilityResolver(),
+      organizationResolver: createSingleOrganizationResolver({ config: createConfig('test') }),
+    })
+
+    const correlated = await factory.create(
+      new Request('http://localhost/api/v1/cases', {
+        headers: { 'x-correlation-id': ' external-correlation-id ' },
+      }),
+      'request-id',
+    )
+    const oversized = await factory.create(
+      new Request('http://localhost/api/v1/cases', {
+        headers: { 'x-correlation-id': 'x'.repeat(256) },
+      }),
+      'request-id',
+    )
+
+    expect(correlated.correlationId).toBe('external-correlation-id')
+    expect(oversized.correlationId).toBe('request-id')
+  })
 })
 
 function createConfig(

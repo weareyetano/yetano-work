@@ -13,7 +13,8 @@ Choose profiles from the diff and requested confidence level. Profiles are addit
 | CI parity or pre-PR | `pnpm verify:full` |
 
 The full gate checks `TEST_DATABASE_URL` before doing work, then runs lint, agent asset validation,
-typecheck, unit tests, integration tests, generated API consistency, build, and end-to-end tests.
+typecheck, unit tests, integration tests, generated API and module catalog consistency, build, and
+end-to-end tests.
 
 ## Report format
 

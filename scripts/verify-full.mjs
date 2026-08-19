@@ -9,6 +9,7 @@ const gates = [
   ['unit tests', 'test'],
   ['integration tests', 'test:integration'],
   ['generated API', 'api:check'],
+  ['module catalog', 'modules:check'],
   ['build', 'build'],
   ['end-to-end tests', 'test:e2e'],
 ]

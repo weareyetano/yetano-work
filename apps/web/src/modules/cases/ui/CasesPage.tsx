@@ -13,6 +13,7 @@ import {
   caseQueryKeys,
   createCaseItem,
   fetchCases,
+  isCaseVersionConflict,
   transitionCaseItem,
   updateCaseItem,
 } from '../cases.api'
@@ -47,10 +48,16 @@ export function CasesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ current, input }: { current: CaseItem; input: CaseFormValue }) =>
       updateCaseItem(current, input),
+    onError: async (error) => {
+      if (isCaseVersionConflict(error)) await refresh()
+    },
     onSuccess: refresh,
   })
   const transitionMutation = useMutation({
     mutationFn: transitionCaseItem,
+    onError: async (error) => {
+      if (isCaseVersionConflict(error)) await refresh()
+    },
     onSuccess: refresh,
   })
 
@@ -147,7 +154,7 @@ export function CasesPage() {
               transitionError={transitionMutation.error}
               updateBusy={updateMutation.isPending}
               updateError={updateMutation.error}
-              onTransition={() => transitionMutation.mutateAsync(selected)}
+              onTransition={() => transitionMutation.mutate(selected)}
               onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
             />
           ) : (
@@ -172,7 +179,7 @@ function CaseDetail({
   updateError,
 }: {
   caseItem: CaseItem
-  onTransition(): Promise<unknown>
+  onTransition(): void
   onUpdate(input: CaseFormValue): Promise<unknown>
   transitionBusy: boolean
   transitionError: Error | null
@@ -189,7 +196,7 @@ function CaseDetail({
         <button
           className="secondary-button"
           disabled={transitionBusy}
-          onClick={() => void onTransition()}
+          onClick={onTransition}
           type="button"
         >
           {transitionBusy
@@ -304,6 +311,9 @@ function optionalText(value: FormDataEntryValue | null) {
 }
 
 function readError(error: unknown) {
+  if (isCaseVersionConflict(error)) {
+    return 'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i spróbuj ponownie.'
+  }
   if (error instanceof Error && error.message) return error.message
   return 'Nie udało się wykonać operacji. Odśwież dane i spróbuj ponownie.'
 }

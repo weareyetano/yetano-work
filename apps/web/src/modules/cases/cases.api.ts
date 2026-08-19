@@ -5,6 +5,7 @@ import {
   type ListCasesResponse,
   listCases,
   reopenCase,
+  type UpdateCaseError,
   type UpdateCaseResponse,
   updateCase,
 } from '@yetano/api-client'
@@ -12,6 +13,7 @@ import {
 export type CaseItem = ListCasesResponse['items'][number]
 export type CaseListPage = ListCasesResponse
 export type CaseStatusFilter = 'all' | CaseItem['status']
+type CaseVersionConflict = Extract<UpdateCaseError, { code: 'case_version_conflict' }>
 
 export const caseQueryKeys = {
   all: ['cases'] as const,
@@ -67,4 +69,14 @@ export async function transitionCaseItem(current: CaseItem): Promise<UpdateCaseR
     throwOnError: true,
   })
   return response.data
+}
+
+export function isCaseVersionConflict(error: unknown): error is CaseVersionConflict {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    Reflect.get(error, 'code') === 'case_version_conflict' &&
+    Reflect.get(error, 'status') === 409 &&
+    typeof Reflect.get(error, 'currentVersion') === 'number'
+  )
 }

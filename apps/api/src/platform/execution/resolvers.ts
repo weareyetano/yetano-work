@@ -9,6 +9,7 @@ import type {
 import { AuthenticationRequiredError, AuthorizationDeniedError } from './errors.js'
 
 const DEV_CAPABILITIES = new Set(['cases.close', 'cases.create', 'cases.read', 'cases.update'])
+const MAX_CORRELATION_ID_LENGTH = 255
 
 export function createDevActorResolver(): ActorResolver {
   return {
@@ -58,7 +59,7 @@ export function createExecutionContextFactory({
       return {
         actor,
         capabilities,
-        correlationId: request.headers.get('x-correlation-id') ?? requestId,
+        correlationId: resolveCorrelationId(request, requestId),
         organizationId,
         requestId,
       }
@@ -74,4 +75,10 @@ export function assertDevelopmentResolversAllowed(config: AppConfig): void {
 
 export function systemActor(id: string): Actor {
   return { id, type: 'system' }
+}
+
+function resolveCorrelationId(request: Request, requestId: string): string {
+  const correlationId = request.headers.get('x-correlation-id')?.trim()
+  if (!correlationId || correlationId.length > MAX_CORRELATION_ID_LENGTH) return requestId
+  return correlationId
 }

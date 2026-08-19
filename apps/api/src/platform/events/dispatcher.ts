@@ -20,6 +20,7 @@ interface ClaimedEventRow {
 }
 
 export interface OutboxDispatcher {
+  dispatchOnce(): Promise<void>
   start(): void
   stop(): Promise<void>
 }
@@ -123,6 +124,7 @@ export function createOutboxDispatcher({
   }
 
   return {
+    dispatchOnce: tick,
     start() {
       if (interval) return
       stopped = false

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { closeCase, createCase, listCases, reopenCase, updateCase } from '@yetano/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,6 +85,59 @@ describe('CasesPage', () => {
     expect(reopenCase).not.toHaveBeenCalled()
     expect(updateCase).not.toHaveBeenCalled()
   })
+
+  it('refreshes the selected case after an update conflict', async () => {
+    const refreshed = {
+      ...caseItem,
+      title: 'Title changed elsewhere',
+      updatedAt: '2026-08-19T11:00:00.000Z',
+      version: 2,
+    }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValueOnce(apiResult({ items: [refreshed], nextCursor: null }))
+    vi.mocked(updateCase).mockRejectedValue(versionConflict(2))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    const title = within(screen.getByRole('article')).getByLabelText('Tytuł')
+    await user.clear(title)
+    await user.type(title, 'Locally edited title')
+    await user.click(screen.getByRole('button', { name: 'Zapisz zmiany' }))
+
+    expect(
+      await screen.findByText(
+        'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i spróbuj ponownie.',
+      ),
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Title changed elsewhere' })).toBeVisible()
+    expect(within(screen.getByRole('article')).getByLabelText('Tytuł')).toHaveValue(
+      'Title changed elsewhere',
+    )
+    expect(listCases).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes the selected case after a transition conflict', async () => {
+    const refreshed = {
+      ...caseItem,
+      updatedAt: '2026-08-19T11:00:00.000Z',
+      version: 2,
+    }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValueOnce(apiResult({ items: [refreshed], nextCursor: null }))
+    vi.mocked(closeCase).mockRejectedValue(versionConflict(2))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    await user.click(screen.getByRole('button', { name: 'Zamknij sprawę' }))
+
+    expect(await screen.findByText('Szczegóły · wersja 2')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Zamknij sprawę' })).toBeEnabled()
+    expect(listCases).toHaveBeenCalledTimes(2)
+  })
 })
 
 afterEach(cleanup)
@@ -106,5 +159,15 @@ function apiResult<Data>(data: Data) {
     error: undefined,
     request: new Request('http://localhost/api/v1/cases'),
     response: new Response(),
+  }
+}
+
+function versionConflict(currentVersion: number) {
+  return {
+    code: 'case_version_conflict',
+    currentVersion,
+    status: 409,
+    title: 'Conflict',
+    type: 'about:blank',
   }
 }

@@ -30,4 +30,9 @@ export class Migration20260819180117 extends Migration {
       `alter table "platform_outbox_events" add constraint "platform_outbox_events_actor_type_check" check ("actor_type" in ('system', 'user'));`,
     )
   }
+
+  override down(): void | Promise<void> {
+    this.addSql('drop table if exists "platform_outbox_events" cascade;')
+    this.addSql('drop table if exists "cases" cascade;')
+  }
 }

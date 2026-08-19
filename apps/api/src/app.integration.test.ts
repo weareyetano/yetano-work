@@ -7,6 +7,7 @@ import type { AppConfig } from './config.js'
 import { createRootContainer } from './container.js'
 import { createOrmOptions } from './database.js'
 import type { Logger } from './logger.js'
+import type { ActorResolver } from './platform/execution/context.js'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip
@@ -42,6 +43,42 @@ describeWithDatabase('API with PostgreSQL', () => {
       status: 'ok',
       version: 'test',
     })
+  })
+
+  it('keeps typed health public while protected case routes require an actor', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb', {
+      async resolve() {
+        return null
+      },
+    })
+
+    const health = await app.request('/api/v1/health')
+    const cases = await app.request('/api/v1/cases')
+
+    expect(health.status).toBe(200)
+    expect(cases.status).toBe(401)
+  })
+
+  it('falls back to the request id when a correlation id exceeds the outbox column limit', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
+    const response = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Bounded correlation' }),
+      headers: {
+        'content-type': 'application/json',
+        'x-correlation-id': 'x'.repeat(256),
+      },
+      method: 'POST',
+    })
+
+    expect(response.status).toBe(201)
+    const requestId = response.headers.get('x-request-id')
+    expect(requestId).toEqual(expect.any(String))
+    const rows = await orm.em
+      .getConnection()
+      .execute<Array<{ correlation_id: string }>>(
+        'select correlation_id from platform_outbox_events',
+      )
+    expect(rows).toEqual([{ correlation_id: requestId }])
   })
 
   it('keeps case data and emitted event scope inside the server-resolved organization', async () => {
@@ -199,7 +236,7 @@ describeWithDatabase('API with PostgreSQL', () => {
     expect(customerCases.items.map((item) => item.customerId)).toEqual([customerId])
   })
 
-  function createTestApp(organizationId: string) {
+  function createTestApp(organizationId: string, actorResolver?: ActorResolver) {
     const config: AppConfig = {
       appVersion: 'test',
       databaseUrl: databaseUrl as string,
@@ -209,7 +246,12 @@ describeWithDatabase('API with PostgreSQL', () => {
       port: 3000,
       staticRoot: '/tmp/yetano-work-missing-static',
     }
-    const container = createRootContainer({ config, logger, orm })
+    const container = createRootContainer({
+      ...(actorResolver ? { actorResolver } : {}),
+      config,
+      logger,
+      orm,
+    })
     return createApp({ container })
   }
 })
