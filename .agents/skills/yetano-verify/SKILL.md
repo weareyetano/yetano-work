@@ -27,6 +27,10 @@ Prove the changed behavior without turning skipped checks into a green result.
 - User-visible web behavior requires a production build and the relevant Playwright path.
 - Contract or route changes require `pnpm api:check`; generated diffs are a failure until reviewed
   and intentionally included.
+- `pnpm check` may run in any isolated worktree. Commands that start or use the shared Docker, API,
+  or web runtime may run only in the current runtime owner's checkout.
+- The primary checkout owns the runtime by default. Transfer ownership only after stopping the
+  previous stack; otherwise report runtime-dependent gates as `NOT RUN` with that reason.
 - Do not start Docker, apply migrations, install browsers, or change external state unless the task
   authorizes that setup. Report the blocked gate and the exact prerequisite instead.
 - A passing unrelated test does not compensate for a required gate that was not run.

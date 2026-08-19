@@ -27,7 +27,8 @@
     "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build && pnpm --recursive --if-present typecheck",
-    "verify:full": "node scripts/verify-full.mjs"
+    "verify:full": "node scripts/verify-full.mjs",
+    "worktree:setup": "pnpm install --frozen-lockfile"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

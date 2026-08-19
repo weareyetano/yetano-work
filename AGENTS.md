@@ -46,6 +46,17 @@ the repository has a canonical domain entity worth extracting into a dedicated s
 - `pnpm agents:check` validates this instruction hierarchy and repository skills.
 - Report every relevant gate as `PASS`, `FAIL`, or `NOT RUN`; never describe skipped checks as green.
 
+## Worktrees
+
+- Use one task and one writer per worktree. Start isolated work from a fresh base and do not create
+  a worktree from inside another worktree.
+- Run `pnpm worktree:setup` after creating a worktree. Keep environment files and secrets local to
+  the checkout that owns the runtime.
+- Code changes and `pnpm check` may run concurrently in separate worktrees. Only one checkout may
+  own the shared Docker, API, and web runtime at a time; the primary checkout owns it by default.
+- Transfer runtime ownership only after stopping the previous stack. Preserve unfinished work and
+  never force-remove or force-clean a worktree unless explicitly requested.
+
 ## Git commits
 
 Use Conventional Commits:

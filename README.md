@@ -83,6 +83,29 @@ instruction files, including the Claude Code adapters. Keep product and architec
 the canonical documentation or nearest `AGENTS.md`; skills should describe procedures rather
 than duplicate those facts.
 
+### Isolated worktrees
+
+Use one task per worktree and initialize every new checkout with:
+
+```bash
+pnpm worktree:setup
+```
+
+Environment files and secrets are intentionally not copied into new worktrees. Code edits and
+`pnpm check` can run in parallel, but only one checkout may run the shared Docker, API, and web
+stack. The primary checkout owns that runtime by default; stop it before transferring ownership.
+
+- In Codex, start a Worktree chat from a fresh base and configure `pnpm worktree:setup` as the
+  local environment setup command.
+- In Claude Code, run `claude --worktree <task>`, then run `pnpm worktree:setup` in the new
+  checkout.
+- In OpenCode or a regular terminal, use the optional Worktrunk fallback. After installing its
+  shell integration, run `wt switch --create <branch> --base origin/main`; the committed hook runs
+  the setup command automatically. Start `opencode` from the resulting checkout when needed.
+
+Do not force cleanup. Remove a worktree only when it is clean or its work has been intentionally
+preserved in commits or another checkout.
+
 ## Deferred decisions
 
 PWA support, pgvector, authentication, a form library, and a UI system are not part of
