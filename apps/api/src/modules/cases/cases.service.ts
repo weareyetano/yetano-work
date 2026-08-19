@@ -90,7 +90,13 @@ export function createCasesService({
               return toCase(record)
             },
           ),
-        () => readCurrentVersion(entityManager, executionContext.organizationId, caseId),
+        () =>
+          resolveTransitionConflict(
+            entityManager,
+            executionContext.organizationId,
+            caseId,
+            'closed',
+          ),
       )
     },
     create(request, executionContext) {
@@ -186,7 +192,8 @@ export function createCasesService({
               return toCase(record)
             },
           ),
-        () => readCurrentVersion(entityManager, executionContext.organizationId, caseId),
+        () =>
+          resolveTransitionConflict(entityManager, executionContext.organizationId, caseId, 'open'),
       )
     },
     update(caseId, request, executionContext) {
@@ -237,7 +244,7 @@ export function createCasesService({
               return toCase(record)
             },
           ),
-        () => readCurrentVersion(entityManager, executionContext.organizationId, caseId),
+        () => rejectWithCurrentVersion(entityManager, executionContext.organizationId, caseId),
       )
     },
   }
@@ -259,16 +266,37 @@ function assertVersion(record: CaseRecord, expectedVersion: number) {
 
 async function executeWithOptimisticConflict<Result>(
   run: () => Promise<Result>,
-  readVersion: () => Promise<number>,
+  resolveConflict: () => Promise<Result>,
 ): Promise<Result> {
   try {
     return await run()
   } catch (error) {
     if (error instanceof OptimisticLockError) {
-      throw new CaseVersionConflictError(await readVersion())
+      return resolveConflict()
     }
     throw error
   }
+}
+
+async function resolveTransitionConflict(
+  entityManager: EntityManager,
+  organizationId: ExecutionContext['organizationId'],
+  caseId: CaseId,
+  targetStatus: CaseRecord['status'],
+): Promise<Case> {
+  const record = await readCurrentCase(entityManager, organizationId, caseId)
+  if (record.status === targetStatus) return toCase(record)
+  throw new CaseVersionConflictError(record.version)
+}
+
+async function rejectWithCurrentVersion(
+  entityManager: EntityManager,
+  organizationId: ExecutionContext['organizationId'],
+  caseId: CaseId,
+): Promise<never> {
+  throw new CaseVersionConflictError(
+    await readCurrentVersion(entityManager, organizationId, caseId),
+  )
 }
 
 async function readCurrentVersion(
@@ -283,6 +311,20 @@ async function readCurrentVersion(
   )
   if (!record) throw new CaseNotFoundError('Case not found.')
   return record.version
+}
+
+async function readCurrentCase(
+  entityManager: EntityManager,
+  organizationId: ExecutionContext['organizationId'],
+  caseId: CaseId,
+) {
+  const record = await entityManager.findOne(
+    CaseEntity,
+    { id: caseId, organizationId },
+    { refresh: true },
+  )
+  if (!record) throw new CaseNotFoundError('Case not found.')
+  return record
 }
 
 function normalizeTitle(value: string) {

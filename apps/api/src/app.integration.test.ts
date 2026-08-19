@@ -1,6 +1,7 @@
+import { EntityManager } from '@mikro-orm/core'
 import { MikroORM } from '@mikro-orm/postgresql'
 import type { Case } from '@yetano/contracts'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from './app.js'
 import type { AppConfig } from './config.js'
@@ -185,6 +186,57 @@ describeWithDatabase('API with PostgreSQL', () => {
     ])
   })
 
+  it('keeps concurrent lifecycle transitions idempotent', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
+    const createResponse = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Concurrent lifecycle test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+
+    const close = () =>
+      app.request(`/api/v1/cases/${created.id}/close`, {
+        body: JSON.stringify({ expectedVersion: created.version }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+    const closeResponses = await withConcurrentFlushes(() => Promise.all([close(), close()]))
+    const closedCases = await Promise.all(
+      closeResponses.map((response) => response.json() as Promise<Case>),
+    )
+
+    expect(closeResponses.map((response) => response.status)).toEqual([200, 200])
+    expect(closedCases[0]).toMatchObject({ status: 'closed', version: created.version + 1 })
+    expect(closedCases[1]).toEqual(closedCases[0])
+
+    const reopen = () =>
+      app.request(`/api/v1/cases/${created.id}/reopen`, {
+        body: JSON.stringify({ expectedVersion: closedCases[0].version }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+    const reopenResponses = await withConcurrentFlushes(() => Promise.all([reopen(), reopen()]))
+    const reopenedCases = await Promise.all(
+      reopenResponses.map((response) => response.json() as Promise<Case>),
+    )
+
+    expect(reopenResponses.map((response) => response.status)).toEqual([200, 200])
+    expect(reopenedCases[0]).toMatchObject({ status: 'open', version: closedCases[0].version + 1 })
+    expect(reopenedCases[1]).toEqual(reopenedCases[0])
+
+    const eventCounts = await orm.em
+      .getConnection()
+      .execute<Array<{ count: number; type: string }>>(
+        'select type, count(*)::int as count from platform_outbox_events group by type order by type',
+      )
+    expect(eventCounts).toEqual([
+      { count: 1, type: 'case.closed' },
+      { count: 1, type: 'case.created' },
+      { count: 1, type: 'case.reopened' },
+    ])
+  })
+
   it('paginates case lists and applies status and customer filters', async () => {
     const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
     const customerId = '5a4d55ee-f3c6-45c3-8309-e7c684f0a2be'
@@ -262,4 +314,31 @@ const logger: Logger = {
   error: () => undefined,
   info: () => undefined,
   warn: () => undefined,
+}
+
+async function withConcurrentFlushes<Result>(run: () => Promise<Result>): Promise<Result> {
+  const originalFlush = EntityManager.prototype.flush
+  let interceptedFlushes = 0
+  let releaseBarrier = () => undefined
+  const barrier = new Promise<void>((resolve) => {
+    releaseBarrier = resolve
+  })
+  const timeout = setTimeout(releaseBarrier, 5_000)
+  const flush = vi.spyOn(EntityManager.prototype, 'flush').mockImplementation(async function () {
+    if (interceptedFlushes < 2) {
+      interceptedFlushes += 1
+      if (interceptedFlushes === 2) releaseBarrier()
+      await barrier
+    }
+    return originalFlush.call(this)
+  })
+
+  try {
+    const result = await run()
+    expect(interceptedFlushes).toBe(2)
+    return result
+  } finally {
+    clearTimeout(timeout)
+    flush.mockRestore()
+  }
 }
