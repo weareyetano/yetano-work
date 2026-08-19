@@ -57,6 +57,22 @@ the repository has a canonical domain entity worth extracting into a dedicated s
 - Transfer runtime ownership only after stopping the previous stack. Preserve unfinished work and
   never force-remove or force-clean a worktree unless explicitly requested.
 
+## Branches and pull requests
+
+- Use one short-lived topic branch per task, paired with its isolated worktree. Read-only tasks do
+  not require a branch.
+- Reuse the current topic branch when the environment already created one. Otherwise base new work
+  on the latest verified `origin/main`; never switch or repurpose the primary checkout.
+- Name branches `<type>/<kebab-case-summary>`, using the same types as Conventional Commits. Include
+  the issue number when one exists, for example `fix/123-contact-import`.
+- Before creating a branch, inspect the working tree, worktree list, local and remote refs, and any
+  existing pull request. Stop on a collision; never reset or overwrite an existing branch.
+- Do not push or create, update, or merge a pull request unless the user explicitly requests
+  publication. Reuse an existing pull request for the branch, target `main`, and keep incomplete
+  work in draft status.
+- Never force-push, rewrite published history, bypass hooks, or delete a branch or worktree with
+  unpreserved work.
+
 ## Git commits
 
 Use Conventional Commits:
