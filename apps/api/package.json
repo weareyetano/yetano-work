@@ -1,0 +1,39 @@
+{
+  "name": "@yetano/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "db:check": "mikro-orm migration:check",
+    "db:create": "mikro-orm migration:create",
+    "db:migrate": "node --import tsx src/migrate.ts",
+    "dev": "node --import tsx --watch src/server.ts",
+    "spec": "node --import tsx scripts/export-openapi.ts",
+    "start": "node dist/src/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@hono/standard-validator": "catalog:",
+    "@mikro-orm/core": "catalog:",
+    "@mikro-orm/migrations": "catalog:",
+    "@mikro-orm/postgresql": "catalog:",
+    "@scalar/hono-api-reference": "catalog:",
+    "@yetano/contracts": "workspace:*",
+    "awilix": "catalog:",
+    "hono": "catalog:",
+    "hono-openapi": "catalog:",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@mikro-orm/cli": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

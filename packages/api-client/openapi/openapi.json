@@ -1,0 +1,95 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Yetano Work API",
+    "description": "Public API for Yetano Work.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "description": "Checks whether the API can reach its PostgreSQL database.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "database",
+                    "status",
+                    "version"
+                  ],
+                  "properties": {
+                    "database": {
+                      "type": "string",
+                      "const": "up"
+                    },
+                    "status": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Current health of the Yetano Work API and its database connection.",
+                  "title": "HealthResponse"
+                }
+              }
+            },
+            "description": "The API and database are ready."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The API is not ready."
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    }
+  },
+  "components": {}
+}

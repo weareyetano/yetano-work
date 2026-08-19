@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "exclude": ["src/**/*.test.ts"],
+  "include": ["mikro-orm.config.ts", "scripts/**/*.ts", "src/**/*.ts"],
+  "references": [{ "path": "../../packages/contracts" }]
+}

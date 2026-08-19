@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: yetano_work
+      POSTGRES_PASSWORD: yetano
+      POSTGRES_USER: yetano
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U yetano -d yetano_work']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+
+volumes:
+  postgres-data:

@@ -1,0 +1,39 @@
+{
+  "name": "yetano-work",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "api:generate": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api spec && pnpm --filter @yetano/api-client generate",
+    "api:check": "pnpm api:generate && git diff --exit-code -- packages/api-client",
+    "build": "pnpm api:generate && pnpm --filter @yetano/api-client build && pnpm --filter @yetano/web build && pnpm --filter @yetano/api build",
+    "build:packages": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm api:check",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @yetano/api db:migrate",
+    "db:up": "docker compose up -d db",
+    "dev": "pnpm api:generate && pnpm build:packages && pnpm --parallel --filter @yetano/contracts --filter @yetano/api-client --filter @yetano/api --filter @yetano/web dev",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "start": "pnpm --filter @yetano/api start",
+    "test": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:e2e": "playwright test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build && pnpm --recursive --if-present typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
