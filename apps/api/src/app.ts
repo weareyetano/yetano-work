@@ -12,7 +12,7 @@ import { openAPIRouteHandler } from 'hono-openapi'
 import type { AppContainer } from './container.js'
 import { createRequestScope } from './container.js'
 import type { AppEnvironment } from './http-types.js'
-import { createHealthRoutes } from './modules/health/health.routes.js'
+import { createHealthRoutes } from './modules/health/index.js'
 import { problem } from './problem.js'
 
 interface CreateAppOptions {

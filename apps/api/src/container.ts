@@ -3,7 +3,7 @@ import { type AwilixContainer, asFunction, asValue, createContainer, InjectionMo
 
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
-import { createHealthService, type HealthService } from './modules/health/health.service.js'
+import { createHealthService, type HealthService } from './modules/health/index.js'
 
 export interface Cradle {
   config: AppConfig
