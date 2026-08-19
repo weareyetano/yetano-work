@@ -89,6 +89,2016 @@
           "System"
         ]
       }
+    },
+    "/api/v1/cases": {
+      "post": {
+        "operationId": "createCase",
+        "description": "Creates an open case in the server-resolved organization.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "customerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "Soft cross-module reference to a customer.",
+                        "format": "uuid",
+                        "title": "CustomerId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Fields accepted when creating a case.",
+                "title": "CreateCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "closedAt",
+                    "createdAt",
+                    "customerId",
+                    "description",
+                    "id",
+                    "organizationId",
+                    "status",
+                    "title",
+                    "updatedAt",
+                    "version"
+                  ],
+                  "properties": {
+                    "closedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "customerId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Soft cross-module reference to a customer.",
+                          "format": "uuid",
+                          "title": "CustomerId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "description": "Organization scope assigned by the server.",
+                      "format": "uuid",
+                      "title": "OrganizationId"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "open"
+                        },
+                        {
+                          "type": "string",
+                          "const": "closed"
+                        }
+                      ],
+                      "description": "Current lifecycle status of a case.",
+                      "title": "CaseStatus"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "minLength": 1
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "An organization-scoped case.",
+                  "title": "Case"
+                }
+              }
+            },
+            "description": "The created case."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      },
+      "get": {
+        "operationId": "listCases",
+        "description": "Lists cases in the server-resolved organization.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customerId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "open"
+                },
+                {
+                  "type": "string",
+                  "const": "closed"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "closedAt",
+                          "createdAt",
+                          "customerId",
+                          "description",
+                          "id",
+                          "organizationId",
+                          "status",
+                          "title",
+                          "updatedAt",
+                          "version"
+                        ],
+                        "properties": {
+                          "closedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "customerId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "Soft cross-module reference to a customer.",
+                                "format": "uuid",
+                                "title": "CustomerId"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "description": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 10000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "Unique identifier of a case.",
+                            "format": "uuid",
+                            "title": "CaseId"
+                          },
+                          "organizationId": {
+                            "type": "string",
+                            "description": "Organization scope assigned by the server.",
+                            "format": "uuid",
+                            "title": "OrganizationId"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": "open"
+                              },
+                              {
+                                "type": "string",
+                                "const": "closed"
+                              }
+                            ],
+                            "description": "Current lifecycle status of a case.",
+                            "title": "CaseStatus"
+                          },
+                          "title": {
+                            "type": "string",
+                            "maxLength": 200,
+                            "minLength": 1
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "An organization-scoped case.",
+                        "title": "Case"
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "A cursor-paginated list of cases.",
+                  "title": "CaseList"
+                }
+              }
+            },
+            "description": "A cursor-paginated case list."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
+    "/api/v1/cases/{caseId}": {
+      "get": {
+        "operationId": "getCase",
+        "description": "Gets one organization-scoped case.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "closedAt",
+                    "createdAt",
+                    "customerId",
+                    "description",
+                    "id",
+                    "organizationId",
+                    "status",
+                    "title",
+                    "updatedAt",
+                    "version"
+                  ],
+                  "properties": {
+                    "closedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "customerId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Soft cross-module reference to a customer.",
+                          "format": "uuid",
+                          "title": "CustomerId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "description": "Organization scope assigned by the server.",
+                      "format": "uuid",
+                      "title": "OrganizationId"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "open"
+                        },
+                        {
+                          "type": "string",
+                          "const": "closed"
+                        }
+                      ],
+                      "description": "Current lifecycle status of a case.",
+                      "title": "CaseStatus"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "minLength": 1
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "An organization-scoped case.",
+                  "title": "Case"
+                }
+              }
+            },
+            "description": "The requested case."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      },
+      "patch": {
+        "operationId": "updateCase",
+        "description": "Updates editable case fields using optimistic concurrency.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "expectedVersion"
+                ],
+                "properties": {
+                  "customerId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "Soft cross-module reference to a customer.",
+                        "format": "uuid",
+                        "title": "CustomerId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Editable case fields and the expected optimistic-lock version.",
+                "title": "UpdateCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "closedAt",
+                    "createdAt",
+                    "customerId",
+                    "description",
+                    "id",
+                    "organizationId",
+                    "status",
+                    "title",
+                    "updatedAt",
+                    "version"
+                  ],
+                  "properties": {
+                    "closedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "customerId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Soft cross-module reference to a customer.",
+                          "format": "uuid",
+                          "title": "CustomerId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "description": "Organization scope assigned by the server.",
+                      "format": "uuid",
+                      "title": "OrganizationId"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "open"
+                        },
+                        {
+                          "type": "string",
+                          "const": "closed"
+                        }
+                      ],
+                      "description": "Current lifecycle status of a case.",
+                      "title": "CaseStatus"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "minLength": 1
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "An organization-scoped case.",
+                  "title": "Case"
+                }
+              }
+            },
+            "description": "The updated case."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "currentVersion",
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "const": "case_version_conflict"
+                    },
+                    "currentVersion": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "number",
+                      "const": 409
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Problem details returned for a stale case mutation.",
+                  "title": "CaseVersionConflict"
+                }
+              }
+            },
+            "description": "The expected case version is stale."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
+    "/api/v1/cases/{caseId}/close": {
+      "post": {
+        "operationId": "closeCase",
+        "description": "Closes a case idempotently.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "expectedVersion"
+                ],
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Expected version for an idempotent case lifecycle transition.",
+                "title": "TransitionCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "closedAt",
+                    "createdAt",
+                    "customerId",
+                    "description",
+                    "id",
+                    "organizationId",
+                    "status",
+                    "title",
+                    "updatedAt",
+                    "version"
+                  ],
+                  "properties": {
+                    "closedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "customerId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Soft cross-module reference to a customer.",
+                          "format": "uuid",
+                          "title": "CustomerId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "description": "Organization scope assigned by the server.",
+                      "format": "uuid",
+                      "title": "OrganizationId"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "open"
+                        },
+                        {
+                          "type": "string",
+                          "const": "closed"
+                        }
+                      ],
+                      "description": "Current lifecycle status of a case.",
+                      "title": "CaseStatus"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "minLength": 1
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "An organization-scoped case.",
+                  "title": "Case"
+                }
+              }
+            },
+            "description": "The closed case."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "currentVersion",
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "const": "case_version_conflict"
+                    },
+                    "currentVersion": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "number",
+                      "const": 409
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Problem details returned for a stale case mutation.",
+                  "title": "CaseVersionConflict"
+                }
+              }
+            },
+            "description": "The expected case version is stale."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
+    "/api/v1/cases/{caseId}/reopen": {
+      "post": {
+        "operationId": "reopenCase",
+        "description": "Reopens a case idempotently.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "expectedVersion"
+                ],
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Expected version for an idempotent case lifecycle transition.",
+                "title": "TransitionCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "closedAt",
+                    "createdAt",
+                    "customerId",
+                    "description",
+                    "id",
+                    "organizationId",
+                    "status",
+                    "title",
+                    "updatedAt",
+                    "version"
+                  ],
+                  "properties": {
+                    "closedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "customerId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Soft cross-module reference to a customer.",
+                          "format": "uuid",
+                          "title": "CustomerId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "description": "Organization scope assigned by the server.",
+                      "format": "uuid",
+                      "title": "OrganizationId"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "open"
+                        },
+                        {
+                          "type": "string",
+                          "const": "closed"
+                        }
+                      ],
+                      "description": "Current lifecycle status of a case.",
+                      "title": "CaseStatus"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "minLength": 1
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "An organization-scoped case.",
+                  "title": "Case"
+                }
+              }
+            },
+            "description": "The reopened case."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "currentVersion",
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "const": "case_version_conflict"
+                    },
+                    "currentVersion": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "number",
+                      "const": 409
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Problem details returned for a stale case mutation.",
+                  "title": "CaseVersionConflict"
+                }
+              }
+            },
+            "description": "The expected case version is stale."
+          }
+        },
+        "tags": [
+          "Cases"
+        ]
+      }
     }
   },
   "components": {}

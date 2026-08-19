@@ -8,7 +8,10 @@ import { loadConfig, loadLocalEnvironment } from './config.js'
 
 describe('loadConfig', () => {
   it('loads defaults and required database configuration', () => {
-    const config = loadConfig({ DATABASE_URL: 'postgresql://postgres:postgres@localhost/yetano' })
+    const config = loadConfig({
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost/yetano',
+      ORGANIZATION_ID: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
+    })
 
     expect(config.databaseUrl).toBe('postgresql://postgres:postgres@localhost/yetano')
     expect(config.logLevel).toBe('info')
@@ -19,9 +22,22 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({
         DATABASE_URL: 'postgresql://postgres:postgres@localhost/yetano',
+        ORGANIZATION_ID: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
         PORT: '70000',
       }),
     ).toThrow('PORT must be between 1 and 65535')
+  })
+
+  it('rejects a missing or invalid organization scope', () => {
+    expect(() =>
+      loadConfig({ DATABASE_URL: 'postgresql://postgres:postgres@localhost/yetano' }),
+    ).toThrow('ORGANIZATION_ID')
+    expect(() =>
+      loadConfig({
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost/yetano',
+        ORGANIZATION_ID: 'not-a-uuid',
+      }),
+    ).toThrow('ORGANIZATION_ID')
   })
 })
 

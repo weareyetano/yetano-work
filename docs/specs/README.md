@@ -40,6 +40,6 @@ Adapt the sections to the subject, but cover these concerns when they apply:
 
 | Specification | Status |
 | --- | --- |
-| [Cases](cases.md) | Draft |
+| [Cases](cases.md) | Implemented |
 | [Tasks](tasks.md) | Draft |
 | [Activities](activities.md) | Draft |

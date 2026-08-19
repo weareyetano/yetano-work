@@ -44,3 +44,719 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type ListCasesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        cursor?: string;
+        customerId?: string;
+        limit?: number;
+        status?: 'open' | 'closed';
+    };
+    url: '/api/v1/cases';
+};
+
+export type ListCasesErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+};
+
+export type ListCasesError = ListCasesErrors[keyof ListCasesErrors];
+
+export type ListCasesResponses = {
+    /**
+     * CaseList
+     *
+     * A cursor-paginated list of cases.
+     */
+    200: {
+        items: Array<{
+            closedAt: string | null;
+            createdAt: string;
+            customerId: string | null;
+            description: string | null;
+            /**
+             * CaseId
+             *
+             * Unique identifier of a case.
+             */
+            id: string;
+            /**
+             * OrganizationId
+             *
+             * Organization scope assigned by the server.
+             */
+            organizationId: string;
+            /**
+             * CaseStatus
+             *
+             * Current lifecycle status of a case.
+             */
+            status: 'open' | 'closed';
+            title: string;
+            updatedAt: string;
+            version: number;
+        }>;
+        nextCursor: string | null;
+    };
+};
+
+export type ListCasesResponse = ListCasesResponses[keyof ListCasesResponses];
+
+export type CreateCaseData = {
+    /**
+     * CreateCaseRequest
+     *
+     * Fields accepted when creating a case.
+     */
+    body: {
+        customerId?: string | null;
+        description?: string | null;
+        title: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/cases';
+};
+
+export type CreateCaseErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+};
+
+export type CreateCaseError = CreateCaseErrors[keyof CreateCaseErrors];
+
+export type CreateCaseResponses = {
+    /**
+     * Case
+     *
+     * An organization-scoped case.
+     */
+    201: {
+        closedAt: string | null;
+        createdAt: string;
+        customerId: string | null;
+        description: string | null;
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        id: string;
+        /**
+         * OrganizationId
+         *
+         * Organization scope assigned by the server.
+         */
+        organizationId: string;
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status: 'open' | 'closed';
+        title: string;
+        updatedAt: string;
+        version: number;
+    };
+};
+
+export type CreateCaseResponse = CreateCaseResponses[keyof CreateCaseResponses];
+
+export type GetCaseData = {
+    body?: never;
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: never;
+    url: '/api/v1/cases/{caseId}';
+};
+
+export type GetCaseErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+};
+
+export type GetCaseError = GetCaseErrors[keyof GetCaseErrors];
+
+export type GetCaseResponses = {
+    /**
+     * Case
+     *
+     * An organization-scoped case.
+     */
+    200: {
+        closedAt: string | null;
+        createdAt: string;
+        customerId: string | null;
+        description: string | null;
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        id: string;
+        /**
+         * OrganizationId
+         *
+         * Organization scope assigned by the server.
+         */
+        organizationId: string;
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status: 'open' | 'closed';
+        title: string;
+        updatedAt: string;
+        version: number;
+    };
+};
+
+export type GetCaseResponse = GetCaseResponses[keyof GetCaseResponses];
+
+export type UpdateCaseData = {
+    /**
+     * UpdateCaseRequest
+     *
+     * Editable case fields and the expected optimistic-lock version.
+     */
+    body: {
+        customerId?: string | null;
+        description?: string | null;
+        expectedVersion: number;
+        title?: string;
+    };
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: never;
+    url: '/api/v1/cases/{caseId}';
+};
+
+export type UpdateCaseErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * CaseVersionConflict
+     *
+     * Problem details returned for a stale case mutation.
+     */
+    409: {
+        code: 'case_version_conflict';
+        currentVersion: number;
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: 409;
+        title: string;
+        type: string;
+    };
+};
+
+export type UpdateCaseError = UpdateCaseErrors[keyof UpdateCaseErrors];
+
+export type UpdateCaseResponses = {
+    /**
+     * Case
+     *
+     * An organization-scoped case.
+     */
+    200: {
+        closedAt: string | null;
+        createdAt: string;
+        customerId: string | null;
+        description: string | null;
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        id: string;
+        /**
+         * OrganizationId
+         *
+         * Organization scope assigned by the server.
+         */
+        organizationId: string;
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status: 'open' | 'closed';
+        title: string;
+        updatedAt: string;
+        version: number;
+    };
+};
+
+export type UpdateCaseResponse = UpdateCaseResponses[keyof UpdateCaseResponses];
+
+export type CloseCaseData = {
+    /**
+     * TransitionCaseRequest
+     *
+     * Expected version for an idempotent case lifecycle transition.
+     */
+    body: {
+        expectedVersion: number;
+    };
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: never;
+    url: '/api/v1/cases/{caseId}/close';
+};
+
+export type CloseCaseErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * CaseVersionConflict
+     *
+     * Problem details returned for a stale case mutation.
+     */
+    409: {
+        code: 'case_version_conflict';
+        currentVersion: number;
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: 409;
+        title: string;
+        type: string;
+    };
+};
+
+export type CloseCaseError = CloseCaseErrors[keyof CloseCaseErrors];
+
+export type CloseCaseResponses = {
+    /**
+     * Case
+     *
+     * An organization-scoped case.
+     */
+    200: {
+        closedAt: string | null;
+        createdAt: string;
+        customerId: string | null;
+        description: string | null;
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        id: string;
+        /**
+         * OrganizationId
+         *
+         * Organization scope assigned by the server.
+         */
+        organizationId: string;
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status: 'open' | 'closed';
+        title: string;
+        updatedAt: string;
+        version: number;
+    };
+};
+
+export type CloseCaseResponse = CloseCaseResponses[keyof CloseCaseResponses];
+
+export type ReopenCaseData = {
+    /**
+     * TransitionCaseRequest
+     *
+     * Expected version for an idempotent case lifecycle transition.
+     */
+    body: {
+        expectedVersion: number;
+    };
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: never;
+    url: '/api/v1/cases/{caseId}/reopen';
+};
+
+export type ReopenCaseErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * CaseVersionConflict
+     *
+     * Problem details returned for a stale case mutation.
+     */
+    409: {
+        code: 'case_version_conflict';
+        currentVersion: number;
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: 409;
+        title: string;
+        type: string;
+    };
+};
+
+export type ReopenCaseError = ReopenCaseErrors[keyof ReopenCaseErrors];
+
+export type ReopenCaseResponses = {
+    /**
+     * Case
+     *
+     * An organization-scoped case.
+     */
+    200: {
+        closedAt: string | null;
+        createdAt: string;
+        customerId: string | null;
+        description: string | null;
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        id: string;
+        /**
+         * OrganizationId
+         *
+         * Organization scope assigned by the server.
+         */
+        organizationId: string;
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status: 'open' | 'closed';
+        title: string;
+        updatedAt: string;
+        version: number;
+    };
+};
+
+export type ReopenCaseResponse = ReopenCaseResponses[keyof ReopenCaseResponses];

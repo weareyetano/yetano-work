@@ -7,8 +7,8 @@ The current health capability is the smallest working example of the repository'
 | Shared success and error schemas | `packages/contracts/src/index.ts` |
 | Hono route and OpenAPI metadata | `apps/api/src/modules/health/health.routes.ts` |
 | Database-backed service | `apps/api/src/modules/health/health.service.ts` |
-| Dependency registration | `apps/api/src/container.ts` |
-| OpenAPI export | `apps/api/src/openapi.ts` |
+| Module and dependency registration | `apps/api/src/modules/health/health.module.ts` |
+| OpenAPI composition and export | `apps/api/src/app.ts` and `apps/api/scripts/export-openapi.ts` |
 | Generated document and client | `packages/api-client/openapi` and `packages/api-client/src/generated` |
 | Web consumer | `apps/web/src/routes/index.tsx` |
 

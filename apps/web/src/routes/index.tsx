@@ -33,6 +33,9 @@ function HomePage() {
             Yetano Work ma gotowy, typowany pion od Reacta do PostgreSQL — przygotowany na
             rozwijanie właściwych modułów CRM i ERP.
           </p>
+          <a className="primary-link" href="/cases">
+            Przejdź do spraw
+          </a>
         </div>
         <aside className="status-card" aria-label="Status API">
           <span className={`status-dot status-dot--${health.isSuccess ? 'up' : 'down'}`} />

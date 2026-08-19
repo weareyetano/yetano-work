@@ -29,3 +29,6 @@ product behavior.
 | 2026-08-19 | [Use Hono for the HTTP API](2026-08-19-hono.md) | Accepted |
 | 2026-08-19 | [Use MikroORM for persistence](2026-08-19-mikroorm.md) | Accepted |
 | 2026-08-19 | [Expose modules through public entrypoints](2026-08-19-public-module-api.md) | Accepted |
+| 2026-08-19 | [Compose the application as a compile-time modular monolith](2026-08-19-compile-time-modular-monolith.md) | Accepted |
+| 2026-08-19 | [Enforce authorization and organization scope through a trusted execution context](2026-08-19-trusted-execution-context.md) | Accepted |
+| 2026-08-19 | [Publish domain events through a transactional outbox](2026-08-19-transactional-domain-events.md) | Accepted |
