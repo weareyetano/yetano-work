@@ -9,11 +9,12 @@
     "pnpm": ">=10 <11"
   },
   "scripts": {
+    "agents:check": "node --test scripts/*.test.mjs && node scripts/check-agent-assets.mjs",
     "api:generate": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api spec && pnpm --filter @yetano/api-client generate",
     "api:check": "pnpm api:generate && git diff --exit-code -- packages/api-client",
     "build": "pnpm api:generate && pnpm --filter @yetano/api-client build && pnpm --filter @yetano/web build && pnpm --filter @yetano/api build",
     "build:packages": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm api:check",
+    "check": "pnpm lint && pnpm agents:check && pnpm typecheck && pnpm test && pnpm api:check",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @yetano/api db:migrate",
     "db:up": "docker compose up -d db",
@@ -25,7 +26,8 @@
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "typecheck": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build && pnpm --recursive --if-present typecheck"
+    "typecheck": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build && pnpm --recursive --if-present typecheck",
+    "verify:full": "node scripts/verify-full.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

@@ -49,16 +49,33 @@ pnpm api:check
 ## Verification
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:integration
-pnpm build
-pnpm test:e2e
+pnpm check
+TEST_DATABASE_URL=postgresql://yetano:yetano@localhost:5432/yetano_work pnpm verify:full
 ```
 
-Integration tests use `TEST_DATABASE_URL`. They are skipped when the variable is not
-set; CI runs them against PostgreSQL 18.
+`pnpm check` is the quick local gate. `pnpm verify:full` runs the same lint, typecheck,
+unit, integration, generated API, build, and end-to-end gates as CI. The full gate fails
+early unless `TEST_DATABASE_URL` is set, so a skipped integration suite cannot look green.
+
+## AI-assisted development
+
+Repository-specific agent workflows live in `.agents/skills`. `AGENTS.md` routes work to
+the smallest relevant skill, while nested instruction files document API, web, and contract
+conventions close to their code.
+
+Codex reads the canonical skills directly and invokes them as `$yetano-verify`,
+`$yetano-api-slice`, or `$yetano-code-review`. Claude Code uses the matching `/yetano-*`
+commands from `.claude/skills`. Those files are metadata-only adapters; workflow instructions
+remain canonical in `.agents/skills`.
+
+```bash
+pnpm agents:check
+```
+
+This command validates skill metadata, references, routing, size limits, and the layered
+instruction files, including the Claude Code adapters. Keep product and architecture facts in
+the canonical documentation or nearest `AGENTS.md`; skills should describe procedures rather
+than duplicate those facts.
 
 ## Deferred decisions
 
