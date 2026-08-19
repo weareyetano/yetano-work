@@ -14,9 +14,14 @@ function RootLayout() {
           </span>
           <span>Yetano Work</span>
         </a>
-        <a className="docs-link" href="/api/docs">
-          API docs
-        </a>
+        <nav aria-label="Główna nawigacja">
+          <a className="nav-link" href="/cases">
+            Sprawy
+          </a>
+          <a className="docs-link" href="/api/docs">
+            API docs
+          </a>
+        </nav>
       </header>
       <Outlet />
     </div>

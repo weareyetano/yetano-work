@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-
+import type { OrganizationId } from '@yetano/contracts'
 import Type from 'typebox'
 import { Compile } from 'typebox/compile'
 
@@ -19,6 +19,7 @@ const RuntimeEnvironmentSchema = Compile(
     NODE_ENV: Type.Optional(
       Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')]),
     ),
+    ORGANIZATION_ID: Type.String({ format: 'uuid' }),
     PORT: Type.Optional(Type.String({ pattern: '^[0-9]+$' })),
     STATIC_ROOT: Type.Optional(Type.String({ minLength: 1 })),
   }),
@@ -31,6 +32,7 @@ export interface AppConfig {
   databaseUrl: string
   logLevel: LogLevel
   nodeEnv: 'development' | 'production' | 'test'
+  organizationId: OrganizationId
   port: number
   staticRoot: string
 }
@@ -78,6 +80,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     databaseUrl: environment.DATABASE_URL,
     logLevel: environment.LOG_LEVEL ?? 'info',
     nodeEnv: environment.NODE_ENV ?? 'development',
+    organizationId: environment.ORGANIZATION_ID as OrganizationId,
     port,
     staticRoot: resolve(environment.STATIC_ROOT ?? '../web/dist'),
   }

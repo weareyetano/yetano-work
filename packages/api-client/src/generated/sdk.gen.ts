@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetHealthData, GetHealthErrors, GetHealthResponses } from './types.gen';
+import type { CloseCaseData, CloseCaseErrors, CloseCaseResponses, CreateCaseData, CreateCaseErrors, CreateCaseResponses, GetCaseData, GetCaseErrors, GetCaseResponses, GetHealthData, GetHealthErrors, GetHealthResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ReopenCaseData, ReopenCaseErrors, ReopenCaseResponses, UpdateCaseData, UpdateCaseErrors, UpdateCaseResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -22,3 +22,61 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * Checks whether the API can reach its PostgreSQL database.
  */
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>): RequestResult<GetHealthResponses, GetHealthErrors, ThrowOnError> => (options?.client ?? client).get<GetHealthResponses, GetHealthErrors, ThrowOnError>({ url: '/api/v1/health', ...options });
+
+/**
+ * Lists cases in the server-resolved organization.
+ */
+export const listCases = <ThrowOnError extends boolean = false>(options?: Options<ListCasesData, ThrowOnError>): RequestResult<ListCasesResponses, ListCasesErrors, ThrowOnError> => (options?.client ?? client).get<ListCasesResponses, ListCasesErrors, ThrowOnError>({ url: '/api/v1/cases', ...options });
+
+/**
+ * Creates an open case in the server-resolved organization.
+ */
+export const createCase = <ThrowOnError extends boolean = false>(options: Options<CreateCaseData, ThrowOnError>): RequestResult<CreateCaseResponses, CreateCaseErrors, ThrowOnError> => (options.client ?? client).post<CreateCaseResponses, CreateCaseErrors, ThrowOnError>({
+    url: '/api/v1/cases',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Gets one organization-scoped case.
+ */
+export const getCase = <ThrowOnError extends boolean = false>(options: Options<GetCaseData, ThrowOnError>): RequestResult<GetCaseResponses, GetCaseErrors, ThrowOnError> => (options.client ?? client).get<GetCaseResponses, GetCaseErrors, ThrowOnError>({ url: '/api/v1/cases/{caseId}', ...options });
+
+/**
+ * Updates editable case fields using optimistic concurrency.
+ */
+export const updateCase = <ThrowOnError extends boolean = false>(options: Options<UpdateCaseData, ThrowOnError>): RequestResult<UpdateCaseResponses, UpdateCaseErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCaseResponses, UpdateCaseErrors, ThrowOnError>({
+    url: '/api/v1/cases/{caseId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Closes a case idempotently.
+ */
+export const closeCase = <ThrowOnError extends boolean = false>(options: Options<CloseCaseData, ThrowOnError>): RequestResult<CloseCaseResponses, CloseCaseErrors, ThrowOnError> => (options.client ?? client).post<CloseCaseResponses, CloseCaseErrors, ThrowOnError>({
+    url: '/api/v1/cases/{caseId}/close',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reopens a case idempotently.
+ */
+export const reopenCase = <ThrowOnError extends boolean = false>(options: Options<ReopenCaseData, ThrowOnError>): RequestResult<ReopenCaseResponses, ReopenCaseErrors, ThrowOnError> => (options.client ?? client).post<ReopenCaseResponses, ReopenCaseErrors, ThrowOnError>({
+    url: '/api/v1/cases/{caseId}/reopen',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

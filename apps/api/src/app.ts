@@ -12,7 +12,11 @@ import { openAPIRouteHandler } from 'hono-openapi'
 import type { AppContainer } from './container.js'
 import { createRequestScope } from './container.js'
 import type { AppEnvironment } from './http-types.js'
-import { createHealthRoutes } from './modules/health/index.js'
+import { applicationModules } from './modules/index.js'
+import {
+  AuthenticationRequiredError,
+  AuthorizationDeniedError,
+} from './platform/execution/errors.js'
 import { problem } from './problem.js'
 
 interface CreateAppOptions {
@@ -65,26 +69,45 @@ export function createApp({ container }: CreateAppOptions = {}) {
     })
     context.set('scope', scope)
 
-    return RequestContext.create(entityManager, next)
+    return RequestContext.create(entityManager, async () => {
+      try {
+        const executionContext = await scope
+          .resolve('executionContextFactory')
+          .create(context.req.raw, context.get('requestId'))
+        context.set('executionContext', executionContext)
+        await next()
+      } catch (error) {
+        if (error instanceof AuthenticationRequiredError) {
+          return problem(context, 401, 'Unauthorized', error.message)
+        }
+        if (error instanceof AuthorizationDeniedError) {
+          return problem(context, 403, 'Forbidden', error.message)
+        }
+        throw error
+      }
+    })
   })
 
-  const apiRoutes = new Hono<AppEnvironment>().route('/api/v1', createHealthRoutes())
+  const apiRoutes = new Hono<AppEnvironment>()
+  for (const module of applicationModules) apiRoutes.route('/api/v1', module.routes())
   app.route('/', apiRoutes)
 
-  app.get(
-    '/api/openapi.json',
-    openAPIRouteHandler(apiRoutes, {
-      documentation: {
-        info: {
-          description: 'Public API for Yetano Work.',
-          title: 'Yetano Work API',
-          version: '1.0.0',
+  if (container?.resolve('config').nodeEnv !== 'production') {
+    app.get(
+      '/api/openapi.json',
+      openAPIRouteHandler(apiRoutes, {
+        documentation: {
+          info: {
+            description: 'Public API for Yetano Work.',
+            title: 'Yetano Work API',
+            version: '1.0.0',
+          },
+          openapi: '3.1.0',
         },
-        openapi: '3.1.0',
-      },
-    }),
-  )
-  app.get('/api/docs', Scalar({ url: '/api/openapi.json' }))
+      }),
+    )
+    app.get('/api/docs', Scalar({ url: '/api/openapi.json' }))
+  }
 
   app.all('/api/*', (context) => problem(context, 404, 'Not Found', 'API route not found.'))
   app.all('/health/*', (context) => problem(context, 404, 'Not Found', 'Health route not found.'))

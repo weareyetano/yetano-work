@@ -3,27 +3,60 @@ import { type AwilixContainer, asFunction, asValue, createContainer, InjectionMo
 
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
-import { createHealthService, type HealthService } from './modules/health/index.js'
+import type { CasesService } from './modules/cases/index.js'
+import type { ModuleCatalog } from './modules/catalog.js'
+import type { HealthService } from './modules/health/index.js'
+import { applicationModuleCatalog, applicationModules } from './modules/index.js'
+import { createOutboxDispatcher, type OutboxDispatcher } from './platform/events/dispatcher.js'
+import { createOutboxWriter, type OutboxWriter } from './platform/events/outbox.js'
+import type {
+  ActorResolver,
+  CapabilityResolver,
+  ExecutionContextFactory,
+  OrganizationResolver,
+} from './platform/execution/context.js'
+import { createOperationExecutor, type OperationExecutor } from './platform/execution/operation.js'
+import {
+  createDevActorResolver,
+  createDevCapabilityResolver,
+  createExecutionContextFactory,
+  createSingleOrganizationResolver,
+} from './platform/execution/resolvers.js'
 
 export interface Cradle {
+  actorResolver: ActorResolver
+  capabilityResolver: CapabilityResolver
+  casesService: CasesService
   config: AppConfig
   entityManager: EntityManager
+  executionContextFactory: ExecutionContextFactory
   healthService: HealthService
   logger: Logger
+  moduleCatalog: ModuleCatalog
+  operationExecutor: OperationExecutor
+  organizationResolver: OrganizationResolver
   orm: MikroORM
+  outboxDispatcher: OutboxDispatcher
+  outboxWriter: OutboxWriter
 }
 
 export type AppContainer = AwilixContainer<Cradle>
 
 interface RootContainerDependencies {
+  actorResolver?: ActorResolver
+  capabilityResolver?: CapabilityResolver
   config: AppConfig
   logger: Logger
+  organizationResolver?: OrganizationResolver
   orm: MikroORM
 }
 
 export function createRootContainer({
+  actorResolver,
+  capabilityResolver,
   config,
   logger,
+  organizationResolver,
   orm,
 }: RootContainerDependencies): AppContainer {
   const container = createContainer<Cradle>({
@@ -32,11 +65,22 @@ export function createRootContainer({
   })
 
   container.register({
+    actorResolver: asValue(actorResolver ?? createDevActorResolver()),
+    capabilityResolver: asValue(capabilityResolver ?? createDevCapabilityResolver()),
     config: asValue(config),
-    healthService: asFunction(createHealthService).scoped(),
+    executionContextFactory: asFunction(createExecutionContextFactory).singleton(),
     logger: asValue(logger),
+    moduleCatalog: asValue(applicationModuleCatalog),
+    operationExecutor: asFunction(createOperationExecutor).scoped(),
+    organizationResolver: asValue(
+      organizationResolver ?? createSingleOrganizationResolver({ config }),
+    ),
     orm: asValue(orm),
+    outboxDispatcher: asFunction(createOutboxDispatcher).singleton(),
+    outboxWriter: asFunction(createOutboxWriter).singleton(),
   })
+
+  for (const module of applicationModules) container.register(module.registrations)
 
   return container
 }

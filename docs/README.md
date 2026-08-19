@@ -8,6 +8,7 @@ decisions.
 | What does the product do and how does it behave? | [`specs`](specs/README.md) | Living documentation |
 | What architecture choice was made and why? | [`architecture/decisions`](architecture/decisions/README.md) | Dated decision record |
 | What is the exact public API wire shape? | [`packages/contracts`](../packages/contracts/src/index.ts) | TypeBox source of truth |
+| Which modules and extension surfaces exist? | [`modules`](modules/README.md) | Generated from module descriptors |
 | How is the behavior implemented and verified? | Application code and tests | Executable source of truth |
 
 An `Implemented` spec is expected to agree with the code and tests. A mismatch is a defect to

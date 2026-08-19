@@ -1,5 +1,6 @@
 import { MikroORM } from '@mikro-orm/postgresql'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { Case } from '@yetano/contracts'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { createApp } from './app.js'
 import type { AppConfig } from './config.js'
@@ -15,6 +16,13 @@ describeWithDatabase('API with PostgreSQL', () => {
 
   beforeAll(async () => {
     orm = await MikroORM.init(createOrmOptions({ databaseUrl: databaseUrl as string }))
+    await orm.migrator.up()
+  })
+
+  beforeEach(async () => {
+    await orm.em
+      .getConnection()
+      .execute('truncate table cases, platform_outbox_events restart identity')
   })
 
   afterAll(async () => {
@@ -22,23 +30,7 @@ describeWithDatabase('API with PostgreSQL', () => {
   })
 
   it('returns readiness and typed API health', async () => {
-    const config: AppConfig = {
-      appVersion: 'test',
-      databaseUrl: databaseUrl as string,
-      logLevel: 'error',
-      nodeEnv: 'test',
-      port: 3000,
-      staticRoot: '/tmp/yetano-work-missing-static',
-    }
-    const logger: Logger = {
-      child: () => logger,
-      debug: () => undefined,
-      error: () => undefined,
-      info: () => undefined,
-      warn: () => undefined,
-    }
-    const container = createRootContainer({ config, logger, orm })
-    const app = createApp({ container })
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
 
     const readiness = await app.request('/health/ready')
     const health = await app.request('/api/v1/health')
@@ -51,4 +43,181 @@ describeWithDatabase('API with PostgreSQL', () => {
       version: 'test',
     })
   })
+
+  it('keeps case data and emitted event scope inside the server-resolved organization', async () => {
+    const firstOrganization = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
+    const secondOrganization = '98b5d140-f720-4e64-89c3-59adc699cfe0'
+    const firstApp = createTestApp(firstOrganization)
+
+    const createResponse = await firstApp.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Customer cannot access their invoice' }),
+      headers: {
+        'content-type': 'application/json',
+        'x-organization-id': secondOrganization,
+      },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+
+    expect(createResponse.status).toBe(201)
+    expect(created.organizationId).toBe(firstOrganization)
+
+    const outboxRows = await orm.em
+      .getConnection()
+      .execute<Array<{ actor_id: string; organization_id: string; type: string }>>(
+        'select actor_id, organization_id, type from platform_outbox_events',
+      )
+    expect(outboxRows).toEqual([
+      {
+        actor_id: 'local-dev',
+        organization_id: firstOrganization,
+        type: 'case.created',
+      },
+    ])
+
+    const secondApp = createTestApp(secondOrganization)
+    const crossOrganizationRead = await secondApp.request(`/api/v1/cases/${created.id}`)
+    const secondOrganizationList = await secondApp.request('/api/v1/cases')
+
+    expect(crossOrganizationRead.status).toBe(404)
+    await expect(secondOrganizationList.json()).resolves.toEqual({ items: [], nextCursor: null })
+  })
+
+  it('rejects forged scope and stale mutations, and makes lifecycle transitions idempotent', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
+    const forgedScope = await app.request('/api/v1/cases', {
+      body: JSON.stringify({
+        organizationId: '98b5d140-f720-4e64-89c3-59adc699cfe0',
+        title: 'Forged scope',
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(forgedScope.status).toBe(400)
+
+    const createResponse = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Lifecycle test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+
+    const updateResponse = await app.request(`/api/v1/cases/${created.id}`, {
+      body: JSON.stringify({ expectedVersion: created.version, title: 'Updated lifecycle test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'PATCH',
+    })
+    const updated = (await updateResponse.json()) as Case
+    expect(updated.version).toBe(created.version + 1)
+
+    const staleUpdate = await app.request(`/api/v1/cases/${created.id}`, {
+      body: JSON.stringify({ expectedVersion: created.version, title: 'Stale update' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'PATCH',
+    })
+    expect(staleUpdate.status).toBe(409)
+    await expect(staleUpdate.json()).resolves.toMatchObject({
+      code: 'case_version_conflict',
+      currentVersion: updated.version,
+    })
+
+    const close = () =>
+      app.request(`/api/v1/cases/${created.id}/close`, {
+        body: JSON.stringify({ expectedVersion: updated.version }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+    const firstClose = await close()
+    const closed = (await firstClose.json()) as Case
+    const repeatedClose = await close()
+    const closedAgain = (await repeatedClose.json()) as Case
+
+    expect(firstClose.status).toBe(200)
+    expect(repeatedClose.status).toBe(200)
+    expect(closedAgain).toEqual(closed)
+
+    const eventCounts = await orm.em
+      .getConnection()
+      .execute<Array<{ count: number; type: string }>>(
+        'select type, count(*)::int as count from platform_outbox_events group by type order by type',
+      )
+    expect(eventCounts).toEqual([
+      { count: 1, type: 'case.closed' },
+      { count: 1, type: 'case.created' },
+      { count: 1, type: 'case.updated' },
+    ])
+  })
+
+  it('paginates case lists and applies status and customer filters', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
+    const customerId = '5a4d55ee-f3c6-45c3-8309-e7c684f0a2be'
+    const createCase = async (title: string, selectedCustomerId?: string) => {
+      const response = await app.request('/api/v1/cases', {
+        body: JSON.stringify({
+          ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),
+          title,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      return (await response.json()) as Case
+    }
+    const first = await createCase('First')
+    await createCase('Second', customerId)
+    await createCase('Third')
+
+    const firstPageResponse = await app.request('/api/v1/cases?limit=2')
+    const firstPage = (await firstPageResponse.json()) as {
+      items: Case[]
+      nextCursor: string | null
+    }
+    expect(firstPage.items).toHaveLength(2)
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+
+    const nextPageResponse = await app.request(
+      `/api/v1/cases?limit=2&cursor=${encodeURIComponent(firstPage.nextCursor as string)}`,
+    )
+    const nextPage = (await nextPageResponse.json()) as { items: Case[]; nextCursor: string | null }
+    expect(nextPage.items).toHaveLength(1)
+    const allIds = [...firstPage.items, ...nextPage.items].map((item) => item.id)
+    expect(allIds).toHaveLength(3)
+    expect(new Set(allIds).size).toBe(3)
+    expect(allIds).toContain(first.id)
+    expect(nextPage.nextCursor).toBeNull()
+
+    await app.request(`/api/v1/cases/${first.id}/close`, {
+      body: JSON.stringify({ expectedVersion: first.version }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const closedResponse = await app.request('/api/v1/cases?status=closed')
+    const customerResponse = await app.request(`/api/v1/cases?customerId=${customerId}`)
+    const closed = (await closedResponse.json()) as { items: Case[] }
+    const customerCases = (await customerResponse.json()) as { items: Case[] }
+
+    expect(closed.items.map((item) => item.id)).toEqual([first.id])
+    expect(customerCases.items.map((item) => item.customerId)).toEqual([customerId])
+  })
+
+  function createTestApp(organizationId: string) {
+    const config: AppConfig = {
+      appVersion: 'test',
+      databaseUrl: databaseUrl as string,
+      logLevel: 'error',
+      nodeEnv: 'test',
+      organizationId,
+      port: 3000,
+      staticRoot: '/tmp/yetano-work-missing-static',
+    }
+    const container = createRootContainer({ config, logger, orm })
+    return createApp({ container })
+  }
 })
+
+const logger: Logger = {
+  child: () => logger,
+  debug: () => undefined,
+  error: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+}

@@ -12,8 +12,8 @@ The pnpm monorepo contains:
 - `packages/api-client` — a client generated from the OpenAPI document by Hey API.
 
 The project uses Node.js 24 LTS, TypeScript 6, ESM, and PostgreSQL 18. During the first
-stage, one installation serves one company, so the model does not include a `tenantId`.
-This does not assume that an organization concept will never appear in the domain.
+stage, one installation serves one company. Domain data is still scoped by a required
+server-resolved `organizationId`; the model does not add a separate `tenantId`.
 
 MikroORM entities should be defined with `defineEntity`; the project intentionally does
 not use decorators or `reflect-metadata`.
@@ -50,6 +50,7 @@ database. Both the document and the generated client are committed to the reposi
 ```bash
 pnpm api:generate
 pnpm api:check
+pnpm modules:check
 ```
 
 ## Verification
@@ -108,9 +109,11 @@ preserved in commits or another checkout.
 
 ## Deferred decisions
 
-PWA support, pgvector, authentication, a form library, and a UI system are not part of
-the first stage. PWA support should be added once installation, offline behavior, and
-service worker update requirements are defined. The pgvector extension should be added
+PWA support, pgvector, production authentication, a form library, and a UI system are not part of
+the first stage. Protected modules use an explicit development identity locally and production
+startup remains blocked until real identity and capability resolvers are supplied. PWA support
+should be added once installation, offline behavior, and service worker update requirements are
+defined. The pgvector extension should be added
 with the first embedding use case, a selected vector model, and an indexing strategy.
 PostgreSQL remains a suitable boundary for both future changes without incurring their
 maintenance cost today.

@@ -3,9 +3,10 @@ import { serve } from '@hono/node-server'
 import { createApp } from './app.js'
 import { createRuntime } from './runtime.js'
 
-const runtime = await createRuntime()
+const runtime = await createRuntime({ requireProtectedRuntime: true })
 const app = createApp({ container: runtime.container })
 const server = serve({ fetch: app.fetch, port: runtime.config.port })
+runtime.container.resolve('outboxDispatcher').start()
 
 runtime.logger.info('Yetano Work started', { port: runtime.config.port })
 
@@ -17,6 +18,7 @@ const shutdown = (signal: NodeJS.Signals) => {
 
   server.close(async (error) => {
     if (error) runtime.logger.error('HTTP server shutdown failed', { error: error.message })
+    await runtime.container.resolve('outboxDispatcher').stop()
     await runtime.orm.close(true)
     process.exitCode = error ? 1 : 0
   })

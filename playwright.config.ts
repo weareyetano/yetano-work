@@ -14,7 +14,11 @@ export default defineConfig({
   },
   webServer: {
     command: 'pnpm start',
-    env: { DATABASE_URL: databaseUrl, NODE_ENV: 'test' },
+    env: {
+      DATABASE_URL: databaseUrl,
+      NODE_ENV: 'test',
+      ORGANIZATION_ID: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
+    },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     url: 'http://127.0.0.1:3000/health/live',

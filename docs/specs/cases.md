@@ -2,58 +2,105 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Draft |
-| Implementation | Not started |
-
-This document is a deliberate skeleton. It does not define implementation-ready case behavior yet.
+| Status | Implemented |
+| Implementation | Cases module, API, generated client, and web workspace |
 
 ## Summary
 
-This specification will define the role of a case in Yetano Work and the behavior users can expect
-throughout its lifecycle.
+A case is a lightweight organization-scoped record for work that needs a durable title, optional
+context, and an explicit open or closed lifecycle. The first version supports intake and lifecycle
+tracking without assignment, tasks, activities, archival, or deletion.
 
 ## Terminology and scope
 
-The domain meaning and boundaries of a case are not yet defined.
+- An **open case** is active work.
+- A **closed case** has completed its current lifecycle and records when it was closed.
+- The **active organization** is resolved by the server and is never selected by case API input.
+- A **customer reference** is an optional UUID. It is a soft cross-module reference because a
+  customer module does not exist yet.
+
+Cases have an identifier, organization identifier, optional customer identifier, title, optional
+description, status, optimistic-lock version, creation and update timestamps, and an optional close
+timestamp. Cases have no owner in this version.
 
 ## Behavior and workflows
 
-The creation, assignment, state-transition, completion, reopening, and archival workflows remain to
-be decided.
+Users with the declared capabilities can:
+
+1. Create an open case.
+2. Get one case or list cases in the active organization.
+3. Update title, description, or customer reference using the last observed version.
+4. Close an open case.
+5. Reopen a closed case.
+
+Close and reopen are idempotent. Repeating a transition after it has already reached the requested
+state returns the current case without changing its version or publishing another event.
+
+Lists use opaque cursor pagination. They accept optional status and customer filters and a bounded
+page size. Results are ordered newest first with the case identifier as a stable tie-breaker.
 
 ## Rules and invariants
 
-No case invariants have been accepted yet.
+- Every case belongs to exactly one non-null organization resolved by the server.
+- Every read and mutation includes that organization in its persistence predicate.
+- A title is required, trimmed, non-blank, and no longer than 200 characters.
+- A description is optional, trimmed, and no longer than 10,000 characters; blank input becomes
+  null.
+- New cases are open, have version 1, and do not have a close timestamp.
+- Closed cases have a close timestamp; reopened cases do not.
+- A state-changing update increments the version. A no-op update does not.
+- A mutation with a stale expected version fails with a structured conflict response.
+- Cases are retained; deletion and archival are outside the current scope.
 
 ## Relationships
 
-The ownership and lifecycle relationships between cases, [tasks](tasks.md), and
-[activities](activities.md) remain open.
+The customer identifier does not create an ORM relationship or require a customer module at
+runtime. Tasks and activities are not created implicitly and remain governed by their draft
+specifications.
 
 ## Interface impact
 
-No case entity, public TypeBox contract, API operation, or web route exists. An accepted version of
-this spec must describe interface behavior and link to exact contracts rather than duplicate them.
+The exact request, response, query, and conflict shapes are defined by the TypeBox schemas in
+[`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). The HTTP API exposes
+create, get, list, update, close, and reopen operations under `/api/v1/cases`. OpenAPI and the web
+client are generated from those routes.
+
+The module declares read, create, update, and close capabilities. Create, update, and close include
+read as an inherited requirement. It publishes versioned `case.created`, `case.updated`,
+`case.closed`, and `case.reopened` events through the transactional outbox.
 
 ## Edge cases and failure behavior
 
-Conflict handling, deletion or archival semantics, concurrent changes, and access failures remain to
-be specified.
+- Invalid bodies, identifiers, filters, and cursors return `400 ProblemDetails`.
+- Missing identity and insufficient capability return `401` and `403` respectively.
+- A case outside the active organization is indistinguishable from a missing case and returns 404.
+- Stale state-changing mutations return a 409 `case_version_conflict` with the current known
+  version.
+- Event delivery is at least once; subscribers must be idempotent.
+- Production startup fails until explicit production identity and capability resolvers are wired.
 
 ## Acceptance criteria
 
-Acceptance criteria will be added after the product behavior and lifecycle are approved.
+- Organization scope cannot be supplied or overridden by a case request.
+- Cross-organization get and list operations do not expose case data.
+- Aggregate changes and their event envelopes commit atomically with trusted organization and actor
+  fields.
+- Repeated close and reopen calls are successful and do not create duplicate lifecycle events.
+- Concurrent stale updates return the documented conflict response.
+- The web workspace handles loading, error, empty, and populated states and supports every case
+  operation.
 
 ## Open questions
 
-- What business object or process does a case represent?
-- Which fields identify and summarize a case?
-- Which lifecycle states and transitions are required?
-- Can a case exist without an owner, task, or activity?
-- Are cases deleted, archived, or retained permanently?
+- When should a soft customer reference become a validated cross-module lookup?
+- Which assignment or ownership model is needed?
+- Do cases later need archival distinct from closure?
+- How should tasks and activities attach to cases once their specifications are accepted?
 
 ## Related decisions and specifications
 
 - [Tasks](tasks.md)
 - [Activities](activities.md)
-- [Public module API](../architecture/decisions/2026-08-19-public-module-api.md)
+- [Compile-time modular monolith](../architecture/decisions/2026-08-19-compile-time-modular-monolith.md)
+- [Trusted execution context](../architecture/decisions/2026-08-19-trusted-execution-context.md)
+- [Transactional domain events](../architecture/decisions/2026-08-19-transactional-domain-events.md)
