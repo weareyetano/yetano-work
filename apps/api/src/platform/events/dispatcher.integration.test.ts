@@ -83,7 +83,7 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
     await expect(outboxRows(orm)).resolves.toEqual([
       expect.objectContaining({
         attempts: 1,
-        failed_at: null,
+        failed: false,
         id: eventId,
         last_error: 'subscriber failed',
         locked_by: null,
@@ -108,7 +108,7 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
     await expect(outboxRows(orm)).resolves.toEqual([
       expect.objectContaining({
         attempts: 10,
-        failed_at: expect.any(Date),
+        failed: true,
         id: eventId,
         last_error: 'terminal failure',
         locked_by: null,
@@ -170,7 +170,7 @@ async function outboxRows(orm: Awaited<ReturnType<typeof MikroORM.init>>) {
   return orm.em.getConnection().execute<
     Array<{
       attempts: number
-      failed_at: Date | null
+      failed: boolean
       id: string
       last_error: string | null
       locked_by: string | null
@@ -178,7 +178,7 @@ async function outboxRows(orm: Awaited<ReturnType<typeof MikroORM.init>>) {
       retry_scheduled: boolean
     }>
   >(
-    `select id, attempts, failed_at, last_error, locked_by, locked_until,
+    `select id, attempts, failed_at is not null as failed, last_error, locked_by, locked_until,
             next_attempt_at > now() as retry_scheduled
      from platform_outbox_events
      order by occurred_at, id`,
