@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 import Type from 'typebox'
 import { Compile } from 'typebox/compile'
@@ -34,14 +35,28 @@ export interface AppConfig {
   staticRoot: string
 }
 
-export function loadLocalEnvironment(path = '.env'): void {
+export function loadLocalEnvironment(path?: string): void {
   if (process.env.NODE_ENV === 'production') return
 
   try {
-    process.loadEnvFile(path)
+    process.loadEnvFile(path ?? resolveWorkspaceEnvironmentPath())
   } catch (error) {
     if (!isMissingFileError(error)) throw error
   }
+}
+
+export function resolveWorkspaceEnvironmentPath(startDirectory = process.cwd()): string {
+  let directory = resolve(startDirectory)
+
+  while (!existsSync(join(directory, 'pnpm-workspace.yaml'))) {
+    const parent = dirname(directory)
+    if (parent === directory) {
+      throw new Error(`Unable to locate pnpm workspace from ${startDirectory}`)
+    }
+    directory = parent
+  }
+
+  return join(directory, '.env')
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
