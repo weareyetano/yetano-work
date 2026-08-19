@@ -7,6 +7,15 @@
 - Preserve unrelated work in the working tree. Do not rewrite generated files by hand.
 - Keep repository documentation in English.
 
+## Documentation model
+
+- Read `docs/README.md` before making a significant domain or architecture change.
+- Keep `docs/specs` focused on what the product does and how it behaves. Update the relevant spec
+  when an accepted or implemented behavior changes.
+- Use `docs/architecture/decisions` to record durable architecture decisions, their rationale, and
+  their consequences. Supersede an accepted decision with a new ADR instead of rewriting its history.
+- Small bug fixes, typo-only changes, and behavior-preserving refactors do not require a spec or ADR.
+
 ## Task router
 
 Use the smallest matching repository skill. Open its `SKILL.md` and follow it before acting.

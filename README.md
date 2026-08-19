@@ -18,6 +18,12 @@ This does not assume that an organization concept will never appear in the domai
 MikroORM entities should be defined with `defineEntity`; the project intentionally does
 not use decorators or `reflect-metadata`.
 
+## Documentation
+
+Repository documentation starts at [`docs/README.md`](docs/README.md). Product specifications
+describe what the system does and how it behaves. Architecture Decision Records capture what was
+decided, why it was chosen, and the consequences of that choice.
+
 ## Local development
 
 Node.js 24, pnpm 10, and Docker with Compose are required.
