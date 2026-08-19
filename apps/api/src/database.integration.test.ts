@@ -1,7 +1,7 @@
 import { MikroORM } from '@mikro-orm/postgresql'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createOrmOptions } from '../database.js'
+import { createOrmOptions } from './database.js'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip

@@ -16,6 +16,7 @@ export function createOrmOptions(config: Pick<AppConfig, 'databaseUrl'>) {
     entities: [OutboxEventEntity, ...applicationModules.flatMap((module) => [...module.entities])],
     extensions: [Migrator],
     migrations: {
+      glob: 'Migration*.{js,ts}',
       path: resolve(import.meta.dirname, 'migrations'),
       pathTs: resolve(import.meta.dirname, 'migrations'),
       transactional: true,
