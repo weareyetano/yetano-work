@@ -2,6 +2,7 @@ import {
   type CreateCaseResponse,
   closeCase,
   createCase,
+  getCase,
   type ListCasesResponse,
   listCases,
   reopenCase,
@@ -17,6 +18,9 @@ type CaseVersionConflict = Extract<UpdateCaseError, { code: 'case_version_confli
 
 export const caseQueryKeys = {
   all: ['cases'] as const,
+  detail(caseId: string) {
+    return [...this.all, 'detail', caseId] as const
+  },
   list(status: CaseStatusFilter) {
     return [...this.all, 'list', status] as const
   },
@@ -35,6 +39,14 @@ export async function fetchCases({
       limit: 25,
       ...(status === 'all' ? {} : { status }),
     },
+    throwOnError: true,
+  })
+  return response.data
+}
+
+export async function fetchCase(caseId: string): Promise<CaseItem> {
+  const response = await getCase({
+    path: { caseId },
     throwOnError: true,
   })
   return response.data

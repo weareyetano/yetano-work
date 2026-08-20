@@ -2,9 +2,10 @@ import {
   type InfiniteData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type CaseItem,
@@ -12,16 +13,31 @@ import {
   type CaseStatusFilter,
   caseQueryKeys,
   createCaseItem,
+  fetchCase,
   fetchCases,
   isCaseVersionConflict,
   transitionCaseItem,
   updateCaseItem,
 } from '../cases.api'
 
-export function CasesPage() {
+const LAST_VIEWED_CASE_KEY = 'yetano:last-viewed-case-id'
+const DESKTOP_VIEW_QUERY = '(min-width: 721px)'
+
+function ignoreSelectionChange() {}
+
+export function CasesPage({
+  onSelectedIdChange = ignoreSelectionChange,
+  requestedId = null,
+}: {
+  onSelectedIdChange?(caseId: string | null): void
+  requestedId?: string | null
+} = {}) {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<CaseStatusFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedIdRef = useRef<string | null>(null)
+  const lastViewedIdRef = useRef(readLastViewedCaseId())
+  const isDesktop = useDesktopViewport()
   const cases = useInfiniteQuery<
     CaseListPage,
     Error,
@@ -34,14 +50,35 @@ export function CasesPage() {
     queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, status }),
     queryKey: caseQueryKeys.list(status),
   })
-  const items = cases.data?.pages.flatMap((page) => page.items) ?? []
-  const selected = items.find((item) => item.id === selectedId) ?? null
+  const items = useMemo(() => cases.data?.pages.flatMap((page) => page.items) ?? [], [cases.data])
+  const requestedFromList = requestedId
+    ? (items.find((item) => item.id === requestedId) ?? null)
+    : null
+  const requestedCase = useQuery({
+    enabled: Boolean(requestedId && !requestedFromList),
+    queryFn: () => fetchCase(requestedId as string),
+    queryKey: caseQueryKeys.detail(requestedId ?? ''),
+    retry: false,
+  })
+  const selectCase = useCallback(
+    (caseId: string | null) => {
+      if (selectedIdRef.current === caseId) return
+      selectedIdRef.current = caseId
+      setSelectedId(caseId)
+      if (caseId) {
+        lastViewedIdRef.current = caseId
+        storeLastViewedCaseId(caseId)
+      }
+      onSelectedIdChange(caseId)
+    },
+    [onSelectedIdChange],
+  )
   const refresh = () => queryClient.invalidateQueries({ queryKey: caseQueryKeys.all })
 
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
-      setSelectedId(created.id)
+      selectCase(created.id)
       await refresh()
     },
   })
@@ -53,6 +90,34 @@ export function CasesPage() {
     },
     onSuccess: refresh,
   })
+
+  useEffect(() => {
+    if (requestedId) {
+      if (requestedFromList || requestedCase.data?.id === requestedId) {
+        selectCase(requestedId)
+        return
+      }
+      if (requestedCase.isPending) return
+    }
+
+    if (!isDesktop || !cases.isSuccess) return
+
+    const lastViewed = items.find((item) => item.id === lastViewedIdRef.current)
+    selectCase(lastViewed?.id ?? items[0]?.id ?? null)
+  }, [
+    cases.isSuccess,
+    isDesktop,
+    items,
+    requestedCase.data,
+    requestedCase.isPending,
+    requestedFromList,
+    requestedId,
+    selectCase,
+  ])
+
+  const selected =
+    items.find((item) => item.id === selectedId) ??
+    (requestedCase.data?.id === selectedId ? requestedCase.data : null)
   const transitionMutation = useMutation({
     mutationFn: transitionCaseItem,
     onError: async (error) => {
@@ -63,46 +128,30 @@ export function CasesPage() {
 
   return (
     <main className="cases-page">
-      <header className="cases-heading">
-        <div>
-          <p className="eyebrow">Moduł Cases</p>
-          <h1>Sprawy bez utraconego kontekstu.</h1>
-          <p>Rejestruj sprawy, aktualizuj ich opis i zamykaj je z kontrolą równoczesnych zmian.</p>
-        </div>
-        <span className="quiet-badge">Zakres organizacji ustala serwer</span>
-      </header>
-
-      <section className="case-create" aria-labelledby="new-case-title">
-        <h2 id="new-case-title">Nowa sprawa</h2>
-        <CaseForm
-          busy={createMutation.isPending}
-          error={createMutation.error}
-          onSubmit={(input) => createMutation.mutateAsync(input)}
-          submitLabel="Utwórz sprawę"
-        />
-      </section>
-
       <section className="case-workspace" aria-labelledby="case-list-title">
         <div className="case-list-panel">
+          <CaseCreateForm
+            busy={createMutation.isPending}
+            error={createMutation.error}
+            onSubmit={(input) => createMutation.mutateAsync(input)}
+          />
           <div className="case-list-toolbar">
             <div>
-              <p className="eyebrow">Kolejka</p>
-              <h2 id="case-list-title">Sprawy</h2>
+              <h1 id="case-list-title">Sprawy</h1>
             </div>
-            <label>
-              <span>Status</span>
-              <select
-                value={status}
-                onChange={(event) => {
-                  setStatus(event.target.value as CaseStatusFilter)
-                  setSelectedId(null)
-                }}
-              >
-                <option value="all">Wszystkie</option>
-                <option value="open">Otwarte</option>
-                <option value="closed">Zamknięte</option>
-              </select>
-            </label>
+            <select
+              aria-label="Status"
+              className="case-status-filter"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value as CaseStatusFilter)
+                selectCase(null)
+              }}
+            >
+              <option value="all">Wszystkie</option>
+              <option value="open">Otwarte</option>
+              <option value="closed">Zamknięte</option>
+            </select>
           </div>
 
           {cases.isPending ? <p role="status">Ładowanie spraw…</p> : null}
@@ -119,7 +168,7 @@ export function CasesPage() {
                 <li key={item.id}>
                   <button
                     className={selectedId === item.id ? 'case-row case-row--selected' : 'case-row'}
-                    onClick={() => setSelectedId(item.id)}
+                    onClick={() => selectCase(item.id)}
                     type="button"
                   >
                     <span>
@@ -157,10 +206,23 @@ export function CasesPage() {
               onTransition={() => transitionMutation.mutate(selected)}
               onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
             />
-          ) : (
+          ) : cases.isSuccess && status === 'all' && items.length === 0 ? (
             <div className="empty-state case-detail-empty">
-              <strong>Wybierz sprawę.</strong>
-              <span>Tutaj zobaczysz opis, wersję i dostępne działania.</span>
+              <strong>Dodaj pierwszą sprawę.</strong>
+              <span>Wpisz jej tytuł po lewej stronie.</span>
+            </div>
+          ) : cases.isSuccess && items.length === 0 ? (
+            <div className="empty-state case-detail-empty">
+              <strong>Brak spraw w tym widoku.</strong>
+              <span>Zmień filtr statusu, aby zobaczyć pozostałe sprawy.</span>
+            </div>
+          ) : !isDesktop ? (
+            <div className="empty-state case-detail-empty">
+              <strong>Wybierz sprawę z listy.</strong>
+            </div>
+          ) : (
+            <div className="case-detail-loading" role="status">
+              Ładowanie sprawy…
             </div>
           )}
         </div>
@@ -190,7 +252,6 @@ function CaseDetail({
     <article aria-labelledby="selected-case-title">
       <div className="case-detail-heading">
         <div>
-          <p className="eyebrow">Szczegóły · wersja {caseItem.version}</p>
           <h2 id="selected-case-title">{caseItem.title}</h2>
         </div>
         <button
@@ -225,6 +286,53 @@ interface CaseFormValue {
   title: string
 }
 
+function CaseCreateForm({
+  busy,
+  error,
+  onSubmit,
+}: {
+  busy: boolean
+  error: Error | null
+  onSubmit(value: CaseFormValue): Promise<unknown>
+}) {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = event.currentTarget
+    const data = new FormData(form)
+    try {
+      await onSubmit({
+        customerId: null,
+        description: null,
+        title: String(data.get('title') ?? '').trim(),
+      })
+      form.reset()
+    } catch {
+      // The mutation exposes the error in the visible notice below.
+    }
+  }
+
+  return (
+    <form
+      aria-label="Nowa sprawa"
+      className="case-create-form"
+      onSubmit={(event) => void submit(event)}
+    >
+      <input aria-label="Tytuł" maxLength={200} name="title" placeholder="Nowa sprawa" required />
+      <button
+        aria-label="Utwórz sprawę"
+        className="primary-button case-create-button"
+        disabled={busy}
+        type="submit"
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20">
+          <path d="M10 4v12M4 10h12" />
+        </svg>
+      </button>
+      {error ? <ErrorNotice error={error} /> : null}
+    </form>
+  )
+}
+
 function CaseForm({
   busy,
   error,
@@ -234,7 +342,7 @@ function CaseForm({
 }: {
   busy: boolean
   error: Error | null
-  initialValue?: CaseFormValue
+  initialValue: CaseFormValue
   onSubmit(value: CaseFormValue): Promise<unknown>
   submitLabel: string
 }) {
@@ -247,12 +355,11 @@ function CaseForm({
     const data = new FormData(form)
     try {
       await onSubmit({
-        customerId: optionalText(data.get('customerId')),
+        customerId: initialValue.customerId,
         description: optionalText(data.get('description')),
         title: String(data.get('title') ?? '').trim(),
       })
       setSubmitted(true)
-      if (!initialValue) form.reset()
     } catch {
       // The mutation exposes the error in the visible notice below.
     }
@@ -262,21 +369,12 @@ function CaseForm({
     <form className="case-form" onSubmit={(event) => void submit(event)}>
       <label className="field field--wide">
         <span>Tytuł</span>
-        <input defaultValue={initialValue?.title} maxLength={200} name="title" required />
-      </label>
-      <label className="field">
-        <span>Id klienta (opcjonalnie)</span>
-        <input
-          defaultValue={initialValue?.customerId ?? ''}
-          name="customerId"
-          pattern="[0-9a-fA-F-]{36}"
-          placeholder="UUID"
-        />
+        <input defaultValue={initialValue.title} maxLength={200} name="title" required />
       </label>
       <label className="field field--wide">
         <span>Opis (opcjonalnie)</span>
         <textarea
-          defaultValue={initialValue?.description ?? ''}
+          defaultValue={initialValue.description ?? ''}
           maxLength={10_000}
           name="description"
         />
@@ -323,4 +421,38 @@ function formatDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function readLastViewedCaseId() {
+  try {
+    return window.localStorage.getItem(LAST_VIEWED_CASE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function storeLastViewedCaseId(caseId: string) {
+  try {
+    window.localStorage.setItem(LAST_VIEWED_CASE_KEY, caseId)
+  } catch {
+    // Selection still works when storage is unavailable.
+  }
+}
+
+function useDesktopViewport() {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window.matchMedia !== 'function') return true
+    return window.matchMedia(DESKTOP_VIEW_QUERY).matches
+  })
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia(DESKTOP_VIEW_QUERY)
+    const update = () => setIsDesktop(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return isDesktop
 }
