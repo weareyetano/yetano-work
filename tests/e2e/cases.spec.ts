@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('creates and closes a case through the generated API client', async ({ page }) => {
-  const title = `Playwright case ${Date.now()}`
+  const title = `Playwright case ${crypto.randomUUID()}`
   await page.goto('/cases')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toBeVisible()
@@ -21,7 +21,7 @@ test('creates and closes a case through the generated API client', async ({ page
 })
 
 test('refreshes stale case details after a concurrent update', async ({ page, request }) => {
-  const title = `Concurrent Playwright case ${Date.now()}`
+  const title = `Concurrent Playwright case ${crypto.randomUUID()}`
   const changedElsewhere = `${title} changed elsewhere`
   await page.goto('/cases')
 

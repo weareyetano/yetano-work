@@ -6,7 +6,8 @@ Easy, open-source CRM/ERP for future-ready businesses.
 
 The pnpm monorepo contains:
 
-- `apps/web` — React 19, Vite 8, TanStack Router, Query, and Table,
+- `apps/web` — React 19, Vite 8, TanStack Router, Query, and Table, with Tailwind CSS 4 and
+  app-local shadcn/ui components built on React Aria,
 - `apps/api` — Hono, Awilix, TypeBox, OpenAPI/Scalar, and MikroORM,
 - `packages/contracts` — shared TypeBox schemas,
 - `packages/api-client` — a client generated from the OpenAPI document by Hey API.
@@ -110,11 +111,11 @@ preserved in commits or another checkout.
 
 ## Deferred decisions
 
-PWA support, pgvector, production authentication, a form library, and a UI system are not part of
-the first stage. Protected modules use an explicit development identity locally and production
-startup remains blocked until real identity and capability resolvers are supplied. PWA support
-should be added once installation, offline behavior, and service worker update requirements are
-defined. The pgvector extension should be added
+PWA support, pgvector, production authentication, and a form library are not part of the first
+stage. Protected modules use an explicit development identity locally and production startup
+remains blocked until real identity and capability resolvers are supplied. PWA support should be
+added once installation, offline behavior, and service worker update requirements are defined. The
+pgvector extension should be added
 with the first embedding use case, a selected vector model, and an indexing strategy.
 PostgreSQL remains a suitable boundary for both future changes without incurring their
 maintenance cost today.

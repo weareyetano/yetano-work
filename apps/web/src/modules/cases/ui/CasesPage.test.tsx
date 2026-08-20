@@ -102,6 +102,22 @@ describe('CasesPage', () => {
     expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
   })
 
+  it('selects a case from the keyboard and exposes the selected state', async () => {
+    vi.mocked(listCases).mockResolvedValue(
+      apiResult({ items: [caseItem, secondCaseItem], nextCursor: null }),
+    )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const secondCase = await screen.findByRole('button', { name: /Second case/ })
+    secondCase.focus()
+    await user.keyboard(' ')
+
+    expect(secondCase).toHaveFocus()
+    expect(secondCase).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
+  })
+
   it('omits the decorative labels and customer id field', async () => {
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
     const user = userEvent.setup()

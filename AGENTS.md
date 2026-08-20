@@ -36,8 +36,8 @@ the repository has a canonical domain entity worth extracting into a dedicated s
 - MikroORM entities use `defineEntity`; decorators and `reflect-metadata` are intentionally absent.
 - OpenAPI export must not start the server or require a database connection.
 - `.agents/skills` is canonical; `.claude/skills` contains metadata-only adapters.
-- Do not introduce deferred foundations such as authentication, PWA support, pgvector, a form
-  library, or a UI system without an explicit product requirement.
+- Do not introduce deferred foundations such as authentication, PWA support, pgvector, or a form
+  library without an explicit product requirement.
 
 ## Verification
 

@@ -1,3 +1,4 @@
+import { RiAddLine, RiErrorWarningLine } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -6,6 +7,18 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { Alert, AlertAction, AlertDescription } from '#components/ui/alert'
+import { Badge } from '#components/ui/badge'
+import { Button } from '#components/ui/button'
+import { Card, CardContent } from '#components/ui/card'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui/empty'
+import { Field, FieldGroup, FieldLabel } from '#components/ui/field'
+import { Input } from '#components/ui/input'
+import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
+import { Spinner } from '#components/ui/spinner'
+import { Textarea } from '#components/ui/textarea'
+import { cn } from '#lib/utils'
 
 import {
   type CaseItem,
@@ -127,105 +140,133 @@ export function CasesPage({
   })
 
   return (
-    <main className="cases-page">
-      <section className="case-workspace" aria-labelledby="case-list-title">
-        <div className="case-list-panel">
-          <CaseCreateForm
-            busy={createMutation.isPending}
-            error={createMutation.error}
-            onSubmit={(input) => createMutation.mutateAsync(input)}
-          />
-          <div className="case-list-toolbar">
-            <div>
-              <h1 id="case-list-title">Sprawy</h1>
-            </div>
-            <select
-              aria-label="Status"
-              className="case-status-filter"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value as CaseStatusFilter)
-                selectCase(null)
-              }}
-            >
-              <option value="all">Wszystkie</option>
-              <option value="open">Otwarte</option>
-              <option value="closed">Zamknięte</option>
-            </select>
-          </div>
-
-          {cases.isPending ? <p role="status">Ładowanie spraw…</p> : null}
-          {cases.isError ? <ErrorNotice error={cases.error} retry={() => cases.refetch()} /> : null}
-          {cases.isSuccess && items.length === 0 ? (
-            <div className="empty-state">
-              <strong>Brak spraw w tym widoku.</strong>
-              <span>Utwórz pierwszą sprawę albo zmień filtr statusu.</span>
-            </div>
-          ) : null}
-          {items.length > 0 ? (
-            <ul className="case-list">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <button
-                    className={selectedId === item.id ? 'case-row case-row--selected' : 'case-row'}
-                    onClick={() => selectCase(item.id)}
-                    type="button"
-                  >
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>Aktualizacja {formatDate(item.updatedAt)}</small>
-                    </span>
-                    <span className={`case-status case-status--${item.status}`}>
-                      {item.status === 'open' ? 'Otwarta' : 'Zamknięta'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {cases.hasNextPage ? (
-            <button
-              className="secondary-button load-more"
-              disabled={cases.isFetchingNextPage}
-              onClick={() => cases.fetchNextPage()}
-              type="button"
-            >
-              {cases.isFetchingNextPage ? 'Ładowanie…' : 'Pokaż kolejne'}
-            </button>
-          ) : null}
-        </div>
-
-        <div className="case-detail-panel">
-          {selected ? (
-            <CaseDetail
-              caseItem={selected}
-              transitionBusy={transitionMutation.isPending}
-              transitionError={transitionMutation.error}
-              updateBusy={updateMutation.isPending}
-              updateError={updateMutation.error}
-              onTransition={() => transitionMutation.mutate(selected)}
-              onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
+    <main className="pt-8 pb-24">
+      <section
+        className="mt-5 grid grid-cols-1 gap-5 min-[721px]:grid-cols-[minmax(300px,0.82fr)_minmax(0,1.18fr)]"
+        aria-labelledby="case-list-title"
+      >
+        <Card className="min-h-[460px] gap-0 py-0">
+          <CardContent className="flex flex-1 flex-col p-6">
+            <CaseCreateForm
+              busy={createMutation.isPending}
+              error={createMutation.error}
+              onSubmit={(input) => createMutation.mutateAsync(input)}
             />
-          ) : cases.isSuccess && status === 'all' && items.length === 0 ? (
-            <div className="empty-state case-detail-empty">
-              <strong>Dodaj pierwszą sprawę.</strong>
-              <span>Wpisz jej tytuł po lewej stronie.</span>
+            <div className="mb-5 flex items-start justify-between gap-5">
+              <h1
+                className="font-heading text-2xl font-semibold tracking-tight"
+                id="case-list-title"
+              >
+                Sprawy
+              </h1>
+              <NativeSelect
+                aria-label="Status"
+                className="shrink-0 [&_select]:h-10"
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value as CaseStatusFilter)
+                  selectCase(null)
+                }}
+              >
+                <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
+                <NativeSelectOption value="open">Otwarte</NativeSelectOption>
+                <NativeSelectOption value="closed">Zamknięte</NativeSelectOption>
+              </NativeSelect>
             </div>
-          ) : cases.isSuccess && items.length === 0 ? (
-            <div className="empty-state case-detail-empty">
-              <strong>Brak spraw w tym widoku.</strong>
-              <span>Zmień filtr statusu, aby zobaczyć pozostałe sprawy.</span>
-            </div>
-          ) : !isDesktop ? (
-            <div className="empty-state case-detail-empty">
-              <strong>Wybierz sprawę z listy.</strong>
-            </div>
-          ) : (
-            <div className="case-detail-loading" role="status">
-              Ładowanie sprawy…
-            </div>
-          )}
-        </div>
+
+            {cases.isPending ? <LoadingStatus label="Ładowanie spraw…" /> : null}
+            {cases.isError ? (
+              <ErrorNotice error={cases.error} retry={() => cases.refetch()} />
+            ) : null}
+            {cases.isSuccess && items.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>Brak spraw w tym widoku.</EmptyTitle>
+                  <EmptyDescription>
+                    Utwórz pierwszą sprawę albo zmień filtr statusu.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : null}
+            {items.length > 0 ? (
+              <ul className="flex flex-col gap-2" aria-label="Lista spraw">
+                {items.map((item) => {
+                  const selectedRow = selectedId === item.id
+                  return (
+                    <li key={item.id}>
+                      <Button
+                        aria-pressed={selectedRow}
+                        className={cn(
+                          'h-auto w-full justify-between gap-4 whitespace-normal border px-3.5 py-3.5 text-left',
+                          selectedRow
+                            ? 'border-border bg-accent text-accent-foreground'
+                            : 'border-transparent bg-transparent',
+                        )}
+                        onPress={() => selectCase(item.id)}
+                        type="button"
+                        variant="ghost"
+                      >
+                        <span className="grid min-w-0 gap-1">
+                          <strong className="truncate">{item.title}</strong>
+                          <small className="text-muted-foreground">
+                            Aktualizacja {formatDate(item.updatedAt)}
+                          </small>
+                        </span>
+                        <Badge variant={item.status === 'open' ? 'default' : 'secondary'}>
+                          {item.status === 'open' ? 'Otwarta' : 'Zamknięta'}
+                        </Badge>
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+            {cases.hasNextPage ? (
+              <Button
+                className="mt-4 w-full"
+                isDisabled={cases.isFetchingNextPage}
+                onPress={() => cases.fetchNextPage()}
+                type="button"
+                variant="outline"
+              >
+                {cases.isFetchingNextPage ? (
+                  <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+                ) : null}
+                {cases.isFetchingNextPage ? 'Ładowanie…' : 'Pokaż kolejne'}
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="min-h-[460px] gap-0 py-0">
+          <CardContent className="flex flex-1 flex-col p-6">
+            {selected ? (
+              <CaseDetail
+                caseItem={selected}
+                transitionBusy={transitionMutation.isPending}
+                transitionError={transitionMutation.error}
+                updateBusy={updateMutation.isPending}
+                updateError={updateMutation.error}
+                onTransition={() => transitionMutation.mutate(selected)}
+                onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
+              />
+            ) : cases.isSuccess && status === 'all' && items.length === 0 ? (
+              <CaseEmptyState
+                description="Wpisz jej tytuł po lewej stronie."
+                title="Dodaj pierwszą sprawę."
+              />
+            ) : cases.isSuccess && items.length === 0 ? (
+              <CaseEmptyState
+                description="Zmień filtr statusu, aby zobaczyć pozostałe sprawy."
+                title="Brak spraw w tym widoku."
+              />
+            ) : !isDesktop ? (
+              <CaseEmptyState title="Wybierz sprawę z listy." />
+            ) : (
+              <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
+            )}
+          </CardContent>
+        </Card>
       </section>
     </main>
   )
@@ -250,22 +291,20 @@ function CaseDetail({
 }) {
   return (
     <article aria-labelledby="selected-case-title">
-      <div className="case-detail-heading">
-        <div>
-          <h2 id="selected-case-title">{caseItem.title}</h2>
-        </div>
-        <button
-          className="secondary-button"
-          disabled={transitionBusy}
-          onClick={onTransition}
-          type="button"
-        >
+      <div className="mb-7 flex flex-col items-start justify-between gap-5 min-[721px]:flex-row">
+        <h2 className="font-heading text-2xl font-semibold tracking-tight" id="selected-case-title">
+          {caseItem.title}
+        </h2>
+        <Button isDisabled={transitionBusy} onPress={onTransition} type="button" variant="outline">
+          {transitionBusy ? (
+            <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+          ) : null}
           {transitionBusy
             ? 'Zapisywanie…'
             : caseItem.status === 'open'
               ? 'Zamknij sprawę'
               : 'Otwórz ponownie'}
-        </button>
+        </Button>
       </div>
       {transitionError ? <ErrorNotice error={transitionError} /> : null}
       <CaseForm
@@ -314,21 +353,31 @@ function CaseCreateForm({
   return (
     <form
       aria-label="Nowa sprawa"
-      className="case-create-form"
+      className="mb-6 grid grid-cols-[minmax(0,1fr)_44px] gap-2"
       onSubmit={(event) => void submit(event)}
     >
-      <input aria-label="Tytuł" maxLength={200} name="title" placeholder="Nowa sprawa" required />
-      <button
+      <Input
+        aria-label="Tytuł"
+        className="h-11"
+        maxLength={200}
+        name="title"
+        placeholder="Nowa sprawa"
+        required
+      />
+      <Button
         aria-label="Utwórz sprawę"
-        className="primary-button case-create-button"
-        disabled={busy}
+        className="size-11"
+        isDisabled={busy}
+        size="icon-lg"
         type="submit"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20">
-          <path d="M10 4v12M4 10h12" />
-        </svg>
-      </button>
-      {error ? <ErrorNotice error={error} /> : null}
+        {busy ? (
+          <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+        ) : (
+          <RiAddLine aria-hidden="true" />
+        )}
+      </Button>
+      {error ? <ErrorNotice className="col-span-full my-0" error={error} /> : null}
     </form>
   )
 }
@@ -366,39 +415,91 @@ function CaseForm({
   }
 
   return (
-    <form className="case-form" onSubmit={(event) => void submit(event)}>
-      <label className="field field--wide">
-        <span>Tytuł</span>
-        <input defaultValue={initialValue.title} maxLength={200} name="title" required />
-      </label>
-      <label className="field field--wide">
-        <span>Opis (opcjonalnie)</span>
-        <textarea
-          defaultValue={initialValue.description ?? ''}
-          maxLength={10_000}
-          name="description"
-        />
-      </label>
-      <div className="case-form-actions">
-        <button className="primary-button" disabled={busy} type="submit">
-          {busy ? 'Zapisywanie…' : submitLabel}
-        </button>
-        {submitted && !error ? <span role="status">Zapisano.</span> : null}
-      </div>
-      {error ? <ErrorNotice error={error} /> : null}
+    <form onSubmit={(event) => void submit(event)}>
+      <FieldGroup className="gap-[18px]">
+        <Field>
+          <FieldLabel htmlFor="case-title">Tytuł</FieldLabel>
+          <Input
+            defaultValue={initialValue.title}
+            id="case-title"
+            maxLength={200}
+            name="title"
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="case-description">Opis (opcjonalnie)</FieldLabel>
+          <Textarea
+            className="min-h-24 resize-y"
+            defaultValue={initialValue.description ?? ''}
+            id="case-description"
+            maxLength={10_000}
+            name="description"
+          />
+        </Field>
+        <div className="flex min-h-10 items-center gap-3.5">
+          <Button isDisabled={busy} type="submit">
+            {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
+            {busy ? 'Zapisywanie…' : submitLabel}
+          </Button>
+          {submitted && !error ? (
+            <span className="text-sm font-medium text-muted-foreground" role="status">
+              Zapisano.
+            </span>
+          ) : null}
+        </div>
+        {error ? <ErrorNotice className="my-0" error={error} /> : null}
+      </FieldGroup>
     </form>
   )
 }
 
-function ErrorNotice({ error, retry }: { error: unknown; retry?: () => unknown }) {
+function ErrorNotice({
+  className,
+  error,
+  retry,
+}: {
+  className?: string
+  error: unknown
+  retry?: () => unknown
+}) {
   return (
-    <div className="error-notice" role="alert">
-      <span>{readError(error)}</span>
+    <Alert className={cn('my-3.5', retry ? 'pr-36' : undefined, className)} variant="destructive">
+      <RiErrorWarningLine aria-hidden="true" />
+      <AlertDescription className="text-destructive">{readError(error)}</AlertDescription>
       {retry ? (
-        <button onClick={() => retry()} type="button">
-          Spróbuj ponownie
-        </button>
+        <AlertAction>
+          <Button onPress={() => retry()} size="sm" type="button" variant="outline">
+            Spróbuj ponownie
+          </Button>
+        </AlertAction>
       ) : null}
+    </Alert>
+  )
+}
+
+function CaseEmptyState({ description, title }: { description?: string; title: string }) {
+  return (
+    <Empty className="min-h-[390px]">
+      <EmptyHeader>
+        <EmptyTitle>{title}</EmptyTitle>
+        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
+      </EmptyHeader>
+    </Empty>
+  )
+}
+
+function LoadingStatus({ className, label }: { className?: string; label: string }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground',
+        className,
+      )}
+      role="status"
+    >
+      <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+      <span>{label}</span>
     </div>
   )
 }

@@ -7,9 +7,16 @@ These instructions extend the repository root `AGENTS.md` for `apps/web`.
 - Use TanStack Query for server state and keep query keys stable and feature-owned.
 - Treat `src/routeTree.gen.ts` as generated output. Change route source files, not the generated tree.
 - Every data-driven screen must deliberately handle loading, error, empty, and success states.
-- Preserve semantic HTML, keyboard access, focus behavior, labels, and visible error feedback.
-- Keep the current lightweight styling approach. Do not introduce a UI system or form library until
-  the repository records that decision.
+- Target WCAG 2.2 AA. Preserve semantic HTML, keyboard access, visible focus, labels, live-region
+  behavior, and visible error feedback.
+- Use the app-local shadcn/ui `aria-nova` components as the default UI primitives. Before creating a
+  custom primitive or interaction, check the current shadcn registry and React Aria API; a matching
+  shadcn component takes precedence when it satisfies the required behavior.
+- Compose feature and domain UI from shadcn primitives. Create a custom primitive only when the
+  registry has no suitable component, and prefer the simplest accessible option, including native
+  controls such as `NativeSelect` when richer behavior is unnecessary.
+- Use semantic theme tokens instead of literal feature colors. Do not introduce a form library until
+  the repository records that separate decision.
 - Cover logic with Vitest/Testing Library and user-visible critical paths with Playwright.
 
 Run the UI profile from `.agents/skills/yetano-verify/SKILL.md` before declaring a user-visible
