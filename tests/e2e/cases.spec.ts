@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('creates and closes a case through the generated API client', async ({ page }) => {
+test('creates and resolves a case through the generated API client', async ({ page }) => {
   const title = `Playwright case ${crypto.randomUUID()}`
   await page.goto('/cases')
 
@@ -16,7 +16,7 @@ test('creates and closes a case through the generated API client', async ({ page
   await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
-  await page.getByRole('button', { name: 'Zamknij sprawę' }).click()
+  await page.getByRole('button', { name: 'Rozwiąż' }).click()
   await expect(page.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
 })
 

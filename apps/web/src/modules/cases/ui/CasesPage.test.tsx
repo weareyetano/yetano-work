@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
-  closeCase,
   createCase,
   getCase,
+  listCaseStatusHistory,
   listCases,
-  reopenCase,
+  transitionCase,
   updateCase,
 } from '@yetano/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,11 +16,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CasesPage } from './CasesPage'
 
 vi.mock('@yetano/api-client', () => ({
-  closeCase: vi.fn(),
   createCase: vi.fn(),
   getCase: vi.fn(),
+  listCaseStatusHistory: vi.fn(),
   listCases: vi.fn(),
-  reopenCase: vi.fn(),
+  transitionCase: vi.fn(),
   updateCase: vi.fn(),
 }))
 
@@ -31,7 +31,8 @@ const caseItem = {
   description: 'Customer sees an outdated invoice.',
   id: '122c8615-6bcd-4a36-90e6-d18ca0c06928',
   organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-  status: 'open' as const,
+  status: 'new' as const,
+  statusNote: null,
   title: 'Invoice access',
   updatedAt: '2026-08-19T10:00:00.000Z',
   version: 1,
@@ -48,6 +49,7 @@ describe('CasesPage', () => {
     vi.clearAllMocks()
     localStorage.clear()
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
+    vi.mocked(listCaseStatusHistory).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
   })
 
   it('renders the deliberate empty state', async () => {
@@ -202,31 +204,64 @@ describe('CasesPage', () => {
     )
   })
 
-  it('selects and closes an open case with its current version', async () => {
+  it('starts work with an idempotent transition command and the current version', async () => {
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
-    vi.mocked(closeCase).mockResolvedValue(
-      apiResult({
-        ...caseItem,
-        closedAt: '2026-08-19T11:00:00.000Z',
-        status: 'closed' as const,
-        version: 2,
-      }),
-    )
+    vi.mocked(transitionCase).mockResolvedValue(apiResult(statusChange('working')))
     const user = userEvent.setup()
     renderCasesPage()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
-    await user.click(screen.getByRole('button', { name: 'Zamknij sprawę' }))
+    await user.click(screen.getByRole('button', { name: 'Rozpocznij pracę' }))
 
     await waitFor(() =>
-      expect(closeCase).toHaveBeenCalledWith({
-        body: { expectedVersion: 1 },
+      expect(transitionCase).toHaveBeenCalledWith({
+        body: {
+          expectedVersion: 1,
+          fromStatus: 'new',
+          toStatus: 'working',
+          transitionId: expect.any(String),
+        },
         path: { caseId: caseItem.id },
         throwOnError: true,
       }),
     )
-    expect(reopenCase).not.toHaveBeenCalled()
     expect(updateCase).not.toHaveBeenCalled()
+  })
+
+  it('requires and displays a note when moving a case to waiting', async () => {
+    const waitingCase = {
+      ...caseItem,
+      status: 'waiting' as const,
+      statusNote: 'Oczekuje na odpowiedź klienta',
+    }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [waitingCase], nextCursor: null }))
+    vi.mocked(transitionCase).mockResolvedValue(
+      apiResult(statusChange('waiting', 'Odpowiedź klienta')),
+    )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Oczekuj' }))
+    expect(screen.getByRole('dialog', { name: 'Na co czekamy?' })).toBeVisible()
+    await user.type(screen.getByLabelText('Notatka'), 'Odpowiedź klienta')
+    await user.click(screen.getByRole('button', { name: 'Ustaw oczekiwanie' }))
+
+    await waitFor(() =>
+      expect(transitionCase).toHaveBeenCalledWith({
+        body: {
+          expectedVersion: 1,
+          fromStatus: 'new',
+          note: 'Odpowiedź klienta',
+          toStatus: 'waiting',
+          transitionId: expect.any(String),
+        },
+        path: { caseId: caseItem.id },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Oczekuje na odpowiedź klienta')).toBeVisible()
   })
 
   it('refreshes the selected case after an update conflict', async () => {
@@ -275,15 +310,15 @@ describe('CasesPage', () => {
     vi.mocked(listCases)
       .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
       .mockResolvedValueOnce(apiResult({ items: [refreshed], nextCursor: null }))
-    vi.mocked(closeCase).mockRejectedValue(versionConflict(2))
+    vi.mocked(transitionCase).mockRejectedValue(versionConflict(2))
     const user = userEvent.setup()
     renderCasesPage()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
-    await user.click(screen.getByRole('button', { name: 'Zamknij sprawę' }))
+    await user.click(screen.getByRole('button', { name: 'Rozpocznij pracę' }))
 
     await waitFor(() => expect(listCases).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('button', { name: 'Zamknij sprawę' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Rozpocznij pracę' })).toBeEnabled()
   })
 })
 
@@ -320,6 +355,23 @@ function versionConflict(currentVersion: number) {
     status: 409,
     title: 'Conflict',
     type: 'about:blank',
+  }
+}
+
+function statusChange(toStatus: 'waiting' | 'working', note: string | null = null) {
+  return {
+    actorId: 'development-user',
+    actorType: 'user' as const,
+    caseId: caseItem.id,
+    caseVersion: 2,
+    changedAt: '2026-08-19T11:00:00.000Z',
+    fromStatus: 'new' as const,
+    id: '1ddb62bc-cc28-442f-a324-0a8c0a4b48dd',
+    note,
+    source: 'runtime' as const,
+    toStatus,
+    transitionId: 'a64df03a-b392-4288-917b-45b04e578655',
+    type: 'transitioned' as const,
   }
 }
 

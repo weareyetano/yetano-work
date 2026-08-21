@@ -8,36 +8,48 @@
 ## Summary
 
 A case is a lightweight organization-scoped record for work that needs a durable title, optional
-context, and an explicit open or closed lifecycle. The first version supports intake and lifecycle
-tracking without assignment, tasks, activities, archival, or deletion.
+context, and an explicit lifecycle. It supports intake, active work, waiting, successful resolution,
+cancellation, and immutable status history without assignment, tasks, general activities,
+archival, or deletion.
 
 ## Terminology and scope
 
-- An **open case** is active work.
-- A **closed case** has completed its current lifecycle and records when it was closed.
+- An **open case** is new, being worked, or waiting.
+- A **closed case** is resolved or canceled and records when it was last closed.
 - The **active organization** is resolved by the server and is never selected by case API input.
 - A **customer reference** is an optional UUID. It is a soft cross-module reference because a
   customer module does not exist yet.
 
 Cases have an identifier, organization identifier, optional customer identifier, title, optional
-description, status, optimistic-lock version, creation and update timestamps, and an optional close
-timestamp. Cases have no owner in this version.
+description, status, current status note, optimistic-lock version, creation and update timestamps,
+and an optional close timestamp. Cases have no owner in this version.
 
 ## Behavior and workflows
 
 Users with the declared capabilities can:
 
-1. Create an open case.
+1. Create a new case.
 2. Get one case or list cases in the active organization.
 3. Update title, description, or customer reference using the last observed version.
-4. Close an open case.
-5. Reopen a closed case.
+4. Move a case through new, working, waiting, resolved, and canceled statuses.
+5. Read its immutable status history.
 
-Close and reopen are idempotent. Repeating a transition after it has already reached the requested
-state returns the current case without changing its version or publishing another event.
+Status transitions use a client-generated transition identifier. Repeating the same command returns
+the first stored transition result without changing the case or publishing another event. Reusing
+that identifier for another command is a conflict.
 
-Lists use opaque cursor pagination. They accept optional status and customer filters and a bounded
-page size. Results are ordered newest first with the case identifier as a stable tie-breaker.
+The supported transitions are:
+
+| Current status | Available next status |
+| --- | --- |
+| `new` | `working`, `waiting`, `resolved`, `canceled` |
+| `working` | `waiting`, `resolved`, `canceled` |
+| `waiting` | `working`, `resolved`, `canceled` |
+| `resolved`, `canceled` | `working` |
+
+Lists use opaque cursor pagination. They accept exact status, open or closed status group, and
+customer filters with a bounded page size. Results are ordered newest first with the case identifier
+as a stable tie-breaker. Status history is independently cursor-paginated newest first.
 
 ## Rules and invariants
 
@@ -46,8 +58,16 @@ page size. Results are ordered newest first with the case identifier as a stable
 - A title is required, trimmed, non-blank, and no longer than 200 characters.
 - A description is optional, trimmed, and no longer than 10,000 characters; blank input becomes
   null.
-- New cases are open, have version 1, and do not have a close timestamp.
-- Closed cases have a close timestamp; reopened cases do not.
+- New cases have status `new`, version 1, no status note, and no close timestamp.
+- `waiting` and `canceled` require a non-blank status note.
+- Resolved and canceled cases have a close timestamp; reopened cases do not.
+- Reopening a resolved or canceled case moves it to `working`.
+- Status history entries are append-only and record the actor, time, source, resulting case version,
+  and optional note.
+- Creating a case appends a `created` history entry from no prior status to `new`, while publishing
+  only the public `case.created` event.
+- Migrated history entries have migration source, document their legacy mapping, and neither run
+  normal lifecycle automation nor publish outbox events.
 - A state-changing update increments the version. A no-op update does not.
 - A mutation with a stale expected version fails with a structured conflict response.
 - Cases are retained; deletion and archival are outside the current scope.
@@ -60,14 +80,16 @@ specifications.
 
 ## Interface impact
 
-The exact request, response, query, and conflict shapes are defined by the TypeBox schemas in
-[`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). The HTTP API exposes
-create, get, list, update, close, and reopen operations under `/api/v1/cases`. OpenAPI and the web
-client are generated from those routes.
+The exact request, response, query, history, and conflict shapes are defined by the TypeBox schemas
+in [`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). The HTTP API exposes
+create, get, list, update, transition, and status-history operations under `/api/v1/cases`. OpenAPI
+and the web client are generated from those routes.
 
-The module declares read, create, update, and close capabilities. Create, update, and close include
-read as an inherited requirement. It publishes versioned `case.created`, `case.updated`,
-`case.closed`, and `case.reopened` events through the transactional outbox.
+The module declares read, create, update, transition, close, and reopen capabilities. Open-to-open
+movement requires transition, active-to-terminal movement requires close, and terminal-to-working
+movement requires reopen. Mutating capabilities include read as an inherited requirement. It
+publishes versioned `case.created`, `case.updated`, and `case.transitioned` events through the
+transactional outbox.
 
 ## Edge cases and failure behavior
 
@@ -85,7 +107,8 @@ read as an inherited requirement. It publishes versioned `case.created`, `case.u
 - Cross-organization get and list operations do not expose case data.
 - Aggregate changes and their event envelopes commit atomically with trusted organization and actor
   fields.
-- Repeated close and reopen calls are successful and do not create duplicate lifecycle events.
+- Repeated transition commands with the same transition identifier return the original result and
+  do not create duplicate history or lifecycle events.
 - Concurrent stale updates return the documented conflict response.
 - The web workspace handles loading, error, empty, and populated states and supports every case
   operation.
@@ -107,3 +130,4 @@ read as an inherited requirement. It publishes versioned `case.created`, `case.u
 - [Compile-time modular monolith](../architecture/decisions/2026-08-19-compile-time-modular-monolith.md)
 - [Trusted execution context](../architecture/decisions/2026-08-19-trusted-execution-context.md)
 - [Transactional domain events](../architecture/decisions/2026-08-19-transactional-domain-events.md)
+- [Idempotent case lifecycle transitions](../architecture/decisions/2026-08-21-idempotent-case-lifecycle-transitions.md)

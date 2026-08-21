@@ -1,6 +1,6 @@
 import { EntityManager } from '@mikro-orm/core'
 import { MikroORM } from '@mikro-orm/postgresql'
-import type { Case } from '@yetano/contracts'
+import type { Case, CaseStatusChange } from '@yetano/contracts'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from './app.js'
@@ -24,7 +24,7 @@ describeWithDatabase('API with PostgreSQL', () => {
   beforeEach(async () => {
     await orm.em
       .getConnection()
-      .execute('truncate table cases, platform_outbox_events restart identity')
+      .execute('truncate table case_status_changes, cases, platform_outbox_events restart identity')
   })
 
   afterAll(async () => {
@@ -99,6 +99,8 @@ describeWithDatabase('API with PostgreSQL', () => {
 
     expect(createResponse.status).toBe(201)
     expect(created.organizationId).toBe(firstOrganization)
+    expect(created.status).toBe('new')
+    expect(created.statusNote).toBeNull()
 
     const outboxRows = await orm.em
       .getConnection()
@@ -115,13 +117,17 @@ describeWithDatabase('API with PostgreSQL', () => {
 
     const secondApp = createTestApp(secondOrganization)
     const crossOrganizationRead = await secondApp.request(`/api/v1/cases/${created.id}`)
+    const crossOrganizationHistory = await secondApp.request(
+      `/api/v1/cases/${created.id}/status-history`,
+    )
     const secondOrganizationList = await secondApp.request('/api/v1/cases')
 
     expect(crossOrganizationRead.status).toBe(404)
+    expect(crossOrganizationHistory.status).toBe(404)
     await expect(secondOrganizationList.json()).resolves.toEqual({ items: [], nextCursor: null })
   })
 
-  it('rejects forged scope and stale mutations, and makes lifecycle transitions idempotent', async () => {
+  it('rejects forged scope and stale mutations, and deduplicates lifecycle commands', async () => {
     const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
     const forgedScope = await app.request('/api/v1/cases', {
       body: JSON.stringify({
@@ -159,20 +165,50 @@ describeWithDatabase('API with PostgreSQL', () => {
       currentVersion: updated.version,
     })
 
-    const close = () =>
-      app.request(`/api/v1/cases/${created.id}/close`, {
-        body: JSON.stringify({ expectedVersion: updated.version }),
+    const transitionId = crypto.randomUUID()
+    const transition = () =>
+      app.request(`/api/v1/cases/${created.id}/transition`, {
+        body: JSON.stringify({
+          expectedVersion: updated.version,
+          fromStatus: 'new',
+          toStatus: 'working',
+          transitionId,
+        }),
         headers: { 'content-type': 'application/json' },
         method: 'POST',
       })
-    const firstClose = await close()
-    const closed = (await firstClose.json()) as Case
-    const repeatedClose = await close()
-    const closedAgain = (await repeatedClose.json()) as Case
+    const firstTransition = await transition()
+    const stored = (await firstTransition.json()) as CaseStatusChange
+    const repeatedTransition = await transition()
+    const storedAgain = (await repeatedTransition.json()) as CaseStatusChange
 
-    expect(firstClose.status).toBe(200)
-    expect(repeatedClose.status).toBe(200)
-    expect(closedAgain).toEqual(closed)
+    expect(firstTransition.status).toBe(200)
+    expect(repeatedTransition.status).toBe(200)
+    expect(storedAgain).toEqual(stored)
+    const currentResponse = await app.request(`/api/v1/cases/${created.id}`)
+    const current = (await currentResponse.json()) as Case
+    expect(current).toMatchObject({ status: 'working', statusNote: null, version: 3 })
+
+    const reusedId = await app.request(`/api/v1/cases/${created.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: updated.version,
+        fromStatus: 'new',
+        note: 'Different command',
+        toStatus: 'waiting',
+        transitionId,
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(reusedId.status).toBe(409)
+    await expect(reusedId.json()).resolves.toMatchObject({
+      code: 'case_transition_id_conflict',
+    })
+
+    const historyResponse = await app.request(`/api/v1/cases/${created.id}/status-history`)
+    const history = (await historyResponse.json()) as { items: CaseStatusChange[] }
+    expect(history.items).toHaveLength(2)
+    expect(history.items.map((entry) => entry.type)).toEqual(['transitioned', 'created'])
 
     const eventCounts = await orm.em
       .getConnection()
@@ -180,8 +216,8 @@ describeWithDatabase('API with PostgreSQL', () => {
         'select type, count(*)::int as count from platform_outbox_events group by type order by type',
       )
     expect(eventCounts).toEqual([
-      { count: 1, type: 'case.closed' },
       { count: 1, type: 'case.created' },
+      { count: 1, type: 'case.transitioned' },
       { count: 1, type: 'case.updated' },
     ])
   })
@@ -195,35 +231,53 @@ describeWithDatabase('API with PostgreSQL', () => {
     })
     const created = (await createResponse.json()) as Case
 
+    const startTransitionId = crypto.randomUUID()
+    const start = () =>
+      app.request(`/api/v1/cases/${created.id}/transition`, {
+        body: JSON.stringify({
+          expectedVersion: created.version,
+          fromStatus: 'new',
+          toStatus: 'working',
+          transitionId: startTransitionId,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+    const startResponses = await withConcurrentFlushes(() => Promise.all([start(), start()]))
+    const startResults = await Promise.all(
+      startResponses.map((response) => response.json() as Promise<CaseStatusChange>),
+    )
+
+    expect(startResponses.map((response) => response.status)).toEqual([200, 200])
+    expect(startResults[0]).toMatchObject({
+      caseVersion: created.version + 1,
+      toStatus: 'working',
+    })
+    expect(startResults[1]).toEqual(startResults[0])
+
+    const closeTransitionId = crypto.randomUUID()
     const close = () =>
-      app.request(`/api/v1/cases/${created.id}/close`, {
-        body: JSON.stringify({ expectedVersion: created.version }),
+      app.request(`/api/v1/cases/${created.id}/transition`, {
+        body: JSON.stringify({
+          expectedVersion: startResults[0].caseVersion,
+          fromStatus: 'working',
+          toStatus: 'resolved',
+          transitionId: closeTransitionId,
+        }),
         headers: { 'content-type': 'application/json' },
         method: 'POST',
       })
     const closeResponses = await withConcurrentFlushes(() => Promise.all([close(), close()]))
-    const closedCases = await Promise.all(
-      closeResponses.map((response) => response.json() as Promise<Case>),
+    const closeResults = await Promise.all(
+      closeResponses.map((response) => response.json() as Promise<CaseStatusChange>),
     )
 
     expect(closeResponses.map((response) => response.status)).toEqual([200, 200])
-    expect(closedCases[0]).toMatchObject({ status: 'closed', version: created.version + 1 })
-    expect(closedCases[1]).toEqual(closedCases[0])
-
-    const reopen = () =>
-      app.request(`/api/v1/cases/${created.id}/reopen`, {
-        body: JSON.stringify({ expectedVersion: closedCases[0].version }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      })
-    const reopenResponses = await withConcurrentFlushes(() => Promise.all([reopen(), reopen()]))
-    const reopenedCases = await Promise.all(
-      reopenResponses.map((response) => response.json() as Promise<Case>),
-    )
-
-    expect(reopenResponses.map((response) => response.status)).toEqual([200, 200])
-    expect(reopenedCases[0]).toMatchObject({ status: 'open', version: closedCases[0].version + 1 })
-    expect(reopenedCases[1]).toEqual(reopenedCases[0])
+    expect(closeResults[0]).toMatchObject({
+      caseVersion: startResults[0].caseVersion + 1,
+      toStatus: 'resolved',
+    })
+    expect(closeResults[1]).toEqual(closeResults[0])
 
     const eventCounts = await orm.em
       .getConnection()
@@ -231,9 +285,8 @@ describeWithDatabase('API with PostgreSQL', () => {
         'select type, count(*)::int as count from platform_outbox_events group by type order by type',
       )
     expect(eventCounts).toEqual([
-      { count: 1, type: 'case.closed' },
       { count: 1, type: 'case.created' },
-      { count: 1, type: 'case.reopened' },
+      { count: 2, type: 'case.transitioned' },
     ])
   })
 
@@ -274,17 +327,28 @@ describeWithDatabase('API with PostgreSQL', () => {
     expect(allIds).toContain(first.id)
     expect(nextPage.nextCursor).toBeNull()
 
-    await app.request(`/api/v1/cases/${first.id}/close`, {
-      body: JSON.stringify({ expectedVersion: first.version }),
+    await app.request(`/api/v1/cases/${first.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: first.version,
+        fromStatus: 'new',
+        toStatus: 'resolved',
+        transitionId: crypto.randomUUID(),
+      }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
-    const closedResponse = await app.request('/api/v1/cases?status=closed')
+    const closedResponse = await app.request('/api/v1/cases?statusGroup=closed')
+    const openResponse = await app.request('/api/v1/cases?statusGroup=open')
+    const resolvedResponse = await app.request('/api/v1/cases?status=resolved')
     const customerResponse = await app.request(`/api/v1/cases?customerId=${customerId}`)
     const closed = (await closedResponse.json()) as { items: Case[] }
+    const open = (await openResponse.json()) as { items: Case[] }
+    const resolved = (await resolvedResponse.json()) as { items: Case[] }
     const customerCases = (await customerResponse.json()) as { items: Case[] }
 
     expect(closed.items.map((item) => item.id)).toEqual([first.id])
+    expect(open.items).toHaveLength(2)
+    expect(resolved.items.map((item) => item.id)).toEqual([first.id])
     expect(customerCases.items.map((item) => item.customerId)).toEqual([customerId])
   })
 

@@ -29,8 +29,9 @@ module subscribers, and deletes successfully delivered rows. Failures are retrie
 exponential backoff and retained after the retry limit for diagnosis. Delivery is at least once, so
 subscribers must be idempotent.
 
-Case lifecycle events are emitted only for committed state changes. Repeating an already completed
-close or reopen transition succeeds without producing a duplicate event.
+Case lifecycle events are emitted only for committed state changes. Their retry identity is defined
+by [client-generated lifecycle command IDs](2026-08-21-idempotent-case-lifecycle-transitions.md),
+which supersede the earlier close/reopen retry rule while preserving the outbox guarantees here.
 
 ## Rationale
 
@@ -58,4 +59,5 @@ event consumers discoverable and avoid process-global hooks.
 - [Compile-time modular monolith](2026-08-19-compile-time-modular-monolith.md)
 - [Trusted execution context](2026-08-19-trusted-execution-context.md)
 - [Cases specification](../../specs/cases.md)
+- [Idempotent case lifecycle transitions](2026-08-21-idempotent-case-lifecycle-transitions.md)
 - [open-mercato issue #5230](https://github.com/open-mercato/open-mercato/issues/5230)
