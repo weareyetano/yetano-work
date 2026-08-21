@@ -1,33 +1,40 @@
 import { randomUUID } from 'node:crypto'
 
-import { OptimisticLockError } from '@mikro-orm/core'
+import { OptimisticLockError, UniqueConstraintViolationException } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import type {
   Case,
   CaseId,
   CaseList,
+  CaseStatus,
+  CaseStatusChange,
+  CaseStatusHistory,
+  CaseStatusHistoryQuery,
+  ChangeCaseStatusRequest,
   CreateCaseRequest,
   ListCasesQuery,
-  TransitionCaseRequest,
   UpdateCaseRequest,
 } from '@yetano/contracts'
 
 import type { ExecutionContext } from '../../platform/execution/context.js'
-import type { OperationExecutor } from '../../platform/execution/operation.js'
+import type { OperationDefinition, OperationExecutor } from '../../platform/execution/operation.js'
 import { CaseEntity, type CaseRecord } from './case.entity.js'
 import { type CaseCursor, createCaseRepository } from './case.repository.js'
+import { CaseStatusChangeEntity, type CaseStatusChangeRecord } from './case-status-change.entity.js'
 import {
-  caseClosedEvent,
-  caseCreatedEvent,
-  caseReopenedEvent,
-  caseUpdatedEvent,
-} from './cases.events.js'
+  type CaseStatusHistoryCursor,
+  createCaseStatusChangeRepository,
+} from './case-status-change.repository.js'
+import { caseCreatedEvent, caseTransitionedEvent, caseUpdatedEvent } from './cases.events.js'
 import {
+  type CaseMutationInput,
   closeCaseOperation,
   createCaseOperation,
   getCaseOperation,
+  listCaseStatusHistoryOperation,
   listCasesOperation,
   reopenCaseOperation,
+  transitionCaseOperation,
   updateCaseOperation,
 } from './cases.operations.js'
 
@@ -41,16 +48,31 @@ export class CaseVersionConflictError extends Error {
   }
 }
 
+export class CaseTransitionIdConflictError extends Error {}
+
 export class InvalidCaseCursorError extends Error {}
 
 export interface CasesService {
-  close(caseId: CaseId, request: TransitionCaseRequest, context: ExecutionContext): Promise<Case>
   create(request: CreateCaseRequest, context: ExecutionContext): Promise<Case>
   get(caseId: CaseId, context: ExecutionContext): Promise<Case>
+  history(
+    caseId: CaseId,
+    request: CaseStatusHistoryQuery,
+    context: ExecutionContext,
+  ): Promise<CaseStatusHistory>
   list(request: ListCasesQuery, context: ExecutionContext): Promise<CaseList>
-  reopen(caseId: CaseId, request: TransitionCaseRequest, context: ExecutionContext): Promise<Case>
+  transition(
+    caseId: CaseId,
+    request: ChangeCaseStatusRequest,
+    context: ExecutionContext,
+  ): Promise<CaseStatusChange>
   update(caseId: CaseId, request: UpdateCaseRequest, context: ExecutionContext): Promise<Case>
 }
+
+type TransitionOperation = OperationDefinition<
+  CaseMutationInput<ChangeCaseStatusRequest>,
+  CaseStatusChange
+>
 
 export function createCasesService({
   entityManager,
@@ -60,45 +82,6 @@ export function createCasesService({
   operationExecutor: OperationExecutor
 }): CasesService {
   return {
-    close(caseId, request, executionContext) {
-      return executeWithOptimisticConflict(
-        () =>
-          operationExecutor.execute(
-            closeCaseOperation,
-            executionContext,
-            { caseId, request },
-            async (input, context) => {
-              const repository = createCaseRepository(context.entityManager)
-              const record = await requireCase(
-                repository,
-                context.executionContext.organizationId,
-                caseId,
-              )
-              if (record.status === 'closed') return toCase(record)
-              assertVersion(record, input.request.expectedVersion)
-              const now = new Date()
-              record.status = 'closed'
-              record.closedAt = now
-              record.updatedAt = now
-              await context.entityManager.flush()
-              context.emit({
-                aggregateId: record.id,
-                aggregateVersion: record.version,
-                definition: caseClosedEvent,
-                payload: { caseId: record.id, caseVersion: record.version },
-              })
-              return toCase(record)
-            },
-          ),
-        () =>
-          resolveTransitionConflict(
-            entityManager,
-            executionContext.organizationId,
-            caseId,
-            'closed',
-          ),
-      )
-    },
     create(request, executionContext) {
       return operationExecutor.execute(
         createCaseOperation,
@@ -106,19 +89,39 @@ export function createCasesService({
         request,
         async (input, context) => {
           const now = new Date()
+          const caseId = randomUUID() as CaseId
           const record = context.entityManager.create(CaseEntity, {
             closedAt: null,
             createdAt: now,
             customerId: input.customerId ?? null,
             description: normalizeDescription(input.description),
-            id: randomUUID() as CaseId,
+            id: caseId,
             organizationId: context.executionContext.organizationId,
-            status: 'open',
+            status: 'new',
+            statusNote: null,
             title: normalizeTitle(input.title),
             updatedAt: now,
             version: 1,
           })
           context.entityManager.persist(record)
+          await context.entityManager.flush()
+          const history = context.entityManager.create(CaseStatusChangeEntity, {
+            actorId: context.executionContext.actor.id,
+            actorType: context.executionContext.actor.type,
+            caseId,
+            caseVersion: 1,
+            changedAt: now,
+            expectedVersion: null,
+            fromStatus: null,
+            id: randomUUID(),
+            note: null,
+            organizationId: context.executionContext.organizationId,
+            source: 'runtime',
+            toStatus: 'new',
+            transitionId: null,
+            type: 'created',
+          })
+          context.entityManager.persist(history)
           await context.entityManager.flush()
           context.emit({
             aggregateId: record.id,
@@ -141,60 +144,145 @@ export function createCasesService({
         },
       )
     },
+    history(caseId, request, executionContext) {
+      return operationExecutor.execute(
+        listCaseStatusHistoryOperation,
+        executionContext,
+        { caseId, request },
+        async (input, context) => {
+          const caseRepository = createCaseRepository(context.entityManager)
+          await requireCase(caseRepository, context.executionContext.organizationId, input.caseId)
+          const limit = input.request.limit ?? 50
+          const historyRepository = createCaseStatusChangeRepository(context.entityManager)
+          const result = await historyRepository.list(
+            context.executionContext.organizationId,
+            input.caseId,
+            {
+              ...(input.request.cursor
+                ? { cursor: decodeHistoryCursor(input.request.cursor) }
+                : {}),
+              limit,
+            },
+          )
+          const last = result.items.at(-1)
+          return {
+            items: result.items.map(toStatusChange),
+            nextCursor: result.hasMore && last ? encodeHistoryCursor(last) : null,
+          }
+        },
+      )
+    },
     list(request, executionContext) {
       return operationExecutor.execute(
         listCasesOperation,
         executionContext,
         request,
         async (input, context) => {
+          if (input.status && input.statusGroup) {
+            throw new CaseValidationError('status and statusGroup cannot be combined.')
+          }
           const limit = input.limit ?? 25
           const repository = createCaseRepository(context.entityManager)
           const result = await repository.list(context.executionContext.organizationId, {
-            ...(input.cursor ? { cursor: decodeCursor(input.cursor) } : {}),
+            ...(input.cursor ? { cursor: decodeCaseCursor(input.cursor) } : {}),
             ...(input.customerId ? { customerId: input.customerId } : {}),
             limit,
             ...(input.status ? { status: input.status } : {}),
+            ...(input.statusGroup ? { statusGroup: input.statusGroup } : {}),
           })
           const last = result.items.at(-1)
           return {
             items: result.items.map(toCase),
-            nextCursor: result.hasMore && last ? encodeCursor(last) : null,
+            nextCursor: result.hasMore && last ? encodeCaseCursor(last) : null,
           }
         },
       )
     },
-    reopen(caseId, request, executionContext) {
-      return executeWithOptimisticConflict(
-        () =>
-          operationExecutor.execute(
-            reopenCaseOperation,
-            executionContext,
-            { caseId, request },
-            async (input, context) => {
-              const repository = createCaseRepository(context.entityManager)
-              const record = await requireCase(
-                repository,
-                context.executionContext.organizationId,
-                caseId,
-              )
-              if (record.status === 'open') return toCase(record)
-              assertVersion(record, input.request.expectedVersion)
-              record.status = 'open'
-              record.closedAt = null
-              record.updatedAt = new Date()
-              await context.entityManager.flush()
-              context.emit({
-                aggregateId: record.id,
-                aggregateVersion: record.version,
-                definition: caseReopenedEvent,
-                payload: { caseId: record.id, caseVersion: record.version },
-              })
-              return toCase(record)
-            },
-          ),
-        () =>
-          resolveTransitionConflict(entityManager, executionContext.organizationId, caseId, 'open'),
-      )
+    async transition(caseId, request, executionContext) {
+      const normalizedRequest = normalizeTransitionRequest(request)
+      const operation = transitionOperation(normalizedRequest)
+      try {
+        return await operationExecutor.execute(
+          operation,
+          executionContext,
+          { caseId, request: normalizedRequest },
+          async (input, context) => {
+            const historyRepository = createCaseStatusChangeRepository(context.entityManager)
+            const replay = await historyRepository.findByTransitionId(
+              context.executionContext.organizationId,
+              input.request.transitionId,
+            )
+            if (replay) return resolveReplay(replay, input.caseId, input.request)
+
+            const caseRepository = createCaseRepository(context.entityManager)
+            const record = await requireCase(
+              caseRepository,
+              context.executionContext.organizationId,
+              input.caseId,
+            )
+            assertVersion(record, input.request.expectedVersion)
+            if (record.status !== input.request.fromStatus) {
+              throw new CaseValidationError('The case is not in the declared source status.')
+            }
+
+            const now = new Date()
+            const resultingVersion = record.version + 1
+            record.status = input.request.toStatus
+            record.statusNote = input.request.note ?? null
+            record.closedAt = isTerminalStatus(input.request.toStatus) ? now : null
+            record.updatedAt = now
+            const change = context.entityManager.create(CaseStatusChangeEntity, {
+              actorId: context.executionContext.actor.id,
+              actorType: context.executionContext.actor.type,
+              caseId: record.id,
+              caseVersion: resultingVersion,
+              changedAt: now,
+              expectedVersion: input.request.expectedVersion,
+              fromStatus: input.request.fromStatus,
+              id: randomUUID(),
+              note: input.request.note ?? null,
+              organizationId: context.executionContext.organizationId,
+              source: 'runtime',
+              toStatus: input.request.toStatus,
+              transitionId: input.request.transitionId,
+              type: 'transitioned',
+            })
+            context.entityManager.persist(change)
+            await context.entityManager.flush()
+            context.emit({
+              aggregateId: record.id,
+              aggregateVersion: record.version,
+              definition: caseTransitionedEvent,
+              payload: {
+                caseId: record.id,
+                caseVersion: record.version,
+                fromStatus: input.request.fromStatus,
+                toStatus: input.request.toStatus,
+                transitionId: input.request.transitionId,
+              },
+            })
+            return toStatusChange(change)
+          },
+        )
+      } catch (error) {
+        if (
+          error instanceof UniqueConstraintViolationException ||
+          error instanceof OptimisticLockError
+        ) {
+          const replay = await findTransitionReplay(
+            entityManager,
+            executionContext.organizationId,
+            normalizedRequest.transitionId,
+          )
+          if (replay) return resolveReplay(replay, caseId, normalizedRequest)
+          if (error instanceof OptimisticLockError) {
+            throw new CaseVersionConflictError(
+              await readCurrentVersion(entityManager, executionContext.organizationId, caseId),
+            )
+          }
+        }
+        throw error
+      }
     },
     update(caseId, request, executionContext) {
       return executeWithOptimisticConflict(
@@ -250,6 +338,51 @@ export function createCasesService({
   }
 }
 
+function transitionOperation(request: ChangeCaseStatusRequest): TransitionOperation {
+  if (isTerminalStatus(request.toStatus)) return closeCaseOperation
+  if (isTerminalStatus(request.fromStatus)) return reopenCaseOperation
+  return transitionCaseOperation
+}
+
+function normalizeTransitionRequest(request: ChangeCaseStatusRequest): ChangeCaseStatusRequest {
+  const note = normalizeStatusNote(request.note)
+  if ((request.toStatus === 'waiting' || request.toStatus === 'canceled') && !note) {
+    throw new CaseValidationError('A note is required when waiting or canceling a case.')
+  }
+  const { note: _note, ...command } = request
+  return (note ? { ...command, note } : command) as ChangeCaseStatusRequest
+}
+
+function resolveReplay(
+  record: CaseStatusChangeRecord,
+  caseId: CaseId,
+  request: ChangeCaseStatusRequest,
+): CaseStatusChange {
+  if (
+    record.caseId !== caseId ||
+    record.expectedVersion !== request.expectedVersion ||
+    record.fromStatus !== request.fromStatus ||
+    record.toStatus !== request.toStatus ||
+    (record.note ?? null) !== (request.note ?? null)
+  ) {
+    throw new CaseTransitionIdConflictError(
+      'The transition id has already been used for another command.',
+    )
+  }
+  return toStatusChange(record)
+}
+
+async function findTransitionReplay(
+  entityManager: EntityManager,
+  organizationId: ExecutionContext['organizationId'],
+  transitionId: string,
+) {
+  return createCaseStatusChangeRepository(entityManager).findByTransitionId(
+    organizationId,
+    transitionId,
+  )
+}
+
 async function requireCase(
   repository: ReturnType<typeof createCaseRepository>,
   organizationId: ExecutionContext['organizationId'],
@@ -271,22 +404,9 @@ async function executeWithOptimisticConflict<Result>(
   try {
     return await run()
   } catch (error) {
-    if (error instanceof OptimisticLockError) {
-      return resolveConflict()
-    }
+    if (error instanceof OptimisticLockError) return resolveConflict()
     throw error
   }
-}
-
-async function resolveTransitionConflict(
-  entityManager: EntityManager,
-  organizationId: ExecutionContext['organizationId'],
-  caseId: CaseId,
-  targetStatus: CaseRecord['status'],
-): Promise<Case> {
-  const record = await readCurrentCase(entityManager, organizationId, caseId)
-  if (record.status === targetStatus) return toCase(record)
-  throw new CaseVersionConflictError(record.version)
 }
 
 async function rejectWithCurrentVersion(
@@ -313,20 +433,6 @@ async function readCurrentVersion(
   return record.version
 }
 
-async function readCurrentCase(
-  entityManager: EntityManager,
-  organizationId: ExecutionContext['organizationId'],
-  caseId: CaseId,
-) {
-  const record = await entityManager.findOne(
-    CaseEntity,
-    { id: caseId, organizationId },
-    { refresh: true },
-  )
-  if (!record) throw new CaseNotFoundError('Case not found.')
-  return record
-}
-
 function normalizeTitle(value: string) {
   const title = value.trim()
   if (!title) throw new CaseValidationError('Title cannot be blank.')
@@ -339,6 +445,16 @@ function normalizeDescription(value: string | null | undefined) {
   return description || null
 }
 
+function normalizeStatusNote(value: string | undefined) {
+  if (value == null) return null
+  const note = value.trim()
+  return note || null
+}
+
+function isTerminalStatus(status: CaseStatus): status is 'canceled' | 'resolved' {
+  return status === 'canceled' || status === 'resolved'
+}
+
 function toCase(record: CaseRecord): Case {
   return {
     closedAt: record.closedAt?.toISOString() ?? null,
@@ -348,33 +464,67 @@ function toCase(record: CaseRecord): Case {
     id: record.id,
     organizationId: record.organizationId,
     status: record.status,
+    statusNote: record.statusNote ?? null,
     title: record.title,
     updatedAt: record.updatedAt.toISOString(),
     version: record.version,
   }
 }
 
-function encodeCursor(record: Pick<CaseRecord, 'createdAt' | 'id'>) {
+function toStatusChange(record: CaseStatusChangeRecord): CaseStatusChange {
+  return {
+    actorId: record.actorId,
+    actorType: record.actorType,
+    caseId: record.caseId,
+    caseVersion: record.caseVersion,
+    changedAt: record.changedAt.toISOString(),
+    fromStatus: record.fromStatus ?? null,
+    id: record.id,
+    note: record.note ?? null,
+    source: record.source,
+    toStatus: record.toStatus,
+    transitionId: record.transitionId ?? null,
+    type: record.type,
+  }
+}
+
+function encodeCaseCursor(record: Pick<CaseRecord, 'createdAt' | 'id'>) {
   return Buffer.from(
     JSON.stringify({ createdAt: record.createdAt.toISOString(), id: record.id }),
   ).toString('base64url')
 }
 
-function decodeCursor(value: string): CaseCursor {
+function decodeCaseCursor(value: string): CaseCursor {
+  const decoded = decodeCursor(value, 'createdAt')
+  return { createdAt: decoded.date, id: decoded.id as CaseId }
+}
+
+function encodeHistoryCursor(record: Pick<CaseStatusChangeRecord, 'changedAt' | 'id'>) {
+  return Buffer.from(
+    JSON.stringify({ changedAt: record.changedAt.toISOString(), id: record.id }),
+  ).toString('base64url')
+}
+
+function decodeHistoryCursor(value: string): CaseStatusHistoryCursor {
+  const decoded = decodeCursor(value, 'changedAt')
+  return { changedAt: decoded.date, id: decoded.id }
+}
+
+function decodeCursor(value: string, dateKey: 'changedAt' | 'createdAt') {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
     if (!parsed || typeof parsed !== 'object') throw new Error('Invalid cursor')
-    const createdAtValue = Reflect.get(parsed, 'createdAt')
+    const dateValue = Reflect.get(parsed, dateKey)
     const id = Reflect.get(parsed, 'id')
-    const createdAt = new Date(typeof createdAtValue === 'string' ? createdAtValue : '')
+    const date = new Date(typeof dateValue === 'string' ? dateValue : '')
     if (
-      Number.isNaN(createdAt.valueOf()) ||
+      Number.isNaN(date.valueOf()) ||
       typeof id !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
     ) {
       throw new Error('Invalid cursor')
     }
-    return { createdAt, id: id as CaseId }
+    return { date, id }
   } catch {
     throw new InvalidCaseCursorError('Invalid case cursor.')
   }

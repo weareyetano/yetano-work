@@ -22,6 +22,29 @@ const CaseUpdatedPayloadSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const CaseTransitionedPayloadSchema = Type.Object(
+  {
+    caseId: Type.String({ format: 'uuid' }),
+    caseVersion: Type.Integer({ minimum: 1 }),
+    fromStatus: Type.Union([
+      Type.Literal('canceled'),
+      Type.Literal('new'),
+      Type.Literal('resolved'),
+      Type.Literal('waiting'),
+      Type.Literal('working'),
+    ]),
+    toStatus: Type.Union([
+      Type.Literal('canceled'),
+      Type.Literal('new'),
+      Type.Literal('resolved'),
+      Type.Literal('waiting'),
+      Type.Literal('working'),
+    ]),
+    transitionId: Type.String({ format: 'uuid' }),
+  },
+  { additionalProperties: false },
+)
+
 export const caseCreatedEvent = defineEvent({
   description: 'A case was created.',
   id: 'case.created',
@@ -36,23 +59,11 @@ export const caseUpdatedEvent = defineEvent({
   schemaVersion: 1,
 })
 
-export const caseClosedEvent = defineEvent({
-  description: 'An open case was closed.',
-  id: 'case.closed',
-  payloadSchema: CaseEventPayloadSchema,
+export const caseTransitionedEvent = defineEvent({
+  description: 'A case lifecycle status changed.',
+  id: 'case.transitioned',
+  payloadSchema: CaseTransitionedPayloadSchema,
   schemaVersion: 1,
 })
 
-export const caseReopenedEvent = defineEvent({
-  description: 'A closed case was reopened.',
-  id: 'case.reopened',
-  payloadSchema: CaseEventPayloadSchema,
-  schemaVersion: 1,
-})
-
-export const casesEvents = [
-  caseCreatedEvent,
-  caseUpdatedEvent,
-  caseClosedEvent,
-  caseReopenedEvent,
-] as const
+export const casesEvents = [caseCreatedEvent, caseUpdatedEvent, caseTransitionedEvent] as const

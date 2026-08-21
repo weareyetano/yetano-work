@@ -1,89 +1,57 @@
-import { OptimisticLockError } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
-import type { CaseId, OrganizationId } from '@yetano/contracts'
+import type { CaseId, ChangeCaseStatusRequest, OrganizationId } from '@yetano/contracts'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionContext } from '../../platform/execution/context.js'
 import type { OperationExecutor } from '../../platform/execution/operation.js'
-import { CaseEntity, type CaseRecord } from './case.entity.js'
-import { type CaseVersionConflictError, createCasesService } from './cases.service.js'
+import { createCasesService } from './cases.service.js'
 
 const caseId = '122c8615-6bcd-4a36-90e6-d18ca0c06928' as CaseId
 const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb' as OrganizationId
 
-describe('cases service optimistic conflict recovery', () => {
+describe('cases service transition authorization routing', () => {
   it.each([
     {
-      action: 'close' as const,
-      closedAt: new Date('2026-08-19T11:00:00.000Z'),
-      status: 'closed' as const,
+      capability: 'cases.transition',
+      request: command({ fromStatus: 'new', toStatus: 'working' }),
     },
-    { action: 'reopen' as const, closedAt: null, status: 'open' as const },
-  ])(
-    'returns the current case when concurrent $action already reached its target',
-    async (scenario) => {
-      const record = caseRecord({
-        closedAt: scenario.closedAt,
-        status: scenario.status,
-        version: 2,
-      })
-      const { findOne, service } = conflictService(record)
-
-      const result = await service[scenario.action](
-        caseId,
-        { expectedVersion: 1 },
-        executionContext,
-      )
-
-      expect(result).toMatchObject({ id: caseId, status: scenario.status, version: 2 })
-      expect(findOne).toHaveBeenCalledWith(
-        CaseEntity,
-        { id: caseId, organizationId },
-        { refresh: true },
-      )
+    {
+      capability: 'cases.close',
+      request: command({ fromStatus: 'working', toStatus: 'resolved' }),
     },
-  )
+    {
+      capability: 'cases.reopen',
+      request: command({ fromStatus: 'resolved', toStatus: 'working' }),
+    },
+  ])('selects $capability from the declared status pair', async ({ capability, request }) => {
+    const stop = new Error('stop before persistence')
+    const execute = vi.fn().mockRejectedValue(stop)
+    const service = createCasesService({
+      entityManager: {} as EntityManager,
+      operationExecutor: { execute } as unknown as OperationExecutor,
+    })
 
-  it('keeps returning a version conflict when a concurrent close did not reach its target', async () => {
-    const { service } = conflictService(caseRecord({ status: 'open', version: 2 }))
-
-    await expect(
-      service.close(caseId, { expectedVersion: 1 }, executionContext),
-    ).rejects.toMatchObject<CaseVersionConflictError>({ currentVersion: 2 })
+    await expect(service.transition(caseId, request, executionContext)).rejects.toBe(stop)
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({ capability })
   })
 })
 
-function conflictService(record: CaseRecord) {
-  const findOne = vi.fn().mockResolvedValue(record)
-  const operationExecutor = {
-    execute: vi.fn().mockRejectedValue(OptimisticLockError.lockFailed('Case')),
-  } as unknown as OperationExecutor
-  const service = createCasesService({
-    entityManager: { findOne } as unknown as EntityManager,
-    operationExecutor,
-  })
-  return { findOne, service }
-}
-
-function caseRecord(overrides: Partial<CaseRecord>): CaseRecord {
+function command(
+  statuses:
+    | { fromStatus: 'new'; toStatus: 'working' }
+    | { fromStatus: 'working'; toStatus: 'resolved' }
+    | { fromStatus: 'resolved'; toStatus: 'working' },
+): ChangeCaseStatusRequest {
   return {
-    closedAt: null,
-    createdAt: new Date('2026-08-19T10:00:00.000Z'),
-    customerId: null,
-    description: null,
-    id: caseId,
-    organizationId,
-    status: 'open',
-    title: 'Lifecycle test',
-    updatedAt: new Date('2026-08-19T11:00:00.000Z'),
-    version: 1,
-    ...overrides,
+    expectedVersion: 1,
+    transitionId: 'cbf25145-a709-47b7-885b-b458b869e174',
+    ...statuses,
   }
 }
 
 const executionContext: ExecutionContext = {
   actor: { id: 'test-user', type: 'user' },
-  capabilities: new Set(['cases.close', 'cases.read']),
+  capabilities: new Set(['cases.close', 'cases.read', 'cases.reopen', 'cases.transition']),
   correlationId: 'correlation-id',
   organizationId,
   requestId: 'request-id',

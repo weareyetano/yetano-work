@@ -21,9 +21,9 @@ The catalog is derived from the compile-time module descriptors used by the API 
 ## cases
 
 - Dependencies: None
-- Entities: `Case`
+- Entities: `Case`, `CaseStatusChange`
 - Container registrations: `casesService`
-- Published events: `case.created`, `case.updated`, `case.closed`, `case.reopened`
+- Published events: `case.created`, `case.updated`, `case.transitioned`
 - Event subscriptions: None
 - Extension points provided: None
 - Extension points used: None
@@ -33,13 +33,17 @@ The catalog is derived from the compile-time module descriptors used by the API 
 | `cases.read` | None | Read organization-scoped cases. |
 | `cases.create` | `cases.read` | Create cases. |
 | `cases.update` | `cases.read` | Update case details. |
-| `cases.close` | `cases.read` | Close and reopen cases. |
+| `cases.close` | `cases.read` | Resolve and cancel cases. |
+| `cases.transition` | `cases.read` | Move cases between open statuses. |
+| `cases.reopen` | `cases.read` | Reopen resolved and canceled cases. |
 
 | Operation | Kind | Capability |
 | --- | --- | --- |
-| `cases.create` | command | `cases.create` |
-| `cases.list` | query | `cases.read` |
-| `cases.get` | query | `cases.read` |
-| `cases.update` | command | `cases.update` |
 | `cases.close` | command | `cases.close` |
-| `cases.reopen` | command | `cases.close` |
+| `cases.create` | command | `cases.create` |
+| `cases.get` | query | `cases.read` |
+| `cases.list` | query | `cases.read` |
+| `cases.status-history` | query | `cases.read` |
+| `cases.reopen` | command | `cases.reopen` |
+| `cases.transition` | command | `cases.transition` |
+| `cases.update` | command | `cases.update` |

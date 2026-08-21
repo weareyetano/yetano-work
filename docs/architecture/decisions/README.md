@@ -33,3 +33,4 @@ product behavior.
 | 2026-08-19 | [Enforce authorization and organization scope through a trusted execution context](2026-08-19-trusted-execution-context.md) | Accepted |
 | 2026-08-19 | [Publish domain events through a transactional outbox](2026-08-19-transactional-domain-events.md) | Accepted |
 | 2026-08-20 | [Use shadcn/ui with React Aria for the web UI](2026-08-20-shadcn-react-aria-ui.md) | Accepted |
+| 2026-08-21 | [Identify case lifecycle transitions with client-generated command IDs](2026-08-21-idempotent-case-lifecycle-transitions.md) | Accepted |

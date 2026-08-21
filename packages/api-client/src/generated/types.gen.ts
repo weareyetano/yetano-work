@@ -52,7 +52,18 @@ export type ListCasesData = {
         cursor?: string;
         customerId?: string;
         limit?: number;
-        status?: 'open' | 'closed';
+        /**
+         * CaseStatus
+         *
+         * Current lifecycle status of a case.
+         */
+        status?: Array<'new' | 'working' | 'waiting' | 'resolved' | 'canceled'>;
+        /**
+         * CaseStatusGroup
+         *
+         * Open or closed lifecycle group used to filter cases.
+         */
+        statusGroup?: 'open' | 'closed';
     };
     url: '/api/v1/cases';
 };
@@ -133,7 +144,8 @@ export type ListCasesResponses = {
              *
              * Current lifecycle status of a case.
              */
-            status: 'open' | 'closed';
+            status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            statusNote: string | null;
             title: string;
             updatedAt: string;
             version: number;
@@ -235,7 +247,8 @@ export type CreateCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'open' | 'closed';
+        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        statusNote: string | null;
         title: string;
         updatedAt: string;
         version: number;
@@ -243,6 +256,121 @@ export type CreateCaseResponses = {
 };
 
 export type CreateCaseResponse = CreateCaseResponses[keyof CreateCaseResponses];
+
+export type ListCaseStatusHistoryData = {
+    body?: never;
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: {
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/cases/{caseId}/status-history';
+};
+
+export type ListCaseStatusHistoryErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+};
+
+export type ListCaseStatusHistoryError = ListCaseStatusHistoryErrors[keyof ListCaseStatusHistoryErrors];
+
+export type ListCaseStatusHistoryResponses = {
+    /**
+     * CaseStatusHistory
+     *
+     * A cursor-paginated case status history.
+     */
+    200: {
+        items: Array<{
+            actorId: string;
+            actorType: 'system' | 'user';
+            /**
+             * CaseId
+             *
+             * Unique identifier of a case.
+             */
+            caseId: string;
+            caseVersion: number;
+            changedAt: string;
+            fromStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
+            id: string;
+            note: string | null;
+            source: 'migration' | 'runtime';
+            /**
+             * CaseStatus
+             *
+             * Current lifecycle status of a case.
+             */
+            toStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            transitionId: string | null;
+            type: 'created' | 'transitioned';
+        }>;
+        nextCursor: string | null;
+    };
+};
+
+export type ListCaseStatusHistoryResponse = ListCaseStatusHistoryResponses[keyof ListCaseStatusHistoryResponses];
 
 export type GetCaseData = {
     body?: never;
@@ -347,7 +475,8 @@ export type GetCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'open' | 'closed';
+        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        statusNote: string | null;
         title: string;
         updatedAt: string;
         version: number;
@@ -484,7 +613,8 @@ export type UpdateCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'open' | 'closed';
+        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        statusNote: string | null;
         title: string;
         updatedAt: string;
         version: number;
@@ -493,14 +623,54 @@ export type UpdateCaseResponses = {
 
 export type UpdateCaseResponse = UpdateCaseResponses[keyof UpdateCaseResponses];
 
-export type CloseCaseData = {
+export type TransitionCaseData = {
     /**
-     * TransitionCaseRequest
+     * ChangeCaseStatusRequest
      *
-     * Expected version for an idempotent case lifecycle transition.
+     * An idempotent, optimistic case lifecycle transition.
      */
     body: {
         expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'new';
+        note?: string;
+        toStatus: 'working';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'new';
+        note: string;
+        toStatus: 'waiting';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'working';
+        note: string;
+        toStatus: 'waiting';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'waiting';
+        note?: string;
+        toStatus: 'working';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'new' | 'waiting' | 'working';
+        note?: string;
+        toStatus: 'resolved';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'new' | 'waiting' | 'working';
+        note: string;
+        toStatus: 'canceled';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'canceled' | 'resolved';
+        note?: string;
+        toStatus: 'working';
     };
     path: {
         /**
@@ -511,10 +681,10 @@ export type CloseCaseData = {
         caseId: string;
     };
     query?: never;
-    url: '/api/v1/cases/{caseId}/close';
+    url: '/api/v1/cases/{caseId}/transition';
 };
 
-export type CloseCaseErrors = {
+export type TransitionCaseErrors = {
     /**
      * ProblemDetails
      *
@@ -572,11 +742,17 @@ export type CloseCaseErrors = {
         [key: string]: unknown;
     };
     /**
-     * CaseVersionConflict
-     *
-     * Problem details returned for a stale case mutation.
+     * The case version is stale or the transition id has already been reused.
      */
     409: {
+        code: 'case_transition_id_conflict';
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: 409;
+        title: string;
+        type: string;
+    } | {
         code: 'case_version_conflict';
         currentVersion: number;
         detail?: string;
@@ -588,175 +764,38 @@ export type CloseCaseErrors = {
     };
 };
 
-export type CloseCaseError = CloseCaseErrors[keyof CloseCaseErrors];
+export type TransitionCaseError = TransitionCaseErrors[keyof TransitionCaseErrors];
 
-export type CloseCaseResponses = {
+export type TransitionCaseResponses = {
     /**
-     * Case
+     * CaseStatusChange
      *
-     * An organization-scoped case.
+     * An immutable entry in a case status history.
      */
     200: {
-        closedAt: string | null;
-        createdAt: string;
-        customerId: string | null;
-        description: string | null;
-        /**
-         * CaseId
-         *
-         * Unique identifier of a case.
-         */
-        id: string;
-        /**
-         * OrganizationId
-         *
-         * Organization scope assigned by the server.
-         */
-        organizationId: string;
-        /**
-         * CaseStatus
-         *
-         * Current lifecycle status of a case.
-         */
-        status: 'open' | 'closed';
-        title: string;
-        updatedAt: string;
-        version: number;
-    };
-};
-
-export type CloseCaseResponse = CloseCaseResponses[keyof CloseCaseResponses];
-
-export type ReopenCaseData = {
-    /**
-     * TransitionCaseRequest
-     *
-     * Expected version for an idempotent case lifecycle transition.
-     */
-    body: {
-        expectedVersion: number;
-    };
-    path: {
+        actorId: string;
+        actorType: 'system' | 'user';
         /**
          * CaseId
          *
          * Unique identifier of a case.
          */
         caseId: string;
-    };
-    query?: never;
-    url: '/api/v1/cases/{caseId}/reopen';
-};
-
-export type ReopenCaseErrors = {
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    400: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    401: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    403: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    404: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * CaseVersionConflict
-     *
-     * Problem details returned for a stale case mutation.
-     */
-    409: {
-        code: 'case_version_conflict';
-        currentVersion: number;
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: 409;
-        title: string;
-        type: string;
-    };
-};
-
-export type ReopenCaseError = ReopenCaseErrors[keyof ReopenCaseErrors];
-
-export type ReopenCaseResponses = {
-    /**
-     * Case
-     *
-     * An organization-scoped case.
-     */
-    200: {
-        closedAt: string | null;
-        createdAt: string;
-        customerId: string | null;
-        description: string | null;
-        /**
-         * CaseId
-         *
-         * Unique identifier of a case.
-         */
+        caseVersion: number;
+        changedAt: string;
+        fromStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
         id: string;
-        /**
-         * OrganizationId
-         *
-         * Organization scope assigned by the server.
-         */
-        organizationId: string;
+        note: string | null;
+        source: 'migration' | 'runtime';
         /**
          * CaseStatus
          *
          * Current lifecycle status of a case.
          */
-        status: 'open' | 'closed';
-        title: string;
-        updatedAt: string;
-        version: number;
+        toStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        transitionId: string | null;
+        type: 'created' | 'transitioned';
     };
 };
 
-export type ReopenCaseResponse = ReopenCaseResponses[keyof ReopenCaseResponses];
+export type TransitionCaseResponse = TransitionCaseResponses[keyof TransitionCaseResponses];

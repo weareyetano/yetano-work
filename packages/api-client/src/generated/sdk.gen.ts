@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CloseCaseData, CloseCaseErrors, CloseCaseResponses, CreateCaseData, CreateCaseErrors, CreateCaseResponses, GetCaseData, GetCaseErrors, GetCaseResponses, GetHealthData, GetHealthErrors, GetHealthResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ReopenCaseData, ReopenCaseErrors, ReopenCaseResponses, UpdateCaseData, UpdateCaseErrors, UpdateCaseResponses } from './types.gen';
+import type { CreateCaseData, CreateCaseErrors, CreateCaseResponses, GetCaseData, GetCaseErrors, GetCaseResponses, GetHealthData, GetHealthErrors, GetHealthResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListCaseStatusHistoryData, ListCaseStatusHistoryErrors, ListCaseStatusHistoryResponses, TransitionCaseData, TransitionCaseErrors, TransitionCaseResponses, UpdateCaseData, UpdateCaseErrors, UpdateCaseResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -29,7 +29,7 @@ export const getHealth = <ThrowOnError extends boolean = false>(options?: Option
 export const listCases = <ThrowOnError extends boolean = false>(options?: Options<ListCasesData, ThrowOnError>): RequestResult<ListCasesResponses, ListCasesErrors, ThrowOnError> => (options?.client ?? client).get<ListCasesResponses, ListCasesErrors, ThrowOnError>({ url: '/api/v1/cases', ...options });
 
 /**
- * Creates an open case in the server-resolved organization.
+ * Creates a new case in the server-resolved organization.
  */
 export const createCase = <ThrowOnError extends boolean = false>(options: Options<CreateCaseData, ThrowOnError>): RequestResult<CreateCaseResponses, CreateCaseErrors, ThrowOnError> => (options.client ?? client).post<CreateCaseResponses, CreateCaseErrors, ThrowOnError>({
     url: '/api/v1/cases',
@@ -39,6 +39,11 @@ export const createCase = <ThrowOnError extends boolean = false>(options: Option
         ...options.headers
     }
 });
+
+/**
+ * Lists immutable status history for one organization-scoped case.
+ */
+export const listCaseStatusHistory = <ThrowOnError extends boolean = false>(options: Options<ListCaseStatusHistoryData, ThrowOnError>): RequestResult<ListCaseStatusHistoryResponses, ListCaseStatusHistoryErrors, ThrowOnError> => (options.client ?? client).get<ListCaseStatusHistoryResponses, ListCaseStatusHistoryErrors, ThrowOnError>({ url: '/api/v1/cases/{caseId}/status-history', ...options });
 
 /**
  * Gets one organization-scoped case.
@@ -58,22 +63,10 @@ export const updateCase = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
- * Closes a case idempotently.
+ * Transitions a case status idempotently using a client-generated command id.
  */
-export const closeCase = <ThrowOnError extends boolean = false>(options: Options<CloseCaseData, ThrowOnError>): RequestResult<CloseCaseResponses, CloseCaseErrors, ThrowOnError> => (options.client ?? client).post<CloseCaseResponses, CloseCaseErrors, ThrowOnError>({
-    url: '/api/v1/cases/{caseId}/close',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Reopens a case idempotently.
- */
-export const reopenCase = <ThrowOnError extends boolean = false>(options: Options<ReopenCaseData, ThrowOnError>): RequestResult<ReopenCaseResponses, ReopenCaseErrors, ThrowOnError> => (options.client ?? client).post<ReopenCaseResponses, ReopenCaseErrors, ThrowOnError>({
-    url: '/api/v1/cases/{caseId}/reopen',
+export const transitionCase = <ThrowOnError extends boolean = false>(options: Options<TransitionCaseData, ThrowOnError>): RequestResult<TransitionCaseResponses, TransitionCaseErrors, ThrowOnError> => (options.client ?? client).post<TransitionCaseResponses, TransitionCaseErrors, ThrowOnError>({
+    url: '/api/v1/cases/{caseId}/transition',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -1,11 +1,14 @@
 import {
   type CreateCaseResponse,
-  closeCase,
   createCase,
   getCase,
+  type ListCaseStatusHistoryResponse,
   type ListCasesResponse,
+  listCaseStatusHistory,
   listCases,
-  reopenCase,
+  type TransitionCaseData,
+  type TransitionCaseResponse,
+  transitionCase,
   type UpdateCaseError,
   type UpdateCaseResponse,
   updateCase,
@@ -13,7 +16,14 @@ import {
 
 export type CaseItem = ListCasesResponse['items'][number]
 export type CaseListPage = ListCasesResponse
-export type CaseStatusFilter = 'all' | CaseItem['status']
+export type CaseListView = 'all' | 'new' | 'waiting' | 'working'
+export type CaseStatusHistoryPage = ListCaseStatusHistoryResponse
+export type CaseTransitionInput = TransitionCaseData['body']
+export type CaseTransitionIntent = CaseTransitionInput extends infer Command
+  ? Command extends CaseTransitionInput
+    ? Omit<Command, 'expectedVersion' | 'fromStatus'>
+    : never
+  : never
 type CaseVersionConflict = Extract<UpdateCaseError, { code: 'case_version_conflict' }>
 
 export const caseQueryKeys = {
@@ -21,24 +31,39 @@ export const caseQueryKeys = {
   detail(caseId: string) {
     return [...this.all, 'detail', caseId] as const
   },
-  list(status: CaseStatusFilter) {
-    return [...this.all, 'list', status] as const
+  history(caseId: string) {
+    return [...this.all, 'history', caseId] as const
+  },
+  list(view: CaseListView) {
+    return [...this.all, 'list', view] as const
   },
 }
 
 export async function fetchCases({
   cursor,
-  status,
+  view,
 }: {
   cursor: string | null
-  status: CaseStatusFilter
+  view: CaseListView
 }): Promise<ListCasesResponse> {
   const response = await listCases({
     query: {
       ...(cursor ? { cursor } : {}),
       limit: 25,
-      ...(status === 'all' ? {} : { status }),
+      ...(view === 'all' ? {} : { status: [view] }),
     },
+    throwOnError: true,
+  })
+  return response.data
+}
+
+export async function fetchCaseStatusHistory(
+  caseId: string,
+  cursor: string | null,
+): Promise<ListCaseStatusHistoryResponse> {
+  const response = await listCaseStatusHistory({
+    path: { caseId },
+    query: { ...(cursor ? { cursor } : {}), limit: 50 },
     throwOnError: true,
   })
   return response.data
@@ -73,10 +98,16 @@ export async function updateCaseItem(
   return response.data
 }
 
-export async function transitionCaseItem(current: CaseItem): Promise<UpdateCaseResponse> {
-  const operation = current.status === 'open' ? closeCase : reopenCase
-  const response = await operation({
-    body: { expectedVersion: current.version },
+export async function transitionCaseItem(
+  current: CaseItem,
+  input: CaseTransitionIntent,
+): Promise<TransitionCaseResponse> {
+  const response = await transitionCase({
+    body: {
+      ...input,
+      expectedVersion: current.version,
+      fromStatus: current.status,
+    } as CaseTransitionInput,
     path: { caseId: current.id },
     throwOnError: true,
   })

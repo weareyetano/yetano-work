@@ -44,7 +44,11 @@ test('opens mobile case details in place and restores the list through both back
   const cases = Array.from({ length: 12 }, (_, index) => mobileCase(index + 1))
   await page.route('**/api/v1/cases**', (route) =>
     route.fulfill({
-      body: JSON.stringify({ items: cases, nextCursor: null }),
+      body: JSON.stringify(
+        new URL(route.request().url()).pathname.endsWith('/status-history')
+          ? { items: [], nextCursor: null }
+          : { items: cases, nextCursor: null },
+      ),
       contentType: 'application/json',
       status: 200,
     }),
@@ -102,7 +106,8 @@ function mobileCase(index: number) {
     description: `Mobile case ${index} description`,
     id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
     organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-    status: 'open',
+    status: 'new',
+    statusNote: null,
     title: `Mobile case ${index}`,
     updatedAt: '2026-08-20T10:00:00.000Z',
     version: 1,

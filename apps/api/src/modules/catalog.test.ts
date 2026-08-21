@@ -10,6 +10,14 @@ describe('module catalog', () => {
       'cases.close',
       'cases.read',
     ])
+    expect(applicationModuleCatalog.requiredCapabilities('cases.transition')).toEqual([
+      'cases.transition',
+      'cases.read',
+    ])
+    expect(applicationModuleCatalog.requiredCapabilities('cases.reopen')).toEqual([
+      'cases.reopen',
+      'cases.read',
+    ])
   })
 
   it('fails fast when an operation references an undeclared capability', () => {

@@ -2,6 +2,7 @@ import { asFunction } from 'awilix'
 
 import { defineModule } from '../module.js'
 import { CaseEntity } from './case.entity.js'
+import { CaseStatusChangeEntity } from './case-status-change.entity.js'
 import { casesCapabilities } from './cases.capabilities.js'
 import { casesEvents } from './cases.events.js'
 import { casesOperations } from './cases.operations.js'
@@ -11,7 +12,7 @@ import { createCasesService } from './cases.service.js'
 export const casesModule = defineModule({
   capabilities: casesCapabilities,
   dependencies: [],
-  entities: [CaseEntity],
+  entities: [CaseEntity, CaseStatusChangeEntity],
   events: { publishes: casesEvents, subscribes: [] },
   extensions: { contributes: [], provides: [] },
   id: 'cases',

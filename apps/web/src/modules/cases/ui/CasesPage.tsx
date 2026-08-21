@@ -1,4 +1,4 @@
-import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
+import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine, RiMore2Line } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -21,10 +21,12 @@ import { Alert, AlertAction, AlertDescription } from '#components/ui/alert'
 import { Badge } from '#components/ui/badge'
 import { Button } from '#components/ui/button'
 import { Card, CardContent } from '#components/ui/card'
+import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '#components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui/empty'
 import { Field, FieldGroup, FieldLabel } from '#components/ui/field'
 import { Input } from '#components/ui/input'
 import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
+import { Separator } from '#components/ui/separator'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
 import { cn } from '#lib/utils'
@@ -32,10 +34,13 @@ import { cn } from '#lib/utils'
 import {
   type CaseItem,
   type CaseListPage,
-  type CaseStatusFilter,
+  type CaseListView,
+  type CaseStatusHistoryPage,
+  type CaseTransitionIntent,
   caseQueryKeys,
   createCaseItem,
   fetchCase,
+  fetchCaseStatusHistory,
   fetchCases,
   isCaseVersionConflict,
   transitionCaseItem,
@@ -57,7 +62,7 @@ export function CasesPage({
   requestedId?: string | null
 } = {}) {
   const queryClient = useQueryClient()
-  const [status, setStatus] = useState<CaseStatusFilter>('all')
+  const [view, setView] = useState<CaseListView>('new')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedIdRef = useRef<string | null>(null)
   const previousRequestedIdRef = useRef(requestedId)
@@ -76,15 +81,16 @@ export function CasesPage({
     CaseListPage,
     Error,
     InfiniteData<CaseListPage>,
-    readonly ['cases', 'list', CaseStatusFilter],
+    readonly ['cases', 'list', CaseListView],
     string | null
   >({
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, status }),
-    queryKey: caseQueryKeys.list(status),
+    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, view }),
+    queryKey: caseQueryKeys.list(view),
   })
   const items = useMemo(() => cases.data?.pages.flatMap((page) => page.items) ?? [], [cases.data])
+  const emptyState = caseListEmptyState(view)
   const requestedFromList = requestedId
     ? (items.find((item) => item.id === requestedId) ?? null)
     : null
@@ -120,6 +126,7 @@ export function CasesPage({
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
+      setView('new')
       rememberMobileListPosition(created.id)
       selectCase(created.id, isDesktop ? 'replace' : 'push')
       await refresh()
@@ -171,11 +178,15 @@ export function CasesPage({
     (requestedCase.data?.id === selectedId ? requestedCase.data : null)
   const mobileDetailOpen = !isDesktop && Boolean(selectedId || requestedId)
   const transitionMutation = useMutation({
-    mutationFn: transitionCaseItem,
+    mutationFn: ({ current, input }: { current: CaseItem; input: CaseTransitionIntent }) =>
+      transitionCaseItem(current, input),
     onError: async (error) => {
       if (isCaseVersionConflict(error)) await refresh()
     },
-    onSuccess: refresh,
+    onSuccess: async (change) => {
+      setView(caseListViewForStatus(change.toStatus))
+      await refresh()
+    },
   })
 
   useEffect(() => {
@@ -253,17 +264,18 @@ export function CasesPage({
                 Sprawy
               </h1>
               <NativeSelect
-                aria-label="Status"
+                aria-label="Widok spraw"
                 className="shrink-0 [&_select]:h-10"
-                value={status}
+                value={view}
                 onChange={(event) => {
-                  setStatus(event.target.value as CaseStatusFilter)
+                  setView(event.target.value as CaseListView)
                   selectCase(null)
                 }}
               >
+                <NativeSelectOption value="new">Nowe</NativeSelectOption>
+                <NativeSelectOption value="working">Pracujemy</NativeSelectOption>
+                <NativeSelectOption value="waiting">Czekamy</NativeSelectOption>
                 <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
-                <NativeSelectOption value="open">Otwarte</NativeSelectOption>
-                <NativeSelectOption value="closed">Zamknięte</NativeSelectOption>
               </NativeSelect>
             </div>
 
@@ -274,10 +286,8 @@ export function CasesPage({
             {cases.isSuccess && items.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyTitle>Brak spraw w tym widoku.</EmptyTitle>
-                  <EmptyDescription>
-                    Utwórz pierwszą sprawę albo zmień filtr statusu.
-                  </EmptyDescription>
+                  <EmptyTitle>{emptyState.title}</EmptyTitle>
+                  <EmptyDescription>{emptyState.description}</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : null}
@@ -312,8 +322,8 @@ export function CasesPage({
                             Aktualizacja {formatDate(item.updatedAt)}
                           </small>
                         </span>
-                        <Badge variant={item.status === 'open' ? 'default' : 'secondary'}>
-                          {item.status === 'open' ? 'Otwarta' : 'Zamknięta'}
+                        <Badge variant={isOpenStatus(item.status) ? 'default' : 'secondary'}>
+                          {statusLabel(item.status)}
                         </Badge>
                       </Button>
                     </li>
@@ -364,22 +374,27 @@ export function CasesPage({
                 transitionError={transitionMutation.error}
                 updateBusy={updateMutation.isPending}
                 updateError={updateMutation.error}
-                onTransition={() => transitionMutation.mutate(selected)}
+                onRetryTransition={() => {
+                  if (transitionMutation.variables) {
+                    transitionMutation.mutate(transitionMutation.variables)
+                  }
+                }}
+                onTransition={(input) => transitionMutation.mutate({ current: selected, input })}
                 onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
               />
             ) : requestedId && requestedCase.isError ? (
               <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
             ) : requestedId || selectedId ? (
               <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
-            ) : cases.isSuccess && status === 'all' && items.length === 0 ? (
+            ) : cases.isSuccess && view === 'all' && items.length === 0 ? (
               <CaseEmptyState
                 description="Wpisz jej tytuł po lewej stronie."
                 title="Dodaj pierwszą sprawę."
               />
             ) : cases.isSuccess && items.length === 0 ? (
               <CaseEmptyState
-                description="Zmień filtr statusu, aby zobaczyć pozostałe sprawy."
-                title="Brak spraw w tym widoku."
+                description="Zmień widok albo utwórz nową sprawę."
+                title="Brak wybranej sprawy."
               />
             ) : !isDesktop ? (
               <CaseEmptyState title="Wybierz sprawę z listy." />
@@ -397,6 +412,7 @@ function CaseDetail({
   caseItem,
   headingLevel,
   headingRef,
+  onRetryTransition,
   onTransition,
   onUpdate,
   transitionBusy,
@@ -407,7 +423,8 @@ function CaseDetail({
   caseItem: CaseItem
   headingLevel: 1 | 2
   headingRef: Ref<HTMLHeadingElement>
-  onTransition(): void
+  onRetryTransition(): void
+  onTransition(input: CaseTransitionIntent): void
   onUpdate(input: CaseFormValue): Promise<unknown>
   transitionBusy: boolean
   transitionError: Error | null
@@ -415,30 +432,45 @@ function CaseDetail({
   updateError: Error | null
 }) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
+  const [notedStatus, setNotedStatus] = useState<'canceled' | 'waiting' | null>(null)
+
+  const transition = (toStatus: CaseTransitionIntent['toStatus'], note?: string) => {
+    onTransition({
+      ...(note ? { note } : {}),
+      toStatus,
+      transitionId: crypto.randomUUID(),
+    } as CaseTransitionIntent)
+  }
 
   return (
     <article aria-labelledby="selected-case-title">
-      <div className="mb-7 flex flex-col items-start justify-between gap-5 min-[721px]:flex-row">
-        <Heading
-          ref={headingRef}
-          className="font-heading text-2xl font-semibold tracking-tight"
-          id="selected-case-title"
-          tabIndex={-1}
-        >
-          {caseItem.title}
-        </Heading>
-        <Button isDisabled={transitionBusy} onPress={onTransition} type="button" variant="outline">
-          {transitionBusy ? (
-            <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
-          ) : null}
-          {transitionBusy
-            ? 'Zapisywanie…'
-            : caseItem.status === 'open'
-              ? 'Zamknij sprawę'
-              : 'Otwórz ponownie'}
-        </Button>
+      <div className="mb-5 flex flex-col items-start justify-between gap-4 min-[721px]:flex-row">
+        <div className="grid gap-2">
+          <Heading
+            ref={headingRef}
+            className="font-heading text-2xl font-semibold tracking-tight"
+            id="selected-case-title"
+            tabIndex={-1}
+          >
+            {caseItem.title}
+          </Heading>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={isOpenStatus(caseItem.status) ? 'default' : 'secondary'}>
+              {statusLabel(caseItem.status)}
+            </Badge>
+            {caseItem.status === 'waiting' && caseItem.statusNote ? (
+              <span className="text-sm text-muted-foreground">{caseItem.statusNote}</span>
+            ) : null}
+          </div>
+        </div>
+        <CaseStatusActions
+          busy={transitionBusy}
+          caseItem={caseItem}
+          onNotedTransition={setNotedStatus}
+          onTransition={transition}
+        />
       </div>
-      {transitionError ? <ErrorNotice error={transitionError} /> : null}
+      {transitionError ? <ErrorNotice error={transitionError} retry={onRetryTransition} /> : null}
       <CaseForm
         key={`${caseItem.id}:${caseItem.version}`}
         busy={updateBusy}
@@ -447,7 +479,218 @@ function CaseDetail({
         onSubmit={onUpdate}
         submitLabel="Zapisz zmiany"
       />
+      <Separator className="my-7" />
+      <CaseStatusHistory caseId={caseItem.id} />
+      <StatusNoteDialog
+        busy={transitionBusy}
+        status={notedStatus}
+        onClose={() => setNotedStatus(null)}
+        onSubmit={(note) => {
+          if (!notedStatus) return
+          transition(notedStatus, note)
+          setNotedStatus(null)
+        }}
+      />
     </article>
+  )
+}
+
+function CaseStatusActions({
+  busy,
+  caseItem,
+  onNotedTransition,
+  onTransition,
+}: {
+  busy: boolean
+  caseItem: CaseItem
+  onNotedTransition(status: 'canceled' | 'waiting'): void
+  onTransition(status: CaseTransitionIntent['toStatus']): void
+}) {
+  if (caseItem.status === 'resolved' || caseItem.status === 'canceled') {
+    return (
+      <Button
+        isDisabled={busy}
+        onPress={() => onTransition('working')}
+        type="button"
+        variant="outline"
+      >
+        {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
+        {busy ? 'Zapisywanie…' : 'Otwórz ponownie'}
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {caseItem.status === 'new' ? (
+        <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
+          Rozpocznij pracę
+        </Button>
+      ) : null}
+      {caseItem.status === 'new' || caseItem.status === 'working' ? (
+        <Button
+          isDisabled={busy}
+          onPress={() => onNotedTransition('waiting')}
+          type="button"
+          variant="outline"
+        >
+          Oczekuj
+        </Button>
+      ) : null}
+      {caseItem.status === 'waiting' ? (
+        <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
+          Wznów pracę
+        </Button>
+      ) : null}
+      <Button
+        isDisabled={busy}
+        onPress={() => onTransition('resolved')}
+        type="button"
+        variant="outline"
+      >
+        Rozwiąż
+      </Button>
+      <details className="relative">
+        <summary className="flex size-8 cursor-pointer list-none items-center justify-center rounded-lg outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+          <RiMore2Line aria-hidden="true" />
+          <span className="sr-only">Więcej działań</span>
+        </summary>
+        <div className="absolute right-0 z-10 mt-1 rounded-lg border bg-background p-1 shadow-lg">
+          <Button
+            isDisabled={busy}
+            onPress={() => onNotedTransition('canceled')}
+            size="sm"
+            type="button"
+            variant="destructive"
+          >
+            Anuluj
+          </Button>
+        </div>
+      </details>
+    </div>
+  )
+}
+
+function StatusNoteDialog({
+  busy,
+  onClose,
+  onSubmit,
+  status,
+}: {
+  busy: boolean
+  onClose(): void
+  onSubmit(note: string): void
+  status: 'canceled' | 'waiting' | null
+}) {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const note = String(new FormData(event.currentTarget).get('status-note') ?? '').trim()
+    if (note) onSubmit(note)
+  }
+
+  return (
+    <Dialog isDismissable isOpen={status !== null} onOpenChange={(open) => !open && onClose()}>
+      <form onSubmit={submit}>
+        <DialogTitle>{status === 'waiting' ? 'Na co czekamy?' : 'Dlaczego anulujemy?'}</DialogTitle>
+        <DialogDescription>
+          Notatka będzie widoczna przy aktualnym statusie i w historii sprawy.
+        </DialogDescription>
+        <Field className="mt-4">
+          <FieldLabel htmlFor="case-status-note">Notatka</FieldLabel>
+          <Textarea
+            autoFocus
+            className="min-h-24 resize-y"
+            id="case-status-note"
+            maxLength={2_000}
+            name="status-note"
+            required
+          />
+        </Field>
+        <DialogFooter>
+          <Button isDisabled={busy} onPress={onClose} type="button" variant="outline">
+            Wróć
+          </Button>
+          <Button
+            isDisabled={busy}
+            type="submit"
+            variant={status === 'canceled' ? 'destructive' : 'default'}
+          >
+            {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
+            {status === 'waiting' ? 'Ustaw oczekiwanie' : 'Anuluj sprawę'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
+  )
+}
+
+function CaseStatusHistory({ caseId }: { caseId: string }) {
+  const history = useInfiniteQuery<
+    CaseStatusHistoryPage,
+    Error,
+    InfiniteData<CaseStatusHistoryPage>,
+    readonly ['cases', 'history', string],
+    string | null
+  >({
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    initialPageParam: null,
+    queryFn: ({ pageParam }) => fetchCaseStatusHistory(caseId, pageParam),
+    queryKey: caseQueryKeys.history(caseId),
+  })
+  const entries = history.data?.pages.flatMap((page) => page.items) ?? []
+
+  return (
+    <section aria-labelledby="case-status-history-title">
+      <h3 className="font-heading text-lg font-semibold" id="case-status-history-title">
+        Historia statusu
+      </h3>
+      {history.isPending ? <LoadingStatus label="Ładowanie historii…" /> : null}
+      {history.isError ? (
+        <ErrorNotice error={history.error} retry={() => history.refetch()} />
+      ) : null}
+      {history.isSuccess && entries.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">Brak wpisów historii.</p>
+      ) : null}
+      {entries.length > 0 ? (
+        <ol className="mt-4 grid gap-4">
+          {entries.map((entry) => (
+            <li className="border-l-2 border-border pl-4" key={entry.id}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <strong className="text-sm">
+                  {entry.type === 'created'
+                    ? `Utworzono jako „${statusLabel(entry.toStatus)}”`
+                    : `${statusLabel(entry.fromStatus ?? 'new')} → ${statusLabel(entry.toStatus)}`}
+                </strong>
+                <time className="text-xs text-muted-foreground" dateTime={entry.changedAt}>
+                  {formatDate(entry.changedAt)}
+                </time>
+              </div>
+              {entry.note ? (
+                <p className="mt-1 text-sm text-muted-foreground">{entry.note}</p>
+              ) : null}
+              <small className="mt-1 block text-muted-foreground">
+                {entry.source === 'migration'
+                  ? 'Migracja systemowa'
+                  : entry.actorType === 'system'
+                    ? 'System'
+                    : entry.actorId}
+              </small>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {history.hasNextPage ? (
+        <Button
+          className="mt-4"
+          isDisabled={history.isFetchingNextPage}
+          onPress={() => history.fetchNextPage()}
+          type="button"
+          variant="outline"
+        >
+          {history.isFetchingNextPage ? 'Ładowanie…' : 'Pokaż starsze'}
+        </Button>
+      ) : null}
+    </section>
   )
 }
 
@@ -639,6 +882,45 @@ function LoadingStatus({ className, label }: { className?: string; label: string
 function optionalText(value: FormDataEntryValue | null) {
   const normalized = typeof value === 'string' ? value.trim() : ''
   return normalized || null
+}
+
+function isOpenStatus(status: CaseItem['status']) {
+  return status === 'new' || status === 'working' || status === 'waiting'
+}
+
+function statusLabel(status: CaseItem['status']) {
+  return {
+    canceled: 'Anulowana',
+    new: 'Nowa',
+    resolved: 'Rozwiązana',
+    waiting: 'Czekamy',
+    working: 'Pracujemy',
+  }[status]
+}
+
+function caseListViewForStatus(status: CaseItem['status']): CaseListView {
+  return status === 'canceled' || status === 'resolved' ? 'all' : status
+}
+
+function caseListEmptyState(view: CaseListView) {
+  return {
+    all: {
+      description: 'Utwórz pierwszą sprawę, wpisując jej tytuł powyżej.',
+      title: 'Brak spraw.',
+    },
+    new: {
+      description: 'Nowe sprawy pojawią się tutaj po utworzeniu.',
+      title: 'Brak nowych spraw.',
+    },
+    waiting: {
+      description: 'Sprawy, na które czekamy, pojawią się tutaj.',
+      title: 'Brak spraw, na które czekamy.',
+    },
+    working: {
+      description: 'Rozpocznij pracę nad nową sprawą, aby pojawiła się tutaj.',
+      title: 'Brak spraw, nad którymi pracujemy.',
+    },
+  }[view]
 }
 
 function readError(error: unknown) {

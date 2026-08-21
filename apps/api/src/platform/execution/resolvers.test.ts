@@ -30,6 +30,8 @@ describe('execution context resolvers', () => {
     expect(context.organizationId).toBe(organizationId)
     expect(context.actor).toEqual({ id: 'local-dev', type: 'user' })
     expect(context.capabilities.has('cases.close')).toBe(true)
+    expect(context.capabilities.has('cases.transition')).toBe(true)
+    expect(context.capabilities.has('cases.reopen')).toBe(true)
   })
 
   it('prevents development identity resolvers from protecting production', () => {

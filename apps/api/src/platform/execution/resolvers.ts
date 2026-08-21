@@ -8,7 +8,14 @@ import type {
 } from './context.js'
 import { AuthenticationRequiredError, AuthorizationDeniedError } from './errors.js'
 
-const DEV_CAPABILITIES = new Set(['cases.close', 'cases.create', 'cases.read', 'cases.update'])
+const DEV_CAPABILITIES = new Set([
+  'cases.close',
+  'cases.create',
+  'cases.read',
+  'cases.reopen',
+  'cases.transition',
+  'cases.update',
+])
 const MAX_CORRELATION_ID_LENGTH = 255
 
 export function createDevActorResolver(): ActorResolver {

@@ -5,14 +5,21 @@ import {
   type CasePathParameters,
   CasePathParametersSchema,
   CaseSchema,
+  CaseStatusChangeSchema,
+  CaseStatusGroupSchema,
+  type CaseStatusHistoryQuery,
+  CaseStatusHistoryQuerySchema,
+  CaseStatusHistorySchema,
+  CaseStatusSchema,
+  CaseTransitionIdConflictSchema,
   CaseVersionConflictSchema,
+  type ChangeCaseStatusRequest,
+  ChangeCaseStatusRequestSchema,
   type CreateCaseRequest,
   CreateCaseRequestSchema,
   type ListCasesQuery,
   ListCasesQuerySchema,
   ProblemDetailsSchema,
-  type TransitionCaseRequest,
-  TransitionCaseRequestSchema,
   type UpdateCaseRequest,
   UpdateCaseRequestSchema,
 } from '@yetano/contracts'
@@ -25,6 +32,7 @@ import type { AppEnvironment } from '../../http-types.js'
 import { problem } from '../../problem.js'
 import {
   CaseNotFoundError,
+  CaseTransitionIdConflictError,
   CaseValidationError,
   CaseVersionConflictError,
   InvalidCaseCursorError,
@@ -33,8 +41,9 @@ import {
 const casePathValidator = Compile(CasePathParametersSchema)
 const createCaseValidator = Compile(CreateCaseRequestSchema)
 const updateCaseValidator = Compile(UpdateCaseRequestSchema)
-const transitionCaseValidator = Compile(TransitionCaseRequestSchema)
+const transitionCaseValidator = Compile(ChangeCaseStatusRequestSchema)
 const listCasesValidator = Compile(ListCasesQuerySchema)
+const statusHistoryValidator = Compile(CaseStatusHistoryQuerySchema)
 
 const errorResponses = {
   400: problemResponse('The request is invalid.'),
@@ -48,7 +57,7 @@ export function createCasesRoutes() {
   routes.post(
     '/cases',
     describeRoute({
-      description: 'Creates an open case in the server-resolved organization.',
+      description: 'Creates a new case in the server-resolved organization.',
       operationId: 'createCase',
       requestBody: {
         content: { 'application/json': { schema: CreateCaseRequestSchema } },
@@ -83,7 +92,15 @@ export function createCasesRoutes() {
         queryParameter('cursor', Type.String()),
         queryParameter('customerId', Type.String({ format: 'uuid' })),
         queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
-        queryParameter('status', Type.Union([Type.Literal('open'), Type.Literal('closed')])),
+        {
+          explode: true,
+          in: 'query' as const,
+          name: 'status',
+          required: false,
+          schema: Type.Array(CaseStatusSchema, { maxItems: 5, minItems: 1, uniqueItems: true }),
+          style: 'form' as const,
+        },
+        queryParameter('statusGroup', CaseStatusGroupSchema),
       ],
       responses: {
         ...errorResponses,
@@ -100,6 +117,39 @@ export function createCasesRoutes() {
             .get('scope')
             .resolve('casesService')
             .list(query as ListCasesQuery, context.get('executionContext')),
+          200,
+        ),
+      )
+    },
+  )
+
+  routes.get(
+    '/cases/:caseId/status-history',
+    describeRoute({
+      description: 'Lists immutable status history for one organization-scoped case.',
+      operationId: 'listCaseStatusHistory',
+      parameters: [
+        pathParameter('caseId'),
+        queryParameter('cursor', Type.String()),
+        queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
+      ],
+      responses: {
+        ...errorResponses,
+        200: jsonResponse(CaseStatusHistorySchema, 'A cursor-paginated case status history.'),
+        404: problemResponse('The case does not exist in the active organization.'),
+      },
+      tags: ['Cases'],
+    }),
+    async (context) => {
+      const caseId = readCaseId(context)
+      const query = parseHistoryQuery(context)
+      if (!caseId || !query || !statusHistoryValidator.Check(query)) return invalidRequest(context)
+      return runCaseAction(context, async () =>
+        context.json(
+          await context
+            .get('scope')
+            .resolve('casesService')
+            .history(caseId, query as CaseStatusHistoryQuery, context.get('executionContext')),
           200,
         ),
       )
@@ -144,7 +194,7 @@ export function createCasesRoutes() {
         content: { 'application/json': { schema: UpdateCaseRequestSchema } },
         required: true,
       },
-      responses: mutationResponses('The updated case.'),
+      responses: mutationResponses(CaseSchema, 'The updated case.'),
       tags: ['Cases'],
     }),
     async (context) => {
@@ -163,37 +213,38 @@ export function createCasesRoutes() {
     },
   )
 
-  for (const transition of ['close', 'reopen'] as const) {
-    routes.post(
-      `/cases/:caseId/${transition}`,
-      describeRoute({
-        description: `${transition === 'close' ? 'Closes' : 'Reopens'} a case idempotently.`,
-        operationId: transition === 'close' ? 'closeCase' : 'reopenCase',
-        parameters: [pathParameter('caseId')],
-        requestBody: {
-          content: { 'application/json': { schema: TransitionCaseRequestSchema } },
-          required: true,
-        },
-        responses: mutationResponses(
-          transition === 'close' ? 'The closed case.' : 'The reopened case.',
-        ),
-        tags: ['Cases'],
-      }),
-      async (context) => {
-        const caseId = readCaseId(context)
-        const request = await readJson(context, transitionCaseValidator)
-        if (!caseId || !request) return invalidRequest(context)
-        return runCaseAction(context, async () => {
-          const service = context.get('scope').resolve('casesService')
-          const action = transition === 'close' ? service.close : service.reopen
-          return context.json(
-            await action(caseId, request as TransitionCaseRequest, context.get('executionContext')),
-            200,
-          )
-        })
+  routes.post(
+    '/cases/:caseId/transition',
+    describeRoute({
+      description: 'Transitions a case status idempotently using a client-generated command id.',
+      operationId: 'transitionCase',
+      parameters: [pathParameter('caseId')],
+      requestBody: {
+        content: { 'application/json': { schema: ChangeCaseStatusRequestSchema } },
+        required: true,
       },
-    )
-  }
+      responses: transitionResponses(),
+      tags: ['Cases'],
+    }),
+    async (context) => {
+      const caseId = readCaseId(context)
+      const request = await readJson(context, transitionCaseValidator)
+      if (!caseId || !request) return invalidRequest(context)
+      return runCaseAction(context, async () =>
+        context.json(
+          await context
+            .get('scope')
+            .resolve('casesService')
+            .transition(
+              caseId,
+              request as ChangeCaseStatusRequest,
+              context.get('executionContext'),
+            ),
+          200,
+        ),
+      )
+    },
+  )
 
   return routes
 }
@@ -227,6 +278,21 @@ async function runCaseAction<ResponseType extends Response>(
         { 'Content-Type': 'application/problem+json' },
       )
     }
+    if (error instanceof CaseTransitionIdConflictError) {
+      return context.json(
+        {
+          code: 'case_transition_id_conflict' as const,
+          detail: error.message,
+          instance: new URL(context.req.url).pathname,
+          requestId: context.get('requestId'),
+          status: 409 as const,
+          title: 'Conflict',
+          type: 'about:blank',
+        },
+        409,
+        { 'Content-Type': 'application/problem+json' },
+      )
+    }
     throw error
   }
 }
@@ -249,15 +315,32 @@ function readCaseId(context: { req: { param(name: string): string } }): CaseId |
 }
 
 function parseListQuery(context: {
+  req: {
+    queries(name: string): string[] | undefined
+    query(name: string): string | undefined
+  }
+}): Record<string, unknown> | null {
+  const limitValue = context.req.query('limit')
+  if (limitValue && !/^\d+$/.test(limitValue)) return null
+  const statuses = context.req.queries('status')
+  return {
+    ...(context.req.query('cursor') ? { cursor: context.req.query('cursor') } : {}),
+    ...(context.req.query('customerId') ? { customerId: context.req.query('customerId') } : {}),
+    ...(limitValue ? { limit: Number(limitValue) } : {}),
+    ...(statuses?.length === 1 ? { status: statuses[0] } : {}),
+    ...(statuses && statuses.length > 1 ? { status: statuses } : {}),
+    ...(context.req.query('statusGroup') ? { statusGroup: context.req.query('statusGroup') } : {}),
+  }
+}
+
+function parseHistoryQuery(context: {
   req: { query(name: string): string | undefined }
 }): Record<string, unknown> | null {
   const limitValue = context.req.query('limit')
   if (limitValue && !/^\d+$/.test(limitValue)) return null
   return {
     ...(context.req.query('cursor') ? { cursor: context.req.query('cursor') } : {}),
-    ...(context.req.query('customerId') ? { customerId: context.req.query('customerId') } : {}),
     ...(limitValue ? { limit: Number(limitValue) } : {}),
-    ...(context.req.query('status') ? { status: context.req.query('status') } : {}),
   }
 }
 
@@ -276,14 +359,30 @@ function problemResponse(description: string) {
   }
 }
 
-function mutationResponses(successDescription: string) {
+function mutationResponses(schema: object, successDescription: string) {
   return {
     ...errorResponses,
-    200: jsonResponse(CaseSchema, successDescription),
+    200: jsonResponse(schema, successDescription),
     404: problemResponse('The case does not exist in the active organization.'),
     409: {
       content: { 'application/problem+json': { schema: CaseVersionConflictSchema } },
       description: 'The expected case version is stale.',
+    },
+  }
+}
+
+function transitionResponses() {
+  return {
+    ...errorResponses,
+    200: jsonResponse(CaseStatusChangeSchema, 'The stored case status transition.'),
+    404: problemResponse('The case does not exist in the active organization.'),
+    409: {
+      content: {
+        'application/problem+json': {
+          schema: Type.Union([CaseTransitionIdConflictSchema, CaseVersionConflictSchema]),
+        },
+      },
+      description: 'The case version is stale or the transition id has already been reused.',
     },
   }
 }

@@ -1,6 +1,12 @@
 import type { FilterQuery } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
-import type { CaseId, CaseStatus, CustomerId, OrganizationId } from '@yetano/contracts'
+import type {
+  CaseId,
+  CaseStatus,
+  CaseStatusGroup,
+  CustomerId,
+  OrganizationId,
+} from '@yetano/contracts'
 
 import { CaseEntity, type CaseRecord } from './case.entity.js'
 
@@ -13,7 +19,8 @@ export interface CaseListFilters {
   cursor?: CaseCursor
   customerId?: CustomerId
   limit: number
-  status?: CaseStatus
+  status?: CaseStatus | CaseStatus[]
+  statusGroup?: CaseStatusGroup
 }
 
 export interface CaseRepository {
@@ -31,7 +38,17 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
     },
     async list(organizationId, filters) {
       const where: FilterQuery<CaseRecord> = { organizationId }
-      if (filters.status) where.status = filters.status
+      if (filters.status) {
+        where.status = Array.isArray(filters.status) ? { $in: filters.status } : filters.status
+      }
+      if (filters.statusGroup) {
+        where.status = {
+          $in:
+            filters.statusGroup === 'open'
+              ? ['new', 'waiting', 'working']
+              : ['canceled', 'resolved'],
+        }
+      }
       if (filters.customerId) where.customerId = filters.customerId
       if (filters.cursor) {
         where.$or = [

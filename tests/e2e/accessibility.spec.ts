@@ -10,7 +10,8 @@ const caseItem = {
   description: 'Opis sprawy używany w teście dostępności.',
   id: '122c8615-6bcd-4a36-90e6-d18ca0c06928',
   organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-  status: 'open',
+  status: 'new',
+  statusNote: null,
   title: 'Dostępna sprawa',
   updatedAt: '2026-08-20T08:00:00.000Z',
   version: 1,
@@ -20,7 +21,7 @@ test('empty cases workspace has no detectable WCAG A or AA violations', async ({
   await mockCaseList(page, { items: [], nextCursor: null })
   await page.goto('/cases')
 
-  await expect(page.getByText('Brak spraw w tym widoku.').first()).toBeVisible()
+  await expect(page.getByText('Brak nowych spraw.')).toBeVisible()
   await expectNoWcagViolations(page)
 })
 
@@ -60,7 +61,11 @@ test('error state has no detectable WCAG A or AA violations on mobile', async ({
 async function mockCaseList(page: Page, response: unknown) {
   await page.route('**/api/v1/cases**', (route) =>
     route.fulfill({
-      body: JSON.stringify(response),
+      body: JSON.stringify(
+        new URL(route.request().url()).pathname.endsWith('/status-history')
+          ? { items: [], nextCursor: null }
+          : response,
+      ),
       contentType: 'application/json',
       status: 200,
     }),

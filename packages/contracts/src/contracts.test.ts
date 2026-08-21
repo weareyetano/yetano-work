@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CaseListSchema,
   CaseSchema,
+  CaseStatusChangeSchema,
+  ChangeCaseStatusRequestSchema,
   CreateCaseRequestSchema,
   HealthResponseSchema,
   ProblemDetailsSchema,
@@ -42,7 +44,8 @@ describe('public API contracts', () => {
       description: null,
       id: '8d19dfee-e908-4e4f-8450-ccbcd82f2319',
       organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-      status: 'open',
+      status: 'new',
+      statusNote: null,
       title: 'Prepare the proposal',
       updatedAt: '2026-08-19T10:00:00.000Z',
       version: 1,
@@ -69,6 +72,49 @@ describe('public API contracts', () => {
 
     expect(validator.Check({ expectedVersion: 2, title: 'Updated title' })).toBe(true)
     expect(validator.Check({ title: 'Missing version' })).toBe(false)
+  })
+
+  it('accepts allowed status transitions and requires waiting and cancellation notes', () => {
+    const validator = Compile(ChangeCaseStatusRequestSchema)
+    const identity = {
+      expectedVersion: 2,
+      transitionId: 'ad7e261c-61c6-4d35-a9de-b625c68d42a7',
+    }
+
+    expect(validator.Check({ ...identity, fromStatus: 'new', toStatus: 'working' })).toBe(true)
+    expect(validator.Check({ ...identity, fromStatus: 'working', toStatus: 'waiting' })).toBe(false)
+    expect(
+      validator.Check({
+        ...identity,
+        fromStatus: 'working',
+        note: 'Customer reply',
+        toStatus: 'waiting',
+      }),
+    ).toBe(true)
+    expect(validator.Check({ ...identity, fromStatus: 'new', toStatus: 'canceled' })).toBe(false)
+    expect(validator.Check({ ...identity, fromStatus: 'resolved', toStatus: 'working' })).toBe(true)
+    expect(validator.Check({ ...identity, fromStatus: 'working', toStatus: 'new' })).toBe(false)
+  })
+
+  it('accepts immutable case status history entries', () => {
+    const validator = Compile(CaseStatusChangeSchema)
+
+    expect(
+      validator.Check({
+        actorId: 'local-dev',
+        actorType: 'user',
+        caseId: '8d19dfee-e908-4e4f-8450-ccbcd82f2319',
+        caseVersion: 2,
+        changedAt: '2026-08-19T11:00:00.000Z',
+        fromStatus: 'working',
+        id: '099ec33b-0f7d-4d7c-bc4a-b7520217f96e',
+        note: 'Waiting for a reply.',
+        source: 'runtime',
+        toStatus: 'waiting',
+        transitionId: 'ad7e261c-61c6-4d35-a9de-b625c68d42a7',
+        type: 'transitioned',
+      }),
+    ).toBe(true)
   })
 
   it('requires a bounded case-list response', () => {
