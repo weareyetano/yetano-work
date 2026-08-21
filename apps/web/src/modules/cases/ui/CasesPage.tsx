@@ -1,4 +1,4 @@
-import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine, RiMore2Line } from '@remixicon/react'
+import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query'
 import {
   type FormEvent,
+  type ReactNode,
   type Ref,
   useCallback,
   useEffect,
@@ -26,7 +27,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui
 import { Field, FieldGroup, FieldLabel } from '#components/ui/field'
 import { Input } from '#components/ui/input'
 import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
-import { Separator } from '#components/ui/separator'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
 import { cn } from '#lib/utils'
@@ -51,30 +51,43 @@ const LAST_VIEWED_CASE_KEY = 'yetano:last-viewed-case-id'
 const DESKTOP_VIEW_QUERY = '(min-width: 721px)'
 
 function ignoreSelectionChange() {}
+function ignoreCreateModeChange() {}
 
 export type CaseSelectionNavigationMode = 'push' | 'replace'
 
 export function CasesPage({
+  createRequested = false,
+  onCreateModeChange = ignoreCreateModeChange,
   onSelectedIdChange = ignoreSelectionChange,
   requestedId = null,
 }: {
+  createRequested?: boolean
+  onCreateModeChange?(open: boolean, navigationMode: CaseSelectionNavigationMode): void
   onSelectedIdChange?(caseId: string | null, navigationMode: CaseSelectionNavigationMode): void
   requestedId?: string | null
 } = {}) {
   const queryClient = useQueryClient()
   const [view, setView] = useState<CaseListView>('new')
+  const [isCreating, setIsCreating] = useState(createRequested)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedIdRef = useRef<string | null>(null)
   const previousRequestedIdRef = useRef(requestedId)
+  const previousCreateRequestedRef = useRef(createRequested)
+  const previousSelectedIdRef = useRef<string | null>(null)
   const lastViewedIdRef = useRef(readLastViewedCaseId())
   const workspaceRef = useRef<HTMLElement>(null)
   const listTitleRef = useRef<HTMLHeadingElement>(null)
-  const detailTitleRef = useRef<HTMLHeadingElement>(null)
+  const detailTitleInputRef = useRef<HTMLInputElement>(null)
+  const createTitleRef = useRef<HTMLInputElement>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const mobileBackButtonRef = useRef<HTMLButtonElement>(null)
   const caseButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const listScrollPositionRef = useRef(0)
   const returnFocusCaseIdRef = useRef<string | null>(null)
+  const returnFocusToAddRef = useRef(false)
   const pendingDetailFocusIdRef = useRef<string | null>(null)
+  const pendingCreateFocusRef = useRef(false)
+  const pendingDesktopAddFocusRef = useRef(false)
   const wasMobileDetailOpenRef = useRef(false)
   const isDesktop = useDesktopViewport()
   const cases = useInfiniteQuery<
@@ -95,7 +108,7 @@ export function CasesPage({
     ? (items.find((item) => item.id === requestedId) ?? null)
     : null
   const requestedCase = useQuery({
-    enabled: Boolean(requestedId && !requestedFromList),
+    enabled: Boolean(!createRequested && requestedId && !requestedFromList),
     queryFn: () => fetchCase(requestedId as string),
     queryKey: caseQueryKeys.detail(requestedId ?? ''),
     retry: false,
@@ -127,8 +140,10 @@ export function CasesPage({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
       setView('new')
-      rememberMobileListPosition(created.id)
-      selectCase(created.id, isDesktop ? 'replace' : 'push')
+      setIsCreating(false)
+      previousSelectedIdRef.current = null
+      pendingDetailFocusIdRef.current = created.id
+      selectCase(created.id, 'replace')
       await refresh()
     },
   })
@@ -149,7 +164,26 @@ export function CasesPage({
     setSelectedId(null)
   }, [isDesktop, requestedId])
 
+  useLayoutEffect(() => {
+    const wasCreateRequested = previousCreateRequestedRef.current
+    if (wasCreateRequested === createRequested) return
+    previousCreateRequestedRef.current = createRequested
+
+    if (createRequested) {
+      if (selectedIdRef.current) {
+        previousSelectedIdRef.current = selectedIdRef.current
+      }
+      selectedIdRef.current = null
+      setSelectedId(null)
+      setIsCreating(true)
+      return
+    }
+
+    if (wasCreateRequested) setIsCreating(false)
+  }, [createRequested])
+
   useEffect(() => {
+    if (createRequested) return
     if (requestedId) {
       if (requestedFromList || requestedCase.data?.id === requestedId) {
         selectCase(requestedId)
@@ -164,6 +198,7 @@ export function CasesPage({
     selectCase(lastViewed?.id ?? items[0]?.id ?? null)
   }, [
     cases.isSuccess,
+    createRequested,
     isDesktop,
     items,
     requestedCase.data,
@@ -176,7 +211,7 @@ export function CasesPage({
   const selected =
     items.find((item) => item.id === selectedId) ??
     (requestedCase.data?.id === selectedId ? requestedCase.data : null)
-  const mobileDetailOpen = !isDesktop && Boolean(selectedId || requestedId)
+  const mobileDetailOpen = !isDesktop && Boolean(isCreating || selectedId || requestedId)
   const transitionMutation = useMutation({
     mutationFn: ({ current, input }: { current: CaseItem; input: CaseTransitionIntent }) =>
       transitionCaseItem(current, input),
@@ -189,6 +224,44 @@ export function CasesPage({
     },
   })
 
+  const openCreate = () => {
+    createMutation.reset()
+    previousSelectedIdRef.current = selectedIdRef.current
+    selectedIdRef.current = null
+    setSelectedId(null)
+    setIsCreating(true)
+    pendingCreateFocusRef.current = true
+    if (!isDesktop) {
+      listScrollPositionRef.current = window.scrollY
+      returnFocusToAddRef.current = true
+    }
+    onCreateModeChange(true, 'push')
+  }
+
+  const cancelCreate = () => {
+    const previousSelectedId =
+      previousSelectedIdRef.current ??
+      (isDesktop
+        ? (items.find((item) => item.id === lastViewedIdRef.current)?.id ?? items[0]?.id ?? null)
+        : null)
+    previousSelectedIdRef.current = null
+    setIsCreating(false)
+    createMutation.reset()
+
+    if (previousSelectedId) selectCase(previousSelectedId, 'replace')
+    else onCreateModeChange(false, 'replace')
+
+    if (isDesktop) pendingDesktopAddFocusRef.current = true
+  }
+
+  const openCase = (caseId: string) => {
+    setIsCreating(false)
+    previousSelectedIdRef.current = null
+    createMutation.reset()
+    rememberMobileListPosition(caseId)
+    selectCase(caseId, isDesktop ? 'replace' : 'push')
+  }
+
   useEffect(() => {
     let restoreFrame: number | null = null
     let settledRestoreFrame: number | null = null
@@ -200,15 +273,17 @@ export function CasesPage({
 
     const wasOpen = wasMobileDetailOpenRef.current
     if (mobileDetailOpen && !wasOpen) {
-      pendingDetailFocusIdRef.current = selectedId ?? requestedId
+      pendingDetailFocusIdRef.current = isCreating ? null : (selectedId ?? requestedId)
       const workspace = workspaceRef.current
       if (workspace && typeof workspace.scrollIntoView === 'function') {
         workspace.scrollIntoView({ block: 'start' })
       }
     } else if (!mobileDetailOpen && wasOpen) {
-      const returnTarget = returnFocusCaseIdRef.current
-        ? caseButtonRefs.current.get(returnFocusCaseIdRef.current)
-        : null
+      const returnTarget = returnFocusToAddRef.current
+        ? addButtonRef.current
+        : returnFocusCaseIdRef.current
+          ? caseButtonRefs.current.get(returnFocusCaseIdRef.current)
+          : null
       const scrollPosition = listScrollPositionRef.current
       restoreFrame = window.requestAnimationFrame(() => {
         settledRestoreFrame = window.requestAnimationFrame(() => {
@@ -217,6 +292,7 @@ export function CasesPage({
         })
       })
       returnFocusCaseIdRef.current = null
+      returnFocusToAddRef.current = false
       pendingDetailFocusIdRef.current = null
     }
     wasMobileDetailOpenRef.current = mobileDetailOpen
@@ -225,12 +301,24 @@ export function CasesPage({
       if (restoreFrame !== null) window.cancelAnimationFrame(restoreFrame)
       if (settledRestoreFrame !== null) window.cancelAnimationFrame(settledRestoreFrame)
     }
-  }, [isDesktop, mobileDetailOpen, requestedId, selectedId])
+  }, [isCreating, isDesktop, mobileDetailOpen, requestedId, selectedId])
+
+  useEffect(() => {
+    if (!isCreating || !pendingCreateFocusRef.current) return
+    createTitleRef.current?.focus({ preventScroll: true })
+    pendingCreateFocusRef.current = false
+  }, [isCreating])
+
+  useEffect(() => {
+    if (isCreating || !isDesktop || !pendingDesktopAddFocusRef.current) return
+    addButtonRef.current?.focus({ preventScroll: true })
+    pendingDesktopAddFocusRef.current = false
+  }, [isCreating, isDesktop])
 
   useEffect(() => {
     if (!mobileDetailOpen || pendingDetailFocusIdRef.current === null) return
     if (selected?.id === pendingDetailFocusIdRef.current) {
-      detailTitleRef.current?.focus({ preventScroll: true })
+      detailTitleInputRef.current?.focus({ preventScroll: true })
       pendingDetailFocusIdRef.current = null
       return
     }
@@ -249,11 +337,6 @@ export function CasesPage({
       >
         <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
           <CardContent className="flex flex-1 flex-col p-6">
-            <CaseCreateForm
-              busy={createMutation.isPending}
-              error={createMutation.error}
-              onSubmit={(input) => createMutation.mutateAsync(input)}
-            />
             <div className="mb-5 flex items-start justify-between gap-5">
               <h1
                 ref={listTitleRef}
@@ -263,20 +346,32 @@ export function CasesPage({
               >
                 Sprawy
               </h1>
-              <NativeSelect
-                aria-label="Widok spraw"
-                className="shrink-0 [&_select]:h-10"
-                value={view}
-                onChange={(event) => {
-                  setView(event.target.value as CaseListView)
-                  selectCase(null)
-                }}
-              >
-                <NativeSelectOption value="new">Nowe</NativeSelectOption>
-                <NativeSelectOption value="working">Pracujemy</NativeSelectOption>
-                <NativeSelectOption value="waiting">Czekamy</NativeSelectOption>
-                <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
-              </NativeSelect>
+              <div className="flex shrink-0 items-center gap-2">
+                <NativeSelect
+                  aria-label="Widok spraw"
+                  className="[&_select]:h-10"
+                  value={view}
+                  onChange={(event) => {
+                    setView(event.target.value as CaseListView)
+                    if (!isCreating) selectCase(null)
+                  }}
+                >
+                  <NativeSelectOption value="new">Nowe</NativeSelectOption>
+                  <NativeSelectOption value="working">Pracujemy</NativeSelectOption>
+                  <NativeSelectOption value="waiting">Czekamy</NativeSelectOption>
+                  <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
+                </NativeSelect>
+                <Button
+                  ref={addButtonRef}
+                  aria-label="Dodaj sprawę"
+                  className="size-10"
+                  onPress={openCreate}
+                  size="icon"
+                  type="button"
+                >
+                  <RiAddLine aria-hidden="true" />
+                </Button>
+              </div>
             </div>
 
             {cases.isPending ? <LoadingStatus label="Ładowanie spraw…" /> : null}
@@ -310,8 +405,7 @@ export function CasesPage({
                             : 'border-transparent bg-transparent',
                         )}
                         onPress={() => {
-                          rememberMobileListPosition(item.id)
-                          selectCase(item.id, isDesktop ? 'replace' : 'push')
+                          openCase(item.id)
                         }}
                         type="button"
                         variant="ghost"
@@ -356,7 +450,7 @@ export function CasesPage({
                   ref={mobileBackButtonRef}
                   aria-label="Wróć do listy spraw"
                   className="size-11"
-                  onPress={() => selectCase(null, 'replace')}
+                  onPress={() => (isCreating ? cancelCreate() : selectCase(null, 'replace'))}
                   size="icon-lg"
                   type="button"
                   variant="ghost"
@@ -365,11 +459,19 @@ export function CasesPage({
                 </Button>
               </div>
             ) : null}
-            {selected ? (
+            {isCreating ? (
+              <CaseCreatePanel
+                busy={createMutation.isPending}
+                error={createMutation.error}
+                titleRef={createTitleRef}
+                onCancel={cancelCreate}
+                onSubmit={(input) => createMutation.mutateAsync(input)}
+              />
+            ) : selected ? (
               <CaseDetail
                 caseItem={selected}
                 headingLevel={isDesktop ? 2 : 1}
-                headingRef={detailTitleRef}
+                titleRef={detailTitleInputRef}
                 transitionBusy={transitionMutation.isPending}
                 transitionError={transitionMutation.error}
                 updateBusy={updateMutation.isPending}
@@ -388,7 +490,7 @@ export function CasesPage({
               <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
             ) : cases.isSuccess && view === 'all' && items.length === 0 ? (
               <CaseEmptyState
-                description="Wpisz jej tytuł po lewej stronie."
+                description="Użyj przycisku „Dodaj sprawę” po lewej stronie."
                 title="Dodaj pierwszą sprawę."
               />
             ) : cases.isSuccess && items.length === 0 ? (
@@ -411,10 +513,10 @@ export function CasesPage({
 function CaseDetail({
   caseItem,
   headingLevel,
-  headingRef,
   onRetryTransition,
   onTransition,
   onUpdate,
+  titleRef,
   transitionBusy,
   transitionError,
   updateBusy,
@@ -422,10 +524,10 @@ function CaseDetail({
 }: {
   caseItem: CaseItem
   headingLevel: 1 | 2
-  headingRef: Ref<HTMLHeadingElement>
   onRetryTransition(): void
   onTransition(input: CaseTransitionIntent): void
   onUpdate(input: CaseFormValue): Promise<unknown>
+  titleRef: Ref<HTMLInputElement>
   transitionBusy: boolean
   transitionError: Error | null
   updateBusy: boolean
@@ -444,42 +546,27 @@ function CaseDetail({
 
   return (
     <article aria-labelledby="selected-case-title">
-      <div className="mb-5 flex flex-col items-start justify-between gap-4 min-[721px]:flex-row">
-        <div className="grid gap-2">
-          <Heading
-            ref={headingRef}
-            className="font-heading text-2xl font-semibold tracking-tight"
-            id="selected-case-title"
-            tabIndex={-1}
-          >
-            {caseItem.title}
-          </Heading>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={isOpenStatus(caseItem.status) ? 'default' : 'secondary'}>
-              {statusLabel(caseItem.status)}
-            </Badge>
-            {caseItem.status === 'waiting' && caseItem.statusNote ? (
-              <span className="text-sm text-muted-foreground">{caseItem.statusNote}</span>
-            ) : null}
-          </div>
-        </div>
-        <CaseStatusActions
-          busy={transitionBusy}
-          caseItem={caseItem}
-          onNotedTransition={setNotedStatus}
-          onTransition={transition}
-        />
-      </div>
+      <Heading className="sr-only" id="selected-case-title">
+        {caseItem.title}
+      </Heading>
       {transitionError ? <ErrorNotice error={transitionError} retry={onRetryTransition} /> : null}
       <CaseForm
         key={`${caseItem.id}:${caseItem.version}`}
         busy={updateBusy}
         error={updateError}
+        footerActions={
+          <CaseStatusActions
+            busy={transitionBusy}
+            caseItem={caseItem}
+            onNotedTransition={setNotedStatus}
+            onTransition={transition}
+          />
+        }
         initialValue={caseItem}
         onSubmit={onUpdate}
-        submitLabel="Zapisz zmiany"
+        submitLabel="Zapisz"
+        titleRef={titleRef}
       />
-      <Separator className="my-7" />
       <CaseStatusHistory caseId={caseItem.id} />
       <StatusNoteDialog
         busy={transitionBusy}
@@ -521,10 +608,10 @@ function CaseStatusActions({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {caseItem.status === 'new' ? (
         <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
-          Rozpocznij pracę
+          Pracuj
         </Button>
       ) : null}
       {caseItem.status === 'new' || caseItem.status === 'working' ? (
@@ -539,7 +626,7 @@ function CaseStatusActions({
       ) : null}
       {caseItem.status === 'waiting' ? (
         <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
-          Wznów pracę
+          Wznów
         </Button>
       ) : null}
       <Button
@@ -550,23 +637,15 @@ function CaseStatusActions({
       >
         Rozwiąż
       </Button>
-      <details className="relative">
-        <summary className="flex size-8 cursor-pointer list-none items-center justify-center rounded-lg outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-          <RiMore2Line aria-hidden="true" />
-          <span className="sr-only">Więcej działań</span>
-        </summary>
-        <div className="absolute right-0 z-10 mt-1 rounded-lg border bg-background p-1 shadow-lg">
-          <Button
-            isDisabled={busy}
-            onPress={() => onNotedTransition('canceled')}
-            size="sm"
-            type="button"
-            variant="destructive"
-          >
-            Anuluj
-          </Button>
-        </div>
-      </details>
+      <Button
+        className="bg-destructive text-white hover:bg-destructive/90"
+        isDisabled={busy}
+        onPress={() => onNotedTransition('canceled')}
+        type="button"
+        variant="destructive"
+      >
+        Anuluj
+      </Button>
     </div>
   )
 }
@@ -640,43 +719,56 @@ function CaseStatusHistory({ caseId }: { caseId: string }) {
   const entries = history.data?.pages.flatMap((page) => page.items) ?? []
 
   return (
-    <section aria-labelledby="case-status-history-title">
-      <h3 className="font-heading text-lg font-semibold" id="case-status-history-title">
-        Historia statusu
-      </h3>
+    <section
+      aria-label="Historia statusu"
+      className="mt-6 overflow-hidden rounded-lg border border-border bg-accent p-4"
+    >
       {history.isPending ? <LoadingStatus label="Ładowanie historii…" /> : null}
       {history.isError ? (
         <ErrorNotice error={history.error} retry={() => history.refetch()} />
       ) : null}
       {history.isSuccess && entries.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">Brak wpisów historii.</p>
+        <p className="text-sm text-muted-foreground">Brak wpisów historii.</p>
       ) : null}
       {entries.length > 0 ? (
-        <ol className="mt-4 grid gap-4">
-          {entries.map((entry) => (
-            <li className="border-l-2 border-border pl-4" key={entry.id}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <strong className="text-sm">
-                  {entry.type === 'created'
-                    ? `Utworzono jako „${statusLabel(entry.toStatus)}”`
-                    : `${statusLabel(entry.fromStatus ?? 'new')} → ${statusLabel(entry.toStatus)}`}
-                </strong>
-                <time className="text-xs text-muted-foreground" dateTime={entry.changedAt}>
-                  {formatDate(entry.changedAt)}
-                </time>
-              </div>
-              {entry.note ? (
-                <p className="mt-1 text-sm text-muted-foreground">{entry.note}</p>
-              ) : null}
-              <small className="mt-1 block text-muted-foreground">
-                {entry.source === 'migration'
-                  ? 'Migracja systemowa'
-                  : entry.actorType === 'system'
-                    ? 'System'
-                    : entry.actorId}
-              </small>
-            </li>
-          ))}
+        <ol className="grid gap-3">
+          {entries.map((entry, index) => {
+            const isCurrent = index === 0
+            return (
+              <li
+                aria-current={isCurrent ? 'true' : undefined}
+                className={cn(
+                  'py-1',
+                  isCurrent ? '-mx-4 -mt-4 bg-zinc-700 px-4 py-3 text-white last:-mb-4' : undefined,
+                )}
+                key={entry.id}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <strong className="text-sm">
+                    {entry.type === 'created'
+                      ? `Utworzono jako „${statusLabel(entry.toStatus)}”`
+                      : `${statusLabel(entry.fromStatus ?? 'new')} → ${statusLabel(entry.toStatus)}`}
+                  </strong>
+                  <time
+                    className={cn('text-xs', isCurrent ? 'text-zinc-300' : 'text-muted-foreground')}
+                    dateTime={entry.changedAt}
+                  >
+                    {formatDate(entry.changedAt)}
+                  </time>
+                </div>
+                {entry.note ? (
+                  <p
+                    className={cn(
+                      'mt-1 text-sm',
+                      isCurrent ? 'text-zinc-300' : 'text-muted-foreground',
+                    )}
+                  >
+                    {entry.note}
+                  </p>
+                ) : null}
+              </li>
+            )
+          })}
         </ol>
       ) : null}
       {history.hasNextPage ? (
@@ -700,75 +792,58 @@ interface CaseFormValue {
   title: string
 }
 
-function CaseCreateForm({
+function CaseCreatePanel({
   busy,
   error,
+  onCancel,
   onSubmit,
+  titleRef,
 }: {
   busy: boolean
   error: Error | null
+  onCancel(): void
   onSubmit(value: CaseFormValue): Promise<unknown>
+  titleRef: Ref<HTMLInputElement>
 }) {
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const data = new FormData(form)
-    try {
-      await onSubmit({
-        customerId: null,
-        description: null,
-        title: String(data.get('title') ?? '').trim(),
-      })
-      form.reset()
-    } catch {
-      // The mutation exposes the error in the visible notice below.
-    }
-  }
-
   return (
-    <form
-      aria-label="Nowa sprawa"
-      className="mb-6 grid grid-cols-[minmax(0,1fr)_44px] gap-2"
-      onSubmit={(event) => void submit(event)}
-    >
-      <Input
-        aria-label="Tytuł"
-        className="h-11"
-        maxLength={200}
-        name="title"
-        placeholder="Nowa sprawa"
-        required
+    <article aria-label="Nowa sprawa">
+      <CaseForm
+        ariaLabel="Nowa sprawa"
+        busy={busy}
+        busyLabel="Tworzenie…"
+        error={error}
+        initialValue={{ customerId: null, description: null, title: '' }}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+        submitLabel="Utwórz sprawę"
+        titleRef={titleRef}
       />
-      <Button
-        aria-label="Utwórz sprawę"
-        className="size-11"
-        isDisabled={busy}
-        size="icon-lg"
-        type="submit"
-      >
-        {busy ? (
-          <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
-        ) : (
-          <RiAddLine aria-hidden="true" />
-        )}
-      </Button>
-      {error ? <ErrorNotice className="col-span-full my-0" error={error} /> : null}
-    </form>
+    </article>
   )
 }
 
 function CaseForm({
+  ariaLabel,
   busy,
+  busyLabel = 'Zapisywanie…',
   error,
+  footerActions,
   initialValue,
+  onCancel,
   onSubmit,
   submitLabel,
+  titleRef,
 }: {
+  ariaLabel?: string
   busy: boolean
+  busyLabel?: string
   error: Error | null
+  footerActions?: ReactNode
   initialValue: CaseFormValue
+  onCancel?(): void
   onSubmit(value: CaseFormValue): Promise<unknown>
   submitLabel: string
+  titleRef?: Ref<HTMLInputElement>
 }) {
   const [submitted, setSubmitted] = useState(false)
 
@@ -790,11 +865,18 @@ function CaseForm({
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)}>
+    <form aria-label={ariaLabel} onSubmit={(event) => void submit(event)}>
       <FieldGroup className="gap-[18px]">
         <Field>
-          <FieldLabel htmlFor="case-title">Tytuł</FieldLabel>
+          <FieldLabel htmlFor="case-title">
+            Tytuł{' '}
+            <span aria-hidden="true" className="text-destructive">
+              *
+            </span>
+          </FieldLabel>
           <Input
+            aria-label="Tytuł"
+            ref={titleRef}
             defaultValue={initialValue.title}
             id="case-title"
             maxLength={200}
@@ -803,7 +885,7 @@ function CaseForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="case-description">Opis (opcjonalnie)</FieldLabel>
+          <FieldLabel htmlFor="case-description">Opis</FieldLabel>
           <Textarea
             className="min-h-24 resize-y"
             defaultValue={initialValue.description ?? ''}
@@ -812,11 +894,17 @@ function CaseForm({
             name="description"
           />
         </Field>
-        <div className="flex min-h-10 items-center gap-3.5">
+        <div className="flex min-h-10 flex-wrap items-center gap-2">
           <Button isDisabled={busy} type="submit">
             {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
-            {busy ? 'Zapisywanie…' : submitLabel}
+            {busy ? busyLabel : submitLabel}
           </Button>
+          {onCancel ? (
+            <Button isDisabled={busy} onPress={onCancel} type="button" variant="outline">
+              Anuluj
+            </Button>
+          ) : null}
+          {footerActions}
           {submitted && !error ? (
             <span className="text-sm font-medium text-muted-foreground" role="status">
               Zapisano.
@@ -905,7 +993,7 @@ function caseListViewForStatus(status: CaseItem['status']): CaseListView {
 function caseListEmptyState(view: CaseListView) {
   return {
     all: {
-      description: 'Utwórz pierwszą sprawę, wpisując jej tytuł powyżej.',
+      description: 'Utwórz pierwszą sprawę przyciskiem „Dodaj sprawę”.',
       title: 'Brak spraw.',
     },
     new: {

@@ -13,17 +13,19 @@ test('creates and resolves a case through the generated API client', async ({ pa
     'Czekamy',
     'Wszystkie',
   ])
+  await page.getByRole('button', { name: 'Dodaj sprawę' }).click()
+  await expect(page).toHaveURL(/mode=new/)
   const createForm = page.getByRole('form', { name: 'Nowa sprawa' })
   await createForm.getByLabel('Tytuł').fill(title)
+  await createForm.getByLabel('Opis').fill('Created from the workspace panel')
   await createForm.getByRole('button', { name: 'Utwórz sprawę' }).click()
 
   const caseRow = page.getByRole('button', { name: new RegExp(title) })
   await expect(caseRow).toBeVisible()
-  await caseRow.click()
   await expect(page).toHaveURL(/caseId=/)
-  await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
   await page.reload()
-  await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
   await page.getByRole('button', { name: 'Rozwiąż' }).click()
   await expect(view).toHaveValue('all')
   await expect(page.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
@@ -34,6 +36,7 @@ test('refreshes stale case details after a concurrent update', async ({ page, re
   const changedElsewhere = `${title} changed elsewhere`
   await page.goto('/cases')
 
+  await page.getByRole('button', { name: 'Dodaj sprawę' }).click()
   const createForm = page.getByRole('form', { name: 'Nowa sprawa' })
   await createForm.getByLabel('Tytuł').fill(title)
   const createResponsePromise = page.waitForResponse(
@@ -46,7 +49,7 @@ test('refreshes stale case details after a concurrent update', async ({ page, re
   const created = (await createResponse.json()) as { id: string; version: number }
 
   await page.getByRole('button', { name: new RegExp(title) }).click()
-  await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
 
   const concurrentUpdate = await request.patch(`/api/v1/cases/${created.id}`, {
     data: { expectedVersion: created.version, title: changedElsewhere },
@@ -55,8 +58,8 @@ test('refreshes stale case details after a concurrent update', async ({ page, re
 
   const details = page.getByRole('article')
   await details.getByLabel('Tytuł').fill(`${title} local edit`)
-  await details.getByRole('button', { name: 'Zapisz zmiany' }).click()
+  await details.getByRole('button', { name: 'Zapisz' }).click()
 
   await expect(details.getByRole('alert')).toContainText('Sprawa została zmieniona')
-  await expect(page.getByRole('heading', { level: 2, name: changedElsewhere })).toBeVisible()
+  await expect(details.getByLabel('Tytuł')).toHaveValue(changedElsewhere)
 })

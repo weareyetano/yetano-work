@@ -58,6 +58,8 @@ describe('CasesPage', () => {
     expect(await screen.findByText('Brak nowych spraw.')).toBeInTheDocument()
     expect(screen.getByText('Nowe sprawy pojawią się tutaj po utworzeniu.')).toBeInTheDocument()
     expect(screen.getByText('Brak wybranej sprawy.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Dodaj sprawę' })).toBeVisible()
+    expect(screen.queryByRole('form', { name: 'Nowa sprawa' })).not.toBeInTheDocument()
   })
 
   it('offers only the four work views and requests their exact filters', async () => {
@@ -114,7 +116,7 @@ describe('CasesPage', () => {
 
     renderCasesPage({ requestedId: secondCaseItem.id })
 
-    expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
   it('loads a case requested in the URL when it is outside the visible list', async () => {
@@ -123,7 +125,7 @@ describe('CasesPage', () => {
 
     renderCasesPage({ requestedId: secondCaseItem.id })
 
-    expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Second case')).toBeVisible()
     expect(getCase).toHaveBeenCalledWith({
       path: { caseId: secondCaseItem.id },
       throwOnError: true,
@@ -138,7 +140,7 @@ describe('CasesPage', () => {
 
     renderCasesPage()
 
-    expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
   it('selects the first visible case when the last viewed case is unavailable', async () => {
@@ -147,7 +149,7 @@ describe('CasesPage', () => {
 
     renderCasesPage()
 
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
   })
 
   it('selects a case from the keyboard and exposes the selected state', async () => {
@@ -163,7 +165,7 @@ describe('CasesPage', () => {
 
     expect(secondCase).toHaveFocus()
     expect(secondCase).toHaveAttribute('aria-pressed', 'true')
-    expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
   it('opens one mobile detail view and restores the triggering case from the icon-only back button', async () => {
@@ -184,7 +186,7 @@ describe('CasesPage', () => {
 
     expect(onSelectedIdChange).toHaveBeenLastCalledWith(secondCaseItem.id, 'push')
     expect(listTitle).not.toBeVisible()
-    const detailTitle = screen.getByRole('heading', { level: 1, name: 'Second case' })
+    const detailTitle = screen.getByDisplayValue('Second case')
     expect(detailTitle).toBeVisible()
     await waitFor(() => expect(detailTitle).toHaveFocus())
 
@@ -196,6 +198,32 @@ describe('CasesPage', () => {
     expect(listTitle).toBeVisible()
     await waitFor(() => expect(secondCase).toHaveFocus())
     expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 320 })
+  })
+
+  it('opens mobile creation in place and restores the add button from the back control', async () => {
+    mockDesktopViewport(false)
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(180)
+    const onCreateModeChange = vi.fn()
+    const user = userEvent.setup()
+
+    renderCasesPage({ onCreateModeChange })
+
+    const listTitle = await screen.findByRole('heading', { level: 1, name: 'Sprawy' })
+    const add = screen.getByRole('button', { name: 'Dodaj sprawę' })
+    await user.click(add)
+
+    expect(onCreateModeChange).toHaveBeenLastCalledWith(true, 'push')
+    expect(listTitle).not.toBeVisible()
+    expect(screen.getByRole('form', { name: 'Nowa sprawa' })).toBeVisible()
+    expect(screen.getByLabelText('Tytuł')).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Wróć do listy spraw' }))
+
+    expect(onCreateModeChange).toHaveBeenLastCalledWith(false, 'replace')
+    expect(listTitle).toBeVisible()
+    await waitFor(() => expect(add).toHaveFocus())
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 180 })
   })
 
   it('keeps mobile back navigation available when a direct case link fails to load', async () => {
@@ -227,8 +255,42 @@ describe('CasesPage', () => {
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
 
+    const detail = screen.getByRole('article')
+    const save = within(detail).getByRole('button', { name: 'Zapisz' })
+    const work = within(detail).getByRole('button', { name: 'Pracuj' })
     expect(screen.queryByText(/Szczegóły · wersja/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Id klienta (opcjonalnie)')).not.toBeInTheDocument()
+    expect(within(detail).queryByText('Nowa')).not.toBeInTheDocument()
+    expect(within(detail).queryByText('Historia statusu')).not.toBeInTheDocument()
+    expect(within(detail).queryByText('local-dev')).not.toBeInTheDocument()
+    expect(save.compareDocumentPosition(work) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  })
+
+  it('marks only the newest history entry as current', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(listCaseStatusHistory).mockResolvedValue(
+      apiResult({
+        items: [
+          statusChange('working'),
+          {
+            ...statusChange('resolved'),
+            changedAt: '2026-08-19T10:30:00.000Z',
+            id: '721317b8-e4e8-46b9-9ed8-1c34ad7448aa',
+          },
+        ],
+        nextCursor: null,
+      }),
+    )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+
+    const history = screen.getByRole('region', { name: 'Historia statusu' })
+    const entries = within(history).getAllByRole('listitem')
+    expect(within(history).queryByText('aktualny')).not.toBeInTheDocument()
+    expect(entries[0]).toHaveAttribute('aria-current', 'true')
+    expect(entries[1]).not.toHaveAttribute('aria-current')
   })
 
   it('creates a case through the generated client', async () => {
@@ -237,26 +299,90 @@ describe('CasesPage', () => {
       .mockResolvedValueOnce(apiResult({ items: [], nextCursor: null }))
       .mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
     vi.mocked(createCase).mockResolvedValue(apiResult(caseItem))
+    const onCreateModeChange = vi.fn()
+    const onSelectedIdChange = vi.fn()
     const user = userEvent.setup()
-    renderCasesPage()
+    renderCasesPage({ onCreateModeChange, onSelectedIdChange })
 
     const view = screen.getByRole('combobox', { name: 'Widok spraw' })
     await screen.findByText('Brak nowych spraw.')
     await user.selectOptions(view, 'working')
     await screen.findByText('Brak spraw, nad którymi pracujemy.')
-    expect(screen.getByPlaceholderText('Nowa sprawa')).toBeVisible()
-    expect(screen.queryByLabelText('Opis (opcjonalnie)')).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('Tytuł'), 'Invoice access')
-    await user.click(screen.getByRole('button', { name: 'Utwórz sprawę' }))
+    await user.click(screen.getByRole('button', { name: 'Dodaj sprawę' }))
+
+    expect(onCreateModeChange).toHaveBeenLastCalledWith(true, 'push')
+    const createPanel = screen.getByRole('article')
+    const createForm = within(createPanel).getByRole('form', { name: 'Nowa sprawa' })
+    expect(within(createPanel).queryByRole('heading')).not.toBeInTheDocument()
+    expect(within(createPanel).queryByText('Nowa')).not.toBeInTheDocument()
+    expect(within(createPanel).queryByText('Historia statusu')).not.toBeInTheDocument()
+    expect(within(createPanel).queryByRole('button', { name: 'Pracuj' })).toBeNull()
+    expect(within(createForm).getByLabelText('Tytuł')).toHaveFocus()
+    expect(within(createForm).getByLabelText('Tytuł')).toBeRequired()
+    expect(within(createForm).getByLabelText('Opis')).not.toBeRequired()
+    await user.type(within(createForm).getByLabelText('Tytuł'), 'Invoice access')
+    await user.type(within(createForm).getByLabelText('Opis'), 'Invoice details')
+    await user.click(within(createForm).getByRole('button', { name: 'Utwórz sprawę' }))
 
     await waitFor(() =>
       expect(createCase).toHaveBeenCalledWith({
-        body: { customerId: null, description: null, title: 'Invoice access' },
+        body: { customerId: null, description: 'Invoice details', title: 'Invoice access' },
         throwOnError: true,
       }),
     )
     await waitFor(() => expect(view).toHaveValue('new'))
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith(caseItem.id, 'replace')
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
+  })
+
+  it('cancels creation and restores the previously selected case', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    const onCreateModeChange = vi.fn()
+    const onSelectedIdChange = vi.fn()
+    const user = userEvent.setup()
+    renderCasesPage({ onCreateModeChange, onSelectedIdChange })
+
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
+    onSelectedIdChange.mockClear()
+    const add = screen.getByRole('button', { name: 'Dodaj sprawę' })
+    await user.click(add)
+    const createForm = screen.getByRole('form', { name: 'Nowa sprawa' })
+    await user.type(within(createForm).getByLabelText('Tytuł'), 'Draft title')
+    await user.click(within(createForm).getByRole('button', { name: 'Anuluj' }))
+
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith(caseItem.id, 'replace')
+    expect(screen.queryByRole('form', { name: 'Nowa sprawa' })).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue('Invoice access')).toBeVisible()
+    await waitFor(() => expect(add).toHaveFocus())
+  })
+
+  it('keeps the creation panel open ahead of an otherwise requested case', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+
+    renderCasesPage({ createRequested: true, requestedId: caseItem.id })
+
+    expect(await screen.findByRole('form', { name: 'Nowa sprawa' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Invoice access' })).not.toBeInTheDocument()
+    expect(getCase).not.toHaveBeenCalled()
+  })
+
+  it('keeps the creation draft visible after an API error', async () => {
+    vi.mocked(createCase).mockRejectedValue(new Error('Nie udało się utworzyć sprawy.'))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await screen.findByText('Brak nowych spraw.')
+    await user.click(screen.getByRole('button', { name: 'Dodaj sprawę' }))
+    const createForm = screen.getByRole('form', { name: 'Nowa sprawa' })
+    const title = within(createForm).getByLabelText('Tytuł')
+    const description = within(createForm).getByLabelText('Opis')
+    await user.type(title, 'Draft title')
+    await user.type(description, 'Draft description')
+    await user.click(within(createForm).getByRole('button', { name: 'Utwórz sprawę' }))
+
+    expect(await within(createForm).findByText('Nie udało się utworzyć sprawy.')).toBeVisible()
+    expect(title).toHaveValue('Draft title')
+    expect(description).toHaveValue('Draft description')
   })
 
   it('starts work with an idempotent transition command and the current version', async () => {
@@ -269,7 +395,7 @@ describe('CasesPage', () => {
     renderCasesPage()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
-    await user.click(screen.getByRole('button', { name: 'Rozpocznij pracę' }))
+    await user.click(screen.getByRole('button', { name: 'Pracuj' }))
 
     await waitFor(() =>
       expect(transitionCase).toHaveBeenCalledWith({
@@ -285,10 +411,10 @@ describe('CasesPage', () => {
     )
     expect(updateCase).not.toHaveBeenCalled()
     expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working')
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
   })
 
-  it('requires and displays a note when moving a case to waiting', async () => {
+  it('requires a note when moving a case to waiting without duplicating it above the form', async () => {
     const waitingCase = {
       ...caseItem,
       status: 'waiting' as const,
@@ -321,7 +447,7 @@ describe('CasesPage', () => {
         throwOnError: true,
       }),
     )
-    expect(await screen.findByText('Oczekuje na odpowiedź klienta')).toBeVisible()
+    expect(screen.queryByText('Oczekuje na odpowiedź klienta')).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('waiting')
   })
 
@@ -345,7 +471,7 @@ describe('CasesPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
     )
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
 
@@ -364,15 +490,15 @@ describe('CasesPage', () => {
     const user = userEvent.setup()
     renderCasesPage()
 
-    await user.click(await screen.findByText('Więcej działań'))
-    await user.click(screen.getByRole('button', { name: 'Anuluj' }))
+    await user.click(await screen.findByRole('button', { name: 'Anuluj' }))
+    expect(screen.queryByText('Więcej działań')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Notatka'), 'Duplikat')
     await user.click(screen.getByRole('button', { name: 'Anuluj sprawę' }))
 
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
     )
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
 
@@ -404,7 +530,7 @@ describe('CasesPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working'),
     )
-    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeVisible()
   })
 
@@ -426,7 +552,7 @@ describe('CasesPage', () => {
     const title = within(screen.getByRole('article')).getByLabelText('Tytuł')
     await user.clear(title)
     await user.type(title, 'Locally edited title')
-    await user.click(screen.getByRole('button', { name: 'Zapisz zmiany' }))
+    await user.click(screen.getByRole('button', { name: 'Zapisz' }))
 
     expect(updateCase).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -438,7 +564,7 @@ describe('CasesPage', () => {
         'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i spróbuj ponownie.',
       ),
     ).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Title changed elsewhere' })).toBeVisible()
+    expect(await screen.findByDisplayValue('Title changed elsewhere')).toBeVisible()
     expect(within(screen.getByRole('article')).getByLabelText('Tytuł')).toHaveValue(
       'Title changed elsewhere',
     )
@@ -459,10 +585,10 @@ describe('CasesPage', () => {
     renderCasesPage()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
-    await user.click(screen.getByRole('button', { name: 'Rozpocznij pracę' }))
+    await user.click(screen.getByRole('button', { name: 'Pracuj' }))
 
     await waitFor(() => expect(listCases).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('button', { name: 'Rozpocznij pracę' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Pracuj' })).toBeEnabled()
   })
 })
 
