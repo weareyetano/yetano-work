@@ -4,9 +4,90 @@ test('redirects the former home page to cases', async ({ page }) => {
   await page.goto('/')
 
   await expect(page).toHaveURL(/\/cases(?:\?.*)?$/)
-  await expect(page.getByRole('link', { name: 'Yet Another Company — sprawy' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Yet Another Company' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Sprawy' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toHaveClass(/sr-only/)
   await expect(page.getByText('Sprawy bez utraconego kontekstu.')).toHaveCount(0)
+})
+
+test('centers module navigation and keeps placeholder modules on the cases route', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/cases**', (route) =>
+    route.fulfill({
+      body: JSON.stringify({ items: [], nextCursor: null }),
+      contentType: 'application/json',
+      status: 200,
+    }),
+  )
+  await page.setViewportSize({ height: 900, width: 1440 })
+  await page.goto('/cases')
+
+  const navigation = page.getByRole('navigation', { name: 'Moduły' })
+  const navigationBox = await navigation.boundingBox()
+  expect(navigationBox).not.toBeNull()
+  expect(Math.abs((navigationBox?.x ?? 0) + (navigationBox?.width ?? 0) / 2 - 720)).toBeLessThan(1)
+
+  const initialUrl = page.url()
+  const tasks = page.getByRole('button', { name: 'Zadania' })
+  await tasks.click()
+
+  await expect(page).toHaveURL(initialUrl)
+  await expect(page.getByRole('dialog', { name: 'To tylko atrapa' })).toContainText(
+    'Moduł „Zadania”',
+  )
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(tasks).toBeFocused()
+})
+
+test('uses compact module navigation below 1280px without horizontal overflow', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/cases**', (route) =>
+    route.fulfill({
+      body: JSON.stringify({ items: [], nextCursor: null }),
+      contentType: 'application/json',
+      status: 200,
+    }),
+  )
+  await page.setViewportSize({ height: 844, width: 320 })
+  await page.goto('/cases')
+
+  const navigation = page.getByRole('navigation', { name: 'Moduły' })
+  const navigationBox = await navigation.boundingBox()
+  expect(navigationBox).not.toBeNull()
+  expect(navigationBox?.x).toBeGreaterThanOrEqual(0)
+  expect((navigationBox?.x ?? 0) + (navigationBox?.width ?? 0)).toBeLessThanOrEqual(320)
+
+  const trigger = page.getByRole('button', { name: 'Wybierz moduł, aktualnie: Sprawy' })
+  await expect(trigger).toBeVisible()
+  await expect(trigger).toContainText('Sprawy')
+  await expect(page.getByRole('link', { name: 'Sprawy' })).toHaveCount(0)
+  await trigger.click()
+  await expect(page.getByRole('menuitemradio')).toHaveCount(3)
+  await page.getByRole('menuitemradio', { name: 'Wiadomości' }).click()
+
+  await expect(page.getByRole('dialog', { name: 'To tylko atrapa' })).toContainText(
+    'Moduł „Wiadomości”',
+  )
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+
+  for (const width of [768, 1279]) {
+    await page.setViewportSize({ height: 844, width })
+    await expect(trigger).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sprawy' })).toHaveCount(0)
+  }
+
+  await page.setViewportSize({ height: 844, width: 1280 })
+  await expect(page.getByRole('link', { name: 'Sprawy' })).toBeVisible()
+  await expect(trigger).toHaveCount(0)
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  )
 })
 
 test('grows the case list while details fill the remaining space on wide screens', async ({

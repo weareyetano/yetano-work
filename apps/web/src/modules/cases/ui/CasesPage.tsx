@@ -1,4 +1,4 @@
-import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
+import { RiAddLine, RiArrowDownSLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -23,12 +23,14 @@ import { Badge } from '#components/ui/badge'
 import { Button } from '#components/ui/button'
 import { Card, CardContent } from '#components/ui/card'
 import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '#components/ui/dialog'
+import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from '#components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui/empty'
 import { Field, FieldGroup, FieldLabel } from '#components/ui/field'
 import { Input } from '#components/ui/input'
 import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
+import { useMediaQuery } from '#hooks/use-media-query'
 import { cn } from '#lib/utils'
 
 import {
@@ -89,7 +91,7 @@ export function CasesPage({
   const pendingCreateFocusRef = useRef(false)
   const pendingDesktopAddFocusRef = useRef(false)
   const wasMobileDetailOpenRef = useRef(false)
-  const isDesktop = useDesktopViewport()
+  const isDesktop = useMediaQuery(DESKTOP_VIEW_QUERY, true)
   const cases = useInfiniteQuery<
     CaseListPage,
     Error,
@@ -337,13 +339,8 @@ export function CasesPage({
       >
         <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
           <CardContent className="flex flex-1 flex-col p-4">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h1
-                ref={listTitleRef}
-                className="font-heading text-2xl font-semibold tracking-tight"
-                id="case-list-title"
-                tabIndex={-1}
-              >
+            <div className="mb-4 flex items-start justify-end gap-4">
+              <h1 ref={listTitleRef} className="sr-only" id="case-list-title" tabIndex={-1}>
                 Sprawy
               </h1>
               <div className="flex shrink-0 items-center gap-2">
@@ -471,6 +468,7 @@ export function CasesPage({
               <CaseDetail
                 caseItem={selected}
                 headingLevel={isDesktop ? 2 : 1}
+                isDesktop={isDesktop}
                 titleRef={detailTitleInputRef}
                 transitionBusy={transitionMutation.isPending}
                 transitionError={transitionMutation.error}
@@ -513,6 +511,7 @@ export function CasesPage({
 function CaseDetail({
   caseItem,
   headingLevel,
+  isDesktop,
   onRetryTransition,
   onTransition,
   onUpdate,
@@ -524,6 +523,7 @@ function CaseDetail({
 }: {
   caseItem: CaseItem
   headingLevel: 1 | 2
+  isDesktop: boolean
   onRetryTransition(): void
   onTransition(input: CaseTransitionIntent): void
   onUpdate(input: CaseFormValue): Promise<unknown>
@@ -535,6 +535,7 @@ function CaseDetail({
 }) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const [notedStatus, setNotedStatus] = useState<'canceled' | 'waiting' | null>(null)
+  const compactStatusTriggerRef = useRef<HTMLButtonElement>(null)
 
   const transition = (toStatus: CaseTransitionIntent['toStatus'], note?: string) => {
     onTransition({
@@ -558,6 +559,8 @@ function CaseDetail({
           <CaseStatusActions
             busy={transitionBusy}
             caseItem={caseItem}
+            compactTriggerRef={compactStatusTriggerRef}
+            isDesktop={isDesktop}
             onNotedTransition={setNotedStatus}
             onTransition={transition}
           />
@@ -571,11 +574,15 @@ function CaseDetail({
       <StatusNoteDialog
         busy={transitionBusy}
         status={notedStatus}
-        onClose={() => setNotedStatus(null)}
+        onClose={() => {
+          setNotedStatus(null)
+          window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
+        }}
         onSubmit={(note) => {
           if (!notedStatus) return
           transition(notedStatus, note)
           setNotedStatus(null)
+          window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
         }}
       />
     </article>
@@ -585,69 +592,118 @@ function CaseDetail({
 function CaseStatusActions({
   busy,
   caseItem,
+  compactTriggerRef,
+  isDesktop,
   onNotedTransition,
   onTransition,
 }: {
   busy: boolean
   caseItem: CaseItem
+  compactTriggerRef: Ref<HTMLButtonElement>
+  isDesktop: boolean
   onNotedTransition(status: 'canceled' | 'waiting'): void
   onTransition(status: CaseTransitionIntent['toStatus']): void
 }) {
-  if (caseItem.status === 'resolved' || caseItem.status === 'canceled') {
+  const actions = caseStatusActions(caseItem)
+  const runAction = (action: CaseStatusAction) => {
+    if (action.requiresNote) onNotedTransition(action.toStatus)
+    else onTransition(action.toStatus)
+  }
+
+  if (!isDesktop) {
     return (
-      <Button
-        isDisabled={busy}
-        onPress={() => onTransition('working')}
-        type="button"
-        variant="outline"
-      >
-        {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
-        {busy ? 'Zapisywanie…' : 'Otwórz ponownie'}
-      </Button>
+      <DropdownMenuTrigger>
+        <Button
+          ref={compactTriggerRef}
+          className="w-full"
+          isDisabled={busy}
+          type="button"
+          variant="outline"
+        >
+          {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
+          {busy ? 'Zmiana statusu…' : 'Zmień status'}
+          <RiArrowDownSLine aria-hidden="true" />
+        </Button>
+        <DropdownMenu aria-label="Zmień status" className="min-w-48">
+          {actions.map((action) => (
+            <DropdownMenuItem
+              id={action.toStatus}
+              key={action.toStatus}
+              onAction={() => runAction(action)}
+              variant={action.variant === 'destructive' ? 'destructive' : 'default'}
+            >
+              {action.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenu>
+      </DropdownMenuTrigger>
     )
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {caseItem.status === 'new' ? (
-        <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
-          Pracuj
-        </Button>
-      ) : null}
-      {caseItem.status === 'new' || caseItem.status === 'working' ? (
+      {actions.map((action) => (
         <Button
+          className={cn(
+            action.variant === 'destructive' && 'bg-destructive text-white hover:bg-destructive/90',
+          )}
           isDisabled={busy}
-          onPress={() => onNotedTransition('waiting')}
+          key={action.toStatus}
+          onPress={() => runAction(action)}
           type="button"
-          variant="outline"
+          variant={action.variant}
         >
-          Oczekuj
+          {busy && actions.length === 1 ? (
+            <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+          ) : null}
+          {busy && actions.length === 1 ? 'Zapisywanie…' : action.label}
         </Button>
-      ) : null}
-      {caseItem.status === 'waiting' ? (
-        <Button isDisabled={busy} onPress={() => onTransition('working')} type="button">
-          Wznów
-        </Button>
-      ) : null}
-      <Button
-        isDisabled={busy}
-        onPress={() => onTransition('resolved')}
-        type="button"
-        variant="outline"
-      >
-        Rozwiąż
-      </Button>
-      <Button
-        className="bg-destructive text-white hover:bg-destructive/90"
-        isDisabled={busy}
-        onPress={() => onNotedTransition('canceled')}
-        type="button"
-        variant="destructive"
-      >
-        Anuluj
-      </Button>
+      ))}
     </div>
   )
+}
+
+type CaseStatusAction =
+  | {
+      label: string
+      requiresNote: true
+      toStatus: 'canceled' | 'waiting'
+      variant: 'outline' | 'destructive'
+    }
+  | {
+      label: string
+      requiresNote?: false
+      toStatus: 'resolved' | 'working'
+      variant: 'default' | 'outline'
+    }
+
+function caseStatusActions(caseItem: CaseItem): CaseStatusAction[] {
+  if (caseItem.status === 'resolved' || caseItem.status === 'canceled') {
+    return [{ label: 'Otwórz ponownie', toStatus: 'working', variant: 'outline' }]
+  }
+
+  return [
+    ...(caseItem.status === 'new'
+      ? ([
+          { label: 'Pracuj', toStatus: 'working', variant: 'default' },
+        ] satisfies CaseStatusAction[])
+      : []),
+    ...(caseItem.status === 'new' || caseItem.status === 'working'
+      ? ([
+          { label: 'Oczekuj', requiresNote: true, toStatus: 'waiting', variant: 'outline' },
+        ] satisfies CaseStatusAction[])
+      : []),
+    ...(caseItem.status === 'waiting'
+      ? ([{ label: 'Wznów', toStatus: 'working', variant: 'default' }] satisfies CaseStatusAction[])
+      : []),
+    { label: 'Rozwiąż', toStatus: 'resolved', variant: 'outline' },
+    {
+      label: 'Anuluj',
+      requiresNote: true,
+      toStatus: 'canceled',
+      variant: 'destructive',
+    },
+  ]
 }
 
 function StatusNoteDialog({
@@ -877,8 +933,17 @@ function CaseForm({
             name="description"
           />
         </Field>
-        <div className="flex min-h-10 flex-wrap items-center gap-2">
-          <Button isDisabled={busy} type="submit">
+        <div
+          className={cn(
+            'grid min-h-10 items-center gap-2 min-[721px]:flex min-[721px]:flex-wrap',
+            footerActions ? 'grid-cols-1' : 'grid-cols-2',
+          )}
+        >
+          <Button
+            className={cn(footerActions && 'w-full min-[721px]:w-auto')}
+            isDisabled={busy}
+            type="submit"
+          >
             {busy ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
             {busy ? busyLabel : submitLabel}
           </Button>
@@ -889,7 +954,7 @@ function CaseForm({
           ) : null}
           {footerActions}
           {submitted && !error ? (
-            <span className="text-sm font-medium text-muted-foreground" role="status">
+            <span className="col-span-full text-sm font-medium text-muted-foreground" role="status">
               Zapisano.
             </span>
           ) : null}
@@ -1023,22 +1088,4 @@ function storeLastViewedCaseId(caseId: string) {
   } catch {
     // Selection still works when storage is unavailable.
   }
-}
-
-function useDesktopViewport() {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window.matchMedia !== 'function') return true
-    return window.matchMedia(DESKTOP_VIEW_QUERY).matches
-  })
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return
-    const media = window.matchMedia(DESKTOP_VIEW_QUERY)
-    const update = () => setIsDesktop(media.matches)
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
-
-  return isDesktop
 }

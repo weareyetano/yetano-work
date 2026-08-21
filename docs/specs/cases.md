@@ -65,8 +65,9 @@ canceled through in-app or browser back navigation. A successful creation replac
 URL state with the created case and exposes its normal lifecycle actions and status history.
 
 The detail panel uses the editable title field as its only visible title and omits a separate current
-status badge. Its Save action is followed by every lifecycle transition currently allowed for the
-case, including an explicit Cancel action without an overflow menu.
+status badge. On wide screens, its Save action is followed by every lifecycle transition currently
+allowed for the case. On narrow screens, Save remains directly available while those transitions,
+including Cancel, are grouped under a Change status menu.
 
 ## Rules and invariants
 

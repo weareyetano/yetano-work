@@ -54,6 +54,67 @@ test('case creation panel supports keyboard entry and WCAG checks', async ({ pag
   await expectNoWcagViolations(page)
 })
 
+test('module placeholder dialog supports keyboard dismissal and WCAG checks on mobile', async ({
+  page,
+}) => {
+  await mockCaseList(page, { items: [], nextCursor: null })
+  await page.setViewportSize({ height: 844, width: 390 })
+  await page.goto('/cases')
+
+  const trigger = page.getByRole('button', { name: 'Wybierz moduł, aktualnie: Sprawy' })
+  await trigger.focus()
+  await page.keyboard.press('Space')
+  const messages = page.getByRole('menuitemradio', { name: 'Wiadomości' })
+  await messages.focus()
+  await page.keyboard.press('Space')
+
+  await expect(page.getByRole('dialog', { name: 'To tylko atrapa' })).toContainText(
+    'Moduł „Wiadomości”',
+  )
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  )
+  await expectNoWcagViolations(page)
+
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+})
+
+test('mobile status actions remain keyboard accessible in their menu', async ({ page }) => {
+  await mockCaseList(page, { items: [caseItem], nextCursor: null })
+  await page.setViewportSize({ height: 844, width: 390 })
+  await page.goto('/cases')
+
+  await page.getByRole('button', { name: /Dostępna sprawa/ }).click()
+  const trigger = page.getByRole('button', { name: 'Zmień status' })
+  const save = page.getByRole('button', { name: 'Zapisz' })
+  const title = page.getByLabel('Tytuł')
+  const [saveBox, triggerBox, titleBox] = await Promise.all([
+    save.boundingBox(),
+    trigger.boundingBox(),
+    title.boundingBox(),
+  ])
+  expect(saveBox).not.toBeNull()
+  expect(triggerBox).not.toBeNull()
+  expect(titleBox).not.toBeNull()
+  expect(Math.abs((saveBox?.width ?? 0) - (titleBox?.width ?? 0))).toBeLessThan(1)
+  expect(Math.abs((triggerBox?.width ?? 0) - (titleBox?.width ?? 0))).toBeLessThan(1)
+  expect(triggerBox?.y).toBeGreaterThan((saveBox?.y ?? 0) + (saveBox?.height ?? 0))
+  await trigger.focus()
+  await page.keyboard.press('Space')
+
+  const menu = page.getByRole('menu', { name: 'Zmień status' })
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem')).toHaveCount(4)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  )
+  await expectNoWcagViolations(page)
+
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+})
+
 test('error state has no detectable WCAG A or AA violations on mobile', async ({ page }) => {
   await page.setViewportSize({ height: 844, width: 390 })
   await page.route('**/api/v1/cases**', (route) =>
