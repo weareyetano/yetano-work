@@ -165,6 +165,8 @@ describe('CasesPage', () => {
 
     expect(secondCase).toHaveFocus()
     expect(secondCase).toHaveAttribute('aria-pressed', 'true')
+    expect(secondCase).toHaveClass('border-0', 'bg-muted', 'text-foreground')
+    expect(secondCase).not.toHaveClass('border-border', 'bg-accent')
     expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
@@ -449,6 +451,43 @@ describe('CasesPage', () => {
     )
     expect(screen.queryByText('Oczekuje na odpowiedź klienta')).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('waiting')
+  })
+
+  it('renders status history as separate borderless muted cards', async () => {
+    const latestEntry = statusChange('waiting', 'Odpowiedź klienta')
+    const olderEntry = {
+      ...statusChange('working'),
+      changedAt: '2026-08-19T10:30:00.000Z',
+      id: '75bb9ef0-b103-4df7-89ce-efcbd2f79728',
+    }
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(listCaseStatusHistory).mockResolvedValue(
+      apiResult({ items: [latestEntry, olderEntry], nextCursor: null }),
+    )
+
+    renderCasesPage()
+
+    const history = await screen.findByRole('region', { name: 'Historia statusu' })
+    const rows = await within(history).findAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(within(history).queryByRole('heading')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('article')).queryByRole('separator')).not.toBeInTheDocument()
+    expect(rows[0]).toHaveClass('rounded-xl', 'bg-muted/50', 'px-3', 'py-2.5')
+    expect(rows[0]).not.toHaveClass('border', 'border-border')
+    expect(rows[1]).toHaveClass('rounded-xl', 'bg-muted/50')
+    expect(rows[0]?.parentElement).toHaveClass('grid', 'gap-2')
+    expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass('text-sm')
+    expect(within(rows[0] as HTMLElement).queryByText(/→|Utworzono jako/)).not.toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getByRole('time')).toHaveClass(
+      'shrink-0',
+      'text-right',
+      'text-xs',
+    )
+    expect(within(rows[0] as HTMLElement).getByRole('time').parentElement).toHaveClass(
+      'flex',
+      'justify-between',
+    )
+    expect(within(rows[0] as HTMLElement).getByText('Odpowiedź klienta')).toHaveClass('text-xs')
   })
 
   it('moves a resolved case to the all view and keeps its details open', async () => {
