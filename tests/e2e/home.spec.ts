@@ -38,6 +38,79 @@ test('grows the case list while details fill the remaining space on wide screens
   expect(ultrawideColumns[1]).toBeGreaterThan(ultrawideColumns[0])
 })
 
+test('keeps desktop creation in the URL and cancels back to the previous case', async ({
+  page,
+}) => {
+  const caseItem = mobileCase(1)
+  await page.route('**/api/v1/cases**', (route) =>
+    route.fulfill({
+      body: JSON.stringify(
+        new URL(route.request().url()).pathname.endsWith('/status-history')
+          ? { items: [], nextCursor: null }
+          : { items: [caseItem], nextCursor: null },
+      ),
+      contentType: 'application/json',
+      status: 200,
+    }),
+  )
+  await page.goto('/cases')
+
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(caseItem.title)
+  await page.getByRole('button', { name: 'Dodaj sprawę' }).click()
+  await expect(page).toHaveURL(/mode=new/)
+  const createForm = page.getByRole('form', { name: 'Nowa sprawa' })
+  await createForm.getByLabel('Tytuł').fill('Niezapisany szkic')
+
+  await page.reload()
+
+  await expect(page).toHaveURL(/mode=new/)
+  await expect(page.getByRole('form', { name: 'Nowa sprawa' }).getByLabel('Tytuł')).toHaveValue('')
+  await page
+    .getByRole('form', { name: 'Nowa sprawa' })
+    .getByRole('button', { name: 'Anuluj' })
+    .click()
+
+  await expect(page).toHaveURL(new RegExp(`caseId=${caseItem.id}`))
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(caseItem.title)
+  await expect(page.getByRole('button', { name: 'Dodaj sprawę' })).toBeFocused()
+})
+
+test('opens mobile creation in place and restores the list through both back controls', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/cases**', (route) =>
+    route.fulfill({
+      body: JSON.stringify({ items: [], nextCursor: null }),
+      contentType: 'application/json',
+      status: 200,
+    }),
+  )
+  await page.setViewportSize({ height: 900, width: 616 })
+  await page.goto('/cases')
+
+  const listTitle = page.getByRole('heading', { level: 1, name: 'Sprawy' })
+  const add = page.getByRole('button', { name: 'Dodaj sprawę' })
+  await add.click()
+
+  await expect(page).toHaveURL(/mode=new/)
+  await expect(listTitle).toBeHidden()
+  await expect(page.getByRole('form', { name: 'Nowa sprawa' })).toBeVisible()
+  await expect(page.getByLabel('Tytuł')).toBeFocused()
+
+  await page.goBack()
+
+  await expect(page).toHaveURL(/\/cases$/)
+  await expect(listTitle).toBeVisible()
+  await expect(add).toBeFocused()
+
+  await add.click()
+  await page.getByRole('button', { name: 'Wróć do listy spraw' }).click()
+
+  await expect(page).toHaveURL(/\/cases$/)
+  await expect(listTitle).toBeVisible()
+  await expect(add).toBeFocused()
+})
+
 test('opens mobile case details in place and restores the list through both back controls', async ({
   page,
 }) => {
@@ -65,8 +138,8 @@ test('opens mobile case details in place and restores the list through both back
 
   await expect(page).toHaveURL(new RegExp(`caseId=${cases[11]?.id}`))
   await expect(listTitle).toBeHidden()
-  const detailTitle = page.getByRole('heading', { level: 1, name: 'Mobile case 12' })
-  await expect(detailTitle).toBeVisible()
+  const detailTitle = page.getByRole('article').getByLabel('Tytuł')
+  await expect(detailTitle).toHaveValue('Mobile case 12')
   await expect(detailTitle).toBeFocused()
   const detailBox = await detailTitle.boundingBox()
   expect(detailBox).not.toBeNull()

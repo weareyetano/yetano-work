@@ -36,7 +36,21 @@ test('populated cases workspace supports keyboard selection and WCAG checks', as
 
   await expect(caseRow).toBeFocused()
   await expect(caseRow).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('heading', { level: 2, name: caseItem.title })).toBeVisible()
+  await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(caseItem.title)
+  await expectNoWcagViolations(page)
+})
+
+test('case creation panel supports keyboard entry and WCAG checks', async ({ page }) => {
+  await mockCaseList(page, { items: [], nextCursor: null })
+  await page.goto('/cases')
+
+  const add = page.getByRole('button', { name: 'Dodaj sprawę' })
+  await add.focus()
+  await page.keyboard.press('Space')
+
+  await expect(page).toHaveURL(/mode=new/)
+  await expect(page.getByRole('form', { name: 'Nowa sprawa' })).toBeVisible()
+  await expect(page.getByLabel('Tytuł')).toBeFocused()
   await expectNoWcagViolations(page)
 })
 

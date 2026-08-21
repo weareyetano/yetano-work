@@ -56,6 +56,18 @@ All. A created case opens in New. After a status transition, the workspace follo
 new active-status view, or to All when the case becomes resolved or canceled. Priority and SLA
 ordering are deferred; every view retains the repository's newest-first ordering.
 
+Creating a case starts from the add action next to the list view filter. It opens the same workspace
+panel used for case details, with a required title and optional description. The initial New status
+is assigned implicitly and is not shown as a separate creation control.
+
+Creation is represented by `mode=new` in the workspace URL, remains open across a reload, and can be
+canceled through in-app or browser back navigation. A successful creation replaces that transient
+URL state with the created case and exposes its normal lifecycle actions and status history.
+
+The detail panel uses the editable title field as its only visible title and omits a separate current
+status badge. Its Save action is followed by every lifecycle transition currently allowed for the
+case, including an explicit Cancel action without an overflow menu.
+
 ## Rules and invariants
 
 - Every case belongs to exactly one non-null organization resolved by the server.
@@ -117,6 +129,8 @@ transactional outbox.
 - Concurrent stale updates return the documented conflict response.
 - The web workspace handles loading, error, empty, and populated states and supports every case
   operation.
+- The creation panel preserves entered values after a failed request and restores the previous case
+  on desktop, or the list and triggering add action on narrow screens, when canceled.
 - On narrow screens, the web workspace shows either the case list or the selected case. Opening a
   case moves focus to its details, while in-app and browser back navigation restore the list,
   previous scroll position, and triggering case. Wider screens retain the side-by-side workspace.
