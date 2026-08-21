@@ -264,6 +264,20 @@ describe('CasesPage', () => {
     expect(await screen.findByText('Oczekuje na odpowiedź klienta')).toBeVisible()
   })
 
+  it('displays the current status note for a canceled case', async () => {
+    const canceledCase = {
+      ...caseItem,
+      closedAt: '2026-08-19T11:00:00.000Z',
+      status: 'canceled' as const,
+      statusNote: 'Zgłoszenie jest duplikatem',
+    }
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [canceledCase], nextCursor: null }))
+
+    renderCasesPage()
+
+    expect(await screen.findByText('Zgłoszenie jest duplikatem')).toBeVisible()
+  })
+
   it('refreshes the selected case after an update conflict', async () => {
     const refreshed = {
       ...caseItem,

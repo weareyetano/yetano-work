@@ -459,7 +459,7 @@ function CaseDetail({
             <Badge variant={isOpenStatus(caseItem.status) ? 'default' : 'secondary'}>
               {statusLabel(caseItem.status)}
             </Badge>
-            {caseItem.status === 'waiting' && caseItem.statusNote ? (
+            {caseItem.statusNote ? (
               <span className="text-sm text-muted-foreground">{caseItem.statusNote}</span>
             ) : null}
           </div>
