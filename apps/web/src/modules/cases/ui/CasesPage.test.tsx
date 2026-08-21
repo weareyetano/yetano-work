@@ -167,6 +167,7 @@ describe('CasesPage', () => {
     expect(secondCase).toHaveAttribute('aria-pressed', 'true')
     expect(secondCase).toHaveClass('border-0', 'bg-muted', 'text-foreground')
     expect(secondCase).not.toHaveClass('border-border', 'bg-accent')
+    expect(within(secondCase).getByText(/Aktualizacja/)).toHaveClass('text-foreground/70')
     expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
@@ -433,6 +434,7 @@ describe('CasesPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Oczekuj' }))
     expect(screen.getByRole('dialog', { name: 'Na co czekamy?' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Zamknij' })).toBeVisible()
     await user.type(screen.getByLabelText('Notatka'), 'Odpowiedź klienta')
     await user.click(screen.getByRole('button', { name: 'Ustaw oczekiwanie' }))
 

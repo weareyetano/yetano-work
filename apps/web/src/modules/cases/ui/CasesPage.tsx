@@ -410,7 +410,9 @@ export function CasesPage({
                       >
                         <span className="grid min-w-0 gap-1">
                           <strong className="truncate">{item.title}</strong>
-                          <small className="text-muted-foreground">
+                          <small
+                            className={selectedRow ? 'text-foreground/70' : 'text-muted-foreground'}
+                          >
                             Aktualizacja {formatDate(item.updatedAt)}
                           </small>
                         </span>

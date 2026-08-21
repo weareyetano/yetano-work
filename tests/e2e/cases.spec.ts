@@ -11,6 +11,11 @@ test('creates and resolves a case through the generated API client', async ({ pa
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toBeVisible()
   await expect(page.locator('body')).toHaveCSS('background-color', 'oklch(0.967 0.001 286.375)')
+  expect(
+    await page
+      .locator(':root')
+      .evaluate((root) => getComputedStyle(root).getPropertyValue('--muted-foreground').trim()),
+  ).toBe('oklch(55.2% .016 285.938)')
   await expect(page.locator('[data-slot="card"]').first()).toHaveCSS(
     'background-color',
     'oklch(1 0 0)',
