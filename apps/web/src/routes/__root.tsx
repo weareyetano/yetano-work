@@ -6,22 +6,15 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   return (
-    <div className="app-shell">
-      <header className="site-header">
-        <a className="brand" href="/" aria-label="Yetano Work — strona główna">
-          <span className="brand-mark" aria-hidden="true">
-            Y
-          </span>
-          <span>Yetano Work</span>
+    <div className="mx-auto w-[calc(100%_-_2.5rem)] max-w-[100rem] max-[720px]:w-[calc(100%_-_1.75rem)]">
+      <header className="flex min-h-16 items-center justify-between">
+        <a
+          className="font-heading text-base font-semibold text-foreground no-underline"
+          href="/cases"
+          aria-label="Yet Another Company — sprawy"
+        >
+          Yet Another Company
         </a>
-        <nav aria-label="Główna nawigacja">
-          <a className="nav-link" href="/cases">
-            Sprawy
-          </a>
-          <a className="docs-link" href="/api/docs">
-            API docs
-          </a>
-        </nav>
       </header>
       <Outlet />
     </div>

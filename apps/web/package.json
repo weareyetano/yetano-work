@@ -3,20 +3,34 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#components/*": "./src/components/*.tsx",
+    "#hooks/*": "./src/hooks/*.ts",
+    "#lib/*": "./src/lib/*.ts"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/geist-mono": "catalog:",
+    "@fontsource-variable/instrument-sans": "catalog:",
+    "@remixicon/react": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
-    "@tanstack/react-table": "catalog:",
     "@yetano/api-client": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-aria-components": "catalog:",
+    "react-dom": "catalog:",
+    "shadcn": "catalog:",
+    "tailwind-merge": "catalog:",
+    "tw-animate-css": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/jest-dom": "catalog:",
@@ -26,6 +40,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "jsdom": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
