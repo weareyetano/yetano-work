@@ -44,6 +44,15 @@ const secondCaseItem = {
   title: 'Second case',
 }
 
+function getViewSelect() {
+  return screen.getByRole('button', { name: /Widok spraw/ })
+}
+
+async function selectView(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(getViewSelect())
+  await user.click(await screen.findByRole('option', { name: label }))
+}
+
 describe('CasesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,13 +76,16 @@ describe('CasesPage', () => {
     const user = userEvent.setup()
     renderCasesPage()
 
-    const view = screen.getByRole('combobox', { name: 'Widok spraw' })
+    const view = getViewSelect()
+    await user.click(view)
+    const listbox = screen.getByRole('listbox')
     expect(
-      within(view)
+      within(listbox)
         .getAllByRole('option')
         .map((option) => option.textContent),
     ).toEqual(['Nowe', 'Pracujemy', 'Czekamy', 'Wszystkie'])
-    expect(view).toHaveValue('new')
+    expect(view).toHaveTextContent('Nowe')
+    await user.keyboard('{Escape}')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
         query: { limit: 25, status: ['new'] },
@@ -81,7 +93,7 @@ describe('CasesPage', () => {
       }),
     )
 
-    await user.selectOptions(view, 'working')
+    await selectView(user, 'Pracujemy')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
         query: { limit: 25, status: ['working'] },
@@ -90,7 +102,7 @@ describe('CasesPage', () => {
     )
     expect(await screen.findByText('Brak spraw, nad którymi pracujemy.')).toBeVisible()
 
-    await user.selectOptions(view, 'waiting')
+    await selectView(user, 'Czekamy')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
         query: { limit: 25, status: ['waiting'] },
@@ -99,7 +111,7 @@ describe('CasesPage', () => {
     )
     expect(await screen.findByText('Brak spraw, na które czekamy.')).toBeVisible()
 
-    await user.selectOptions(view, 'all')
+    await selectView(user, 'Wszystkie')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
         query: { limit: 25 },
@@ -131,7 +143,7 @@ describe('CasesPage', () => {
     expect(await screen.findByText('Brak pasujących spraw.')).toBeVisible()
     expect(screen.getByText('Spróbuj innej frazy albo wyczyść wyszukiwanie.')).toBeVisible()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Widok spraw' }), 'working')
+    await selectView(user, 'Pracujemy')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
         query: { limit: 25, search: 'Invoice', status: ['working'] },
@@ -296,7 +308,7 @@ describe('CasesPage', () => {
     renderCasesPage()
 
     expect(screen.queryByText('Kolejka')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toBeVisible()
+    expect(getViewSelect()).toBeVisible()
     expect(screen.queryByLabelText('Id klienta (opcjonalnie)')).not.toBeInTheDocument()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
@@ -350,9 +362,9 @@ describe('CasesPage', () => {
     const user = userEvent.setup()
     renderCasesPage({ onCreateModeChange, onSelectedIdChange })
 
-    const view = screen.getByRole('combobox', { name: 'Widok spraw' })
+    const view = getViewSelect()
     await screen.findByText('Brak nowych spraw.')
-    await user.selectOptions(view, 'working')
+    await selectView(user, 'Pracujemy')
     await screen.findByText('Brak spraw, nad którymi pracujemy.')
     await user.click(screen.getByRole('button', { name: 'Dodaj sprawę' }))
 
@@ -376,7 +388,7 @@ describe('CasesPage', () => {
         throwOnError: true,
       }),
     )
-    await waitFor(() => expect(view).toHaveValue('new'))
+    await waitFor(() => expect(view).toHaveTextContent('Nowe'))
     expect(onSelectedIdChange).toHaveBeenLastCalledWith(caseItem.id, 'replace')
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
   })
@@ -456,7 +468,7 @@ describe('CasesPage', () => {
       }),
     )
     expect(updateCase).not.toHaveBeenCalled()
-    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working')
+    expect(getViewSelect()).toHaveTextContent('Pracujemy')
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
   })
 
@@ -495,7 +507,7 @@ describe('CasesPage', () => {
       }),
     )
     expect(screen.queryByText('Oczekuje na odpowiedź klienta')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('waiting')
+    expect(getViewSelect()).toHaveTextContent('Czekamy')
   })
 
   it('groups every available mobile status transition behind one menu', async () => {
@@ -580,9 +592,7 @@ describe('CasesPage', () => {
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
     await user.click(screen.getByRole('button', { name: 'Rozwiąż' }))
 
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
-    )
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Wszystkie'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
@@ -607,9 +617,7 @@ describe('CasesPage', () => {
     await user.type(screen.getByLabelText('Notatka'), 'Duplikat')
     await user.click(screen.getByRole('button', { name: 'Anuluj sprawę' }))
 
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
-    )
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Wszystkie'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
@@ -639,9 +647,7 @@ describe('CasesPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Otwórz ponownie' }))
 
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working'),
-    )
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Pracujemy'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeVisible()
   })
