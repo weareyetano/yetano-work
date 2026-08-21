@@ -40,7 +40,13 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from '#components/ui/input-group'
-import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#components/ui/select'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
 import { useMediaQuery } from '#hooks/use-media-query'
@@ -399,20 +405,25 @@ export function CasesPage({
                 ) : null}
               </InputGroup>
               <div className="flex shrink-0 items-center gap-2">
-                <NativeSelect
+                <Select
                   aria-label="Widok spraw"
-                  className="[&_select]:h-10"
-                  value={view}
-                  onChange={(event) => {
-                    setView(event.target.value as CaseListView)
+                  className="min-w-36"
+                  selectedKey={view}
+                  onSelectionChange={(key) => {
+                    setView(key as CaseListView)
                     if (!isCreating) selectCase(null)
                   }}
                 >
-                  <NativeSelectOption value="new">Nowe</NativeSelectOption>
-                  <NativeSelectOption value="working">Pracujemy</NativeSelectOption>
-                  <NativeSelectOption value="waiting">Czekamy</NativeSelectOption>
-                  <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
-                </NativeSelect>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem id="new">Nowe</SelectItem>
+                    <SelectItem id="working">Pracujemy</SelectItem>
+                    <SelectItem id="waiting">Czekamy</SelectItem>
+                    <SelectItem id="all">Wszystkie</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   ref={addButtonRef}
                   aria-label="Dodaj sprawę"

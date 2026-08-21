@@ -1,5 +1,26 @@
 import { expect, test } from '@playwright/test'
 
+test('uses the preset select for case views', async ({ page }) => {
+  await page.goto('/cases')
+
+  const view = page.getByRole('button', { name: /Widok spraw/ })
+  await expect(view).toContainText('Nowe')
+  await view.click()
+
+  const content = page.locator('[data-slot="select-content"]')
+  await expect(content).toBeVisible()
+  await expect(content).toHaveClass(/dark/)
+  await expect(content).toHaveClass(/rounded-lg/)
+  await expect(content).toHaveClass(/bg-popover\/70/)
+  await expect(content).toHaveClass(/ring-foreground\/10/)
+  expect(await content.getByRole('option').allTextContents()).toEqual([
+    'Nowe',
+    'Pracujemy',
+    'Czekamy',
+    'Wszystkie',
+  ])
+})
+
 test('creates and resolves a case through the generated API client', async ({ page }) => {
   const title = `Playwright case ${crypto.randomUUID()}`
   const browserErrors: string[] = []
@@ -21,14 +42,7 @@ test('creates and resolves a case through the generated API client', async ({ pa
     'oklch(1 0 0)',
   )
   await expect(page.locator('[data-slot="card-content"]').first()).toHaveClass(/p-4/)
-  const view = page.getByRole('combobox', { name: 'Widok spraw' })
-  await expect(view).toHaveValue('new')
-  expect(await view.getByRole('option').allTextContents()).toEqual([
-    'Nowe',
-    'Pracujemy',
-    'Czekamy',
-    'Wszystkie',
-  ])
+  const view = page.getByRole('button', { name: /Widok spraw/ })
   await page.getByRole('button', { name: 'Dodaj sprawę' }).click()
   await expect(page).toHaveURL(/mode=new/)
   const createForm = page.getByRole('form', { name: 'Nowa sprawa' })
@@ -57,7 +71,7 @@ test('creates and resolves a case through the generated API client', async ({ pa
   await expect(search).toHaveValue('')
   await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
   await page.getByRole('button', { name: 'Rozwiąż' }).click()
-  await expect(view).toHaveValue('all')
+  await expect(view).toContainText('Wszystkie')
   await expect(page.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   const history = page.getByRole('region', { name: 'Historia statusu' })
   const historyRows = history.getByRole('listitem')
