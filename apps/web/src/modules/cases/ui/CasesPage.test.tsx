@@ -59,6 +59,7 @@ describe('CasesPage', () => {
     expect(screen.getByText('Nowe sprawy pojawią się tutaj po utworzeniu.')).toBeInTheDocument()
     expect(screen.getByText('Brak wybranej sprawy.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Dodaj sprawę' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: 'Sprawy' })).toHaveClass('sr-only')
     expect(screen.queryByRole('form', { name: 'Nowa sprawa' })).not.toBeInTheDocument()
   })
 
@@ -453,6 +454,34 @@ describe('CasesPage', () => {
     )
     expect(screen.queryByText('Oczekuje na odpowiedź klienta')).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('waiting')
+  })
+
+  it('groups every available mobile status transition behind one menu', async () => {
+    mockDesktopViewport(false)
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+
+    const trigger = screen.getByRole('button', { name: 'Zmień status' })
+    expect(screen.getByRole('button', { name: 'Zapisz' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Pracuj' })).not.toBeInTheDocument()
+    await user.click(trigger)
+
+    const menu = screen.getByRole('menu', { name: 'Zmień status' })
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Pracuj', 'Oczekuj', 'Rozwiąż', 'Anuluj'])
+
+    await user.click(within(menu).getByRole('menuitem', { name: 'Oczekuj' }))
+    expect(screen.getByRole('dialog', { name: 'Na co czekamy?' })).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it('renders status history as separate borderless muted cards', async () => {
