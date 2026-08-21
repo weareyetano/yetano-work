@@ -183,7 +183,7 @@ test('creates, postpones, restores, and resolves a case through the generated AP
   await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
   await page.getByRole('button', { name: 'Odłóż' }).click()
   await expect(view).toContainText('Odłożone')
-  await expect(page.getByText('Odłożona')).toBeVisible()
+  await expect(caseRow).toContainText('Odłożona')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: 'Przywróć' }).click()
   await expect(view).toContainText('Otwarte')
