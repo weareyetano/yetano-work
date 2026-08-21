@@ -1,5 +1,5 @@
 import type { FilterQuery } from '@mikro-orm/core'
-import type { EntityManager } from '@mikro-orm/postgresql'
+import { type EntityManager, raw } from '@mikro-orm/postgresql'
 import type {
   CaseId,
   CaseStatus,
@@ -19,6 +19,7 @@ export interface CaseListFilters {
   cursor?: CaseCursor
   customerId?: CustomerId
   limit: number
+  search?: string
   status?: CaseStatus | CaseStatus[]
   statusGroup?: CaseStatusGroup
 }
@@ -38,6 +39,7 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
     },
     async list(organizationId, filters) {
       const where: FilterQuery<CaseRecord> = { organizationId }
+      const conjunctions: FilterQuery<CaseRecord>[] = []
       if (filters.status) {
         where.status = Array.isArray(filters.status) ? { $in: filters.status } : filters.status
       }
@@ -50,12 +52,25 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
         }
       }
       if (filters.customerId) where.customerId = filters.customerId
-      if (filters.cursor) {
-        where.$or = [
-          { createdAt: { $lt: filters.cursor.createdAt } },
-          { createdAt: filters.cursor.createdAt, id: { $lt: filters.cursor.id } },
-        ]
+      if (filters.search) {
+        const pattern = `%${escapeLikePattern(filters.search)}%`
+        conjunctions.push({
+          $or: [
+            { title: { $ilike: pattern } },
+            { description: { $ilike: pattern } },
+            { [raw((alias) => `cast(${alias}.id as text)`)]: { $ilike: pattern } },
+          ],
+        })
       }
+      if (filters.cursor) {
+        conjunctions.push({
+          $or: [
+            { createdAt: { $lt: filters.cursor.createdAt } },
+            { createdAt: filters.cursor.createdAt, id: { $lt: filters.cursor.id } },
+          ],
+        })
+      }
+      if (conjunctions.length > 0) where.$and = conjunctions
 
       const records = await entityManager.find(CaseEntity, where, {
         limit: filters.limit + 1,
@@ -67,4 +82,8 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
       }
     },
   }
+}
+
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, '\\$&')
 }

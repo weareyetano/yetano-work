@@ -206,6 +206,14 @@ export const ListCasesQuerySchema = Type.Object(
     cursor: Type.Optional(Type.String({ minLength: 1 })),
     customerId: Type.Optional(CustomerIdSchema),
     limit: Type.Optional(Type.Integer({ maximum: 100, minimum: 1 })),
+    search: Type.Optional(
+      Type.String({
+        description: 'Case-insensitive text matched against case title, description, and id.',
+        maxLength: 200,
+        minLength: 1,
+        pattern: '\\S',
+      }),
+    ),
     status: Type.Optional(
       Type.Union([
         CaseStatusSchema,

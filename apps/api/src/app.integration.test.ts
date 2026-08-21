@@ -352,6 +352,85 @@ describeWithDatabase('API with PostgreSQL', () => {
     expect(customerCases.items.map((item) => item.customerId)).toEqual([customerId])
   })
 
+  it('searches case title, description, and id inside organization and status filters', async () => {
+    const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
+    const app = createTestApp(organizationId)
+    const createCase = async (title: string, description?: string) => {
+      const response = await app.request('/api/v1/cases', {
+        body: JSON.stringify({ ...(description ? { description } : {}), title }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      return (await response.json()) as Case
+    }
+    const invoice = await createCase('Quarterly Invoice', 'Customer cannot open the attachment')
+    const otherQuarterly = await createCase('Another quarterly issue')
+    const renewal = await createCase('General request', 'Annual RENEWAL details')
+    const literalWildcard = await createCase('Literal 100% case')
+
+    const otherOrganization = createTestApp('98b5d140-f720-4e64-89c3-59adc699cfe0')
+    await otherOrganization.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Quarterly foreign case' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+
+    const search = async (value: string, suffix = '') => {
+      const response = await app.request(
+        `/api/v1/cases?search=${encodeURIComponent(value)}${suffix}`,
+      )
+      return {
+        body: (await response.json()) as { items: Case[]; nextCursor: string | null },
+        response,
+      }
+    }
+
+    const titleResult = await search('QUARTERLY', '&limit=1')
+    expect(titleResult.response.status).toBe(200)
+    expect(titleResult.body.items).toHaveLength(1)
+    expect(titleResult.body.nextCursor).toEqual(expect.any(String))
+    const nextTitlePage = await search(
+      'quarterly',
+      `&limit=1&cursor=${encodeURIComponent(titleResult.body.nextCursor as string)}`,
+    )
+    expect(nextTitlePage.body.items).toHaveLength(1)
+    expect(nextTitlePage.body.nextCursor).toBeNull()
+    expect(
+      new Set([...titleResult.body.items, ...nextTitlePage.body.items].map((item) => item.id)),
+    ).toEqual(new Set([invoice.id, otherQuarterly.id]))
+
+    const descriptionResult = await search('renewal')
+    expect(descriptionResult.body.items.map((item) => item.id)).toEqual([renewal.id])
+
+    const idResult = await search(invoice.id.slice(0, 8).toUpperCase())
+    expect(idResult.body.items.map((item) => item.id)).toEqual([invoice.id])
+
+    const wildcardResult = await search('%')
+    expect(wildcardResult.body.items.map((item) => item.id)).toEqual([literalWildcard.id])
+
+    await app.request(`/api/v1/cases/${invoice.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: invoice.version,
+        fromStatus: 'new',
+        toStatus: 'working',
+        transitionId: crypto.randomUUID(),
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const workingResult = await search('quarterly', '&status=working')
+    const newResult = await search('quarterly', '&status=new')
+    expect(workingResult.body.items.map((item) => item.id)).toEqual([invoice.id])
+    expect(newResult.body.items).toHaveLength(1)
+    expect(newResult.body.items[0]?.id).not.toBe(invoice.id)
+
+    expect((await app.request('/api/v1/cases?search=')).status).toBe(400)
+    expect((await app.request('/api/v1/cases?search=%20%20%20')).status).toBe(400)
+    expect(
+      (await app.request(`/api/v1/cases?search=${encodeURIComponent('x'.repeat(201))}`)).status,
+    ).toBe(400)
+  })
+
   function createTestApp(organizationId: string, actorResolver?: ActorResolver) {
     const config: AppConfig = {
       appVersion: 'test',

@@ -8,6 +8,7 @@ import {
   ChangeCaseStatusRequestSchema,
   CreateCaseRequestSchema,
   HealthResponseSchema,
+  ListCasesQuerySchema,
   ProblemDetailsSchema,
   UpdateCaseRequestSchema,
 } from './index.js'
@@ -122,5 +123,15 @@ describe('public API contracts', () => {
 
     expect(validator.Check({ items: [], nextCursor: null })).toBe(true)
     expect(validator.Check({ items: [], nextCursor: null, total: 0 })).toBe(false)
+  })
+
+  it('bounds non-blank case-list search terms', () => {
+    const validator = Compile(ListCasesQuerySchema)
+
+    expect(validator.Check({ search: 'invoice' })).toBe(true)
+    expect(validator.Check({ search: ' invoice ' })).toBe(true)
+    expect(validator.Check({ search: '' })).toBe(false)
+    expect(validator.Check({ search: '   ' })).toBe(false)
+    expect(validator.Check({ search: 'x'.repeat(201) })).toBe(false)
   })
 })

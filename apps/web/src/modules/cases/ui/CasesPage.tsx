@@ -1,4 +1,11 @@
-import { RiAddLine, RiArrowDownSLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
+import {
+  RiAddLine,
+  RiArrowDownSLine,
+  RiArrowLeftLine,
+  RiCloseLine,
+  RiErrorWarningLine,
+  RiSearchLine,
+} from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -27,6 +34,12 @@ import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from '#components
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui/empty'
 import { Field, FieldGroup, FieldLabel } from '#components/ui/field'
 import { Input } from '#components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '#components/ui/input-group'
 import { NativeSelect, NativeSelectOption } from '#components/ui/native-select'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
@@ -51,9 +64,25 @@ import {
 
 const LAST_VIEWED_CASE_KEY = 'yetano:last-viewed-case-id'
 const DESKTOP_VIEW_QUERY = '(min-width: 721px)'
+const SEARCH_DEBOUNCE_MS = 300
 
 function ignoreSelectionChange() {}
 function ignoreCreateModeChange() {}
+
+function useDebouncedSearch(value: string) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    if (!value) {
+      setDebouncedValue('')
+      return
+    }
+    const timeout = window.setTimeout(() => setDebouncedValue(value), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timeout)
+  }, [value])
+
+  return debouncedValue
+}
 
 export type CaseSelectionNavigationMode = 'push' | 'replace'
 
@@ -70,6 +99,8 @@ export function CasesPage({
 } = {}) {
   const queryClient = useQueryClient()
   const [view, setView] = useState<CaseListView>('new')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedSearch(search.trim())
   const [isCreating, setIsCreating] = useState(createRequested)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedIdRef = useRef<string | null>(null)
@@ -96,16 +127,16 @@ export function CasesPage({
     CaseListPage,
     Error,
     InfiniteData<CaseListPage>,
-    readonly ['cases', 'list', CaseListView],
+    readonly ['cases', 'list', CaseListView, string],
     string | null
   >({
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, view }),
-    queryKey: caseQueryKeys.list(view),
+    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, search: debouncedSearch, view }),
+    queryKey: caseQueryKeys.list(view, debouncedSearch),
   })
   const items = useMemo(() => cases.data?.pages.flatMap((page) => page.items) ?? [], [cases.data])
-  const emptyState = caseListEmptyState(view)
+  const emptyState = caseListEmptyState(view, debouncedSearch)
   const requestedFromList = requestedId
     ? (items.find((item) => item.id === requestedId) ?? null)
     : null
@@ -339,10 +370,34 @@ export function CasesPage({
       >
         <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
           <CardContent className="flex flex-1 flex-col p-4">
-            <div className="mb-4 flex items-start justify-end gap-4">
+            <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
               <h1 ref={listTitleRef} className="sr-only" id="case-list-title" tabIndex={-1}>
                 Sprawy
               </h1>
+              <InputGroup className="h-10 min-w-48 flex-1">
+                <InputGroupInput
+                  aria-label="Szukaj spraw"
+                  maxLength={200}
+                  placeholder="Szukaj spraw…"
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                <InputGroupAddon>
+                  <RiSearchLine aria-hidden="true" />
+                </InputGroupAddon>
+                {search ? (
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      aria-label="Wyczyść wyszukiwanie"
+                      onPress={() => setSearch('')}
+                      size="icon-xs"
+                    >
+                      <RiCloseLine aria-hidden="true" />
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                ) : null}
+              </InputGroup>
               <div className="flex shrink-0 items-center gap-2">
                 <NativeSelect
                   aria-label="Widok spraw"
@@ -1038,7 +1093,13 @@ function caseListViewForStatus(status: CaseItem['status']): CaseListView {
   return status === 'canceled' || status === 'resolved' ? 'all' : status
 }
 
-function caseListEmptyState(view: CaseListView) {
+function caseListEmptyState(view: CaseListView, search: string) {
+  if (search) {
+    return {
+      description: 'Spróbuj innej frazy albo wyczyść wyszukiwanie.',
+      title: 'Brak pasujących spraw.',
+    }
+  }
   return {
     all: {
       description: 'Utwórz pierwszą sprawę przyciskiem „Dodaj sprawę”.',
