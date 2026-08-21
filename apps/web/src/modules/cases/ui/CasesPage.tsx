@@ -34,7 +34,7 @@ import { cn } from '#lib/utils'
 import {
   type CaseItem,
   type CaseListPage,
-  type CaseStatusFilter,
+  type CaseListView,
   type CaseStatusHistoryPage,
   type CaseTransitionIntent,
   caseQueryKeys,
@@ -62,7 +62,7 @@ export function CasesPage({
   requestedId?: string | null
 } = {}) {
   const queryClient = useQueryClient()
-  const [status, setStatus] = useState<CaseStatusFilter>('open')
+  const [view, setView] = useState<CaseListView>('new')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedIdRef = useRef<string | null>(null)
   const previousRequestedIdRef = useRef(requestedId)
@@ -81,15 +81,16 @@ export function CasesPage({
     CaseListPage,
     Error,
     InfiniteData<CaseListPage>,
-    readonly ['cases', 'list', CaseStatusFilter],
+    readonly ['cases', 'list', CaseListView],
     string | null
   >({
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, status }),
-    queryKey: caseQueryKeys.list(status),
+    queryFn: ({ pageParam }) => fetchCases({ cursor: pageParam, view }),
+    queryKey: caseQueryKeys.list(view),
   })
   const items = useMemo(() => cases.data?.pages.flatMap((page) => page.items) ?? [], [cases.data])
+  const emptyState = caseListEmptyState(view)
   const requestedFromList = requestedId
     ? (items.find((item) => item.id === requestedId) ?? null)
     : null
@@ -125,6 +126,7 @@ export function CasesPage({
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
+      setView('new')
       rememberMobileListPosition(created.id)
       selectCase(created.id, isDesktop ? 'replace' : 'push')
       await refresh()
@@ -181,7 +183,10 @@ export function CasesPage({
     onError: async (error) => {
       if (isCaseVersionConflict(error)) await refresh()
     },
-    onSuccess: refresh,
+    onSuccess: async (change) => {
+      setView(caseListViewForStatus(change.toStatus))
+      await refresh()
+    },
   })
 
   useEffect(() => {
@@ -259,22 +264,18 @@ export function CasesPage({
                 Sprawy
               </h1>
               <NativeSelect
-                aria-label="Status"
+                aria-label="Widok spraw"
                 className="shrink-0 [&_select]:h-10"
-                value={status}
+                value={view}
                 onChange={(event) => {
-                  setStatus(event.target.value as CaseStatusFilter)
+                  setView(event.target.value as CaseListView)
                   selectCase(null)
                 }}
               >
-                <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
-                <NativeSelectOption value="open">Otwarte</NativeSelectOption>
-                <NativeSelectOption value="closed">Zamknięte</NativeSelectOption>
                 <NativeSelectOption value="new">Nowe</NativeSelectOption>
-                <NativeSelectOption value="working">Zajmujemy się</NativeSelectOption>
-                <NativeSelectOption value="waiting">Oczekujące</NativeSelectOption>
-                <NativeSelectOption value="resolved">Rozwiązane</NativeSelectOption>
-                <NativeSelectOption value="canceled">Anulowane</NativeSelectOption>
+                <NativeSelectOption value="working">Pracujemy</NativeSelectOption>
+                <NativeSelectOption value="waiting">Czekamy</NativeSelectOption>
+                <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
               </NativeSelect>
             </div>
 
@@ -285,10 +286,8 @@ export function CasesPage({
             {cases.isSuccess && items.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyTitle>Brak spraw w tym widoku.</EmptyTitle>
-                  <EmptyDescription>
-                    Utwórz pierwszą sprawę albo zmień filtr statusu.
-                  </EmptyDescription>
+                  <EmptyTitle>{emptyState.title}</EmptyTitle>
+                  <EmptyDescription>{emptyState.description}</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : null}
@@ -387,15 +386,15 @@ export function CasesPage({
               <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
             ) : requestedId || selectedId ? (
               <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
-            ) : cases.isSuccess && (status === 'all' || status === 'open') && items.length === 0 ? (
+            ) : cases.isSuccess && view === 'all' && items.length === 0 ? (
               <CaseEmptyState
                 description="Wpisz jej tytuł po lewej stronie."
                 title="Dodaj pierwszą sprawę."
               />
             ) : cases.isSuccess && items.length === 0 ? (
               <CaseEmptyState
-                description="Zmień filtr statusu, aby zobaczyć pozostałe sprawy."
-                title="Brak spraw w tym widoku."
+                description="Zmień widok albo utwórz nową sprawę."
+                title="Brak wybranej sprawy."
               />
             ) : !isDesktop ? (
               <CaseEmptyState title="Wybierz sprawę z listy." />
@@ -459,7 +458,7 @@ function CaseDetail({
             <Badge variant={isOpenStatus(caseItem.status) ? 'default' : 'secondary'}>
               {statusLabel(caseItem.status)}
             </Badge>
-            {caseItem.statusNote ? (
+            {caseItem.status === 'waiting' && caseItem.statusNote ? (
               <span className="text-sm text-muted-foreground">{caseItem.statusNote}</span>
             ) : null}
           </div>
@@ -894,9 +893,34 @@ function statusLabel(status: CaseItem['status']) {
     canceled: 'Anulowana',
     new: 'Nowa',
     resolved: 'Rozwiązana',
-    waiting: 'Oczekuje',
-    working: 'Zajmujemy się',
+    waiting: 'Czekamy',
+    working: 'Pracujemy',
   }[status]
+}
+
+function caseListViewForStatus(status: CaseItem['status']): CaseListView {
+  return status === 'canceled' || status === 'resolved' ? 'all' : status
+}
+
+function caseListEmptyState(view: CaseListView) {
+  return {
+    all: {
+      description: 'Utwórz pierwszą sprawę, wpisując jej tytuł powyżej.',
+      title: 'Brak spraw.',
+    },
+    new: {
+      description: 'Nowe sprawy pojawią się tutaj po utworzeniu.',
+      title: 'Brak nowych spraw.',
+    },
+    waiting: {
+      description: 'Sprawy, na które czekamy, pojawią się tutaj.',
+      title: 'Brak spraw, na które czekamy.',
+    },
+    working: {
+      description: 'Rozpocznij pracę nad nową sprawą, aby pojawiła się tutaj.',
+      title: 'Brak spraw, nad którymi pracujemy.',
+    },
+  }[view]
 }
 
 function readError(error: unknown) {

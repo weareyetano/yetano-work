@@ -21,7 +21,7 @@ test('empty cases workspace has no detectable WCAG A or AA violations', async ({
   await mockCaseList(page, { items: [], nextCursor: null })
   await page.goto('/cases')
 
-  await expect(page.getByText('Brak spraw w tym widoku.').first()).toBeVisible()
+  await expect(page.getByText('Brak nowych spraw.')).toBeVisible()
   await expectNoWcagViolations(page)
 })
 

@@ -5,6 +5,14 @@ test('creates and resolves a case through the generated API client', async ({ pa
   await page.goto('/cases')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toBeVisible()
+  const view = page.getByRole('combobox', { name: 'Widok spraw' })
+  await expect(view).toHaveValue('new')
+  expect(await view.getByRole('option').allTextContents()).toEqual([
+    'Nowe',
+    'Pracujemy',
+    'Czekamy',
+    'Wszystkie',
+  ])
   const createForm = page.getByRole('form', { name: 'Nowa sprawa' })
   await createForm.getByLabel('Tytuł').fill(title)
   await createForm.getByRole('button', { name: 'Utwórz sprawę' }).click()
@@ -17,6 +25,7 @@ test('creates and resolves a case through the generated API client', async ({ pa
   await page.reload()
   await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
   await page.getByRole('button', { name: 'Rozwiąż' }).click()
+  await expect(view).toHaveValue('all')
   await expect(page.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
 })
 

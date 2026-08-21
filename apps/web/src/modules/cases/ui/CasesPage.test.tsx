@@ -55,9 +55,55 @@ describe('CasesPage', () => {
   it('renders the deliberate empty state', async () => {
     renderCasesPage()
 
-    expect(await screen.findByText('Brak spraw w tym widoku.')).toBeInTheDocument()
-    expect(screen.getByText('Utwórz pierwszą sprawę albo zmień filtr statusu.')).toBeInTheDocument()
-    expect(screen.getByText('Dodaj pierwszą sprawę.')).toBeVisible()
+    expect(await screen.findByText('Brak nowych spraw.')).toBeInTheDocument()
+    expect(screen.getByText('Nowe sprawy pojawią się tutaj po utworzeniu.')).toBeInTheDocument()
+    expect(screen.getByText('Brak wybranej sprawy.')).toBeVisible()
+  })
+
+  it('offers only the four work views and requests their exact filters', async () => {
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const view = screen.getByRole('combobox', { name: 'Widok spraw' })
+    expect(
+      within(view)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Nowe', 'Pracujemy', 'Czekamy', 'Wszystkie'])
+    expect(view).toHaveValue('new')
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, status: ['new'] },
+        throwOnError: true,
+      }),
+    )
+
+    await user.selectOptions(view, 'working')
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, status: ['working'] },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Brak spraw, nad którymi pracujemy.')).toBeVisible()
+
+    await user.selectOptions(view, 'waiting')
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, status: ['waiting'] },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Brak spraw, na które czekamy.')).toBeVisible()
+
+    await user.selectOptions(view, 'all')
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25 },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Brak spraw.')).toBeVisible()
   })
 
   it('selects the case requested in the URL before the last viewed case', async () => {
@@ -176,7 +222,7 @@ describe('CasesPage', () => {
     renderCasesPage()
 
     expect(screen.queryByText('Kolejka')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toBeVisible()
     expect(screen.queryByLabelText('Id klienta (opcjonalnie)')).not.toBeInTheDocument()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
@@ -186,11 +232,18 @@ describe('CasesPage', () => {
   })
 
   it('creates a case through the generated client', async () => {
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [], nextCursor: null }))
+      .mockResolvedValueOnce(apiResult({ items: [], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
     vi.mocked(createCase).mockResolvedValue(apiResult(caseItem))
     const user = userEvent.setup()
     renderCasesPage()
 
-    await screen.findByText('Brak spraw w tym widoku.')
+    const view = screen.getByRole('combobox', { name: 'Widok spraw' })
+    await screen.findByText('Brak nowych spraw.')
+    await user.selectOptions(view, 'working')
+    await screen.findByText('Brak spraw, nad którymi pracujemy.')
     expect(screen.getByPlaceholderText('Nowa sprawa')).toBeVisible()
     expect(screen.queryByLabelText('Opis (opcjonalnie)')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Tytuł'), 'Invoice access')
@@ -202,10 +255,15 @@ describe('CasesPage', () => {
         throwOnError: true,
       }),
     )
+    await waitFor(() => expect(view).toHaveValue('new'))
+    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
   })
 
   it('starts work with an idempotent transition command and the current version', async () => {
-    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    const workingCase = { ...caseItem, status: 'working' as const, version: 2 }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [workingCase], nextCursor: null }))
     vi.mocked(transitionCase).mockResolvedValue(apiResult(statusChange('working')))
     const user = userEvent.setup()
     renderCasesPage()
@@ -226,6 +284,8 @@ describe('CasesPage', () => {
       }),
     )
     expect(updateCase).not.toHaveBeenCalled()
+    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working')
+    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
   })
 
   it('requires and displays a note when moving a case to waiting', async () => {
@@ -262,20 +322,90 @@ describe('CasesPage', () => {
       }),
     )
     expect(await screen.findByText('Oczekuje na odpowiedź klienta')).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('waiting')
   })
 
-  it('displays the current status note for a canceled case', async () => {
+  it('moves a resolved case to the all view and keeps its details open', async () => {
+    const resolvedCase = {
+      ...caseItem,
+      closedAt: '2026-08-19T11:00:00.000Z',
+      status: 'resolved' as const,
+      version: 2,
+    }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [resolvedCase], nextCursor: null }))
+    vi.mocked(transitionCase).mockResolvedValue(apiResult(statusChange('resolved')))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    await user.click(screen.getByRole('button', { name: 'Rozwiąż' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
+    )
+    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
+  })
+
+  it('moves a canceled case to the all view and keeps its details open', async () => {
     const canceledCase = {
       ...caseItem,
       closedAt: '2026-08-19T11:00:00.000Z',
       status: 'canceled' as const,
-      statusNote: 'Zgłoszenie jest duplikatem',
+      statusNote: 'Duplikat',
+      version: 2,
     }
-    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [canceledCase], nextCursor: null }))
-
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [canceledCase], nextCursor: null }))
+    vi.mocked(transitionCase).mockResolvedValue(apiResult(statusChange('canceled', 'Duplikat')))
+    const user = userEvent.setup()
     renderCasesPage()
 
-    expect(await screen.findByText('Zgłoszenie jest duplikatem')).toBeVisible()
+    await user.click(await screen.findByText('Więcej działań'))
+    await user.click(screen.getByRole('button', { name: 'Anuluj' }))
+    await user.type(screen.getByLabelText('Notatka'), 'Duplikat')
+    await user.click(screen.getByRole('button', { name: 'Anuluj sprawę' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('all'),
+    )
+    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
+  })
+
+  it('moves a reopened case to the working view and keeps its details open', async () => {
+    const canceledCase = {
+      ...caseItem,
+      closedAt: '2026-08-19T11:00:00.000Z',
+      status: 'canceled' as const,
+      statusNote: 'Duplikat',
+      version: 2,
+    }
+    const reopenedCase = {
+      ...caseItem,
+      status: 'working' as const,
+      version: 3,
+    }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [reopenedCase], nextCursor: null }))
+    vi.mocked(getCase).mockResolvedValue(apiResult(canceledCase))
+    vi.mocked(transitionCase).mockResolvedValue(
+      apiResult(statusChange('working', null, 'canceled')),
+    )
+    const user = userEvent.setup()
+    renderCasesPage({ requestedId: caseItem.id })
+
+    await user.click(await screen.findByRole('button', { name: 'Otwórz ponownie' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Widok spraw' })).toHaveValue('working'),
+    )
+    expect(await screen.findByRole('heading', { name: 'Invoice access' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeVisible()
   })
 
   it('refreshes the selected case after an update conflict', async () => {
@@ -372,14 +502,18 @@ function versionConflict(currentVersion: number) {
   }
 }
 
-function statusChange(toStatus: 'waiting' | 'working', note: string | null = null) {
+function statusChange(
+  toStatus: 'canceled' | 'resolved' | 'waiting' | 'working',
+  note: string | null = null,
+  fromStatus: 'canceled' | 'new' | 'resolved' | 'waiting' | 'working' = 'new',
+) {
   return {
     actorId: 'development-user',
     actorType: 'user' as const,
     caseId: caseItem.id,
     caseVersion: 2,
     changedAt: '2026-08-19T11:00:00.000Z',
-    fromStatus: 'new' as const,
+    fromStatus,
     id: '1ddb62bc-cc28-442f-a324-0a8c0a4b48dd',
     note,
     source: 'runtime' as const,

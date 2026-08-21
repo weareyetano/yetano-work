@@ -51,6 +51,11 @@ Lists use opaque cursor pagination. They accept exact status, open or closed sta
 customer filters with a bounded page size. Results are ordered newest first with the case identifier
 as a stable tie-breaker. Status history is independently cursor-paginated newest first.
 
+The web workspace starts in the New view and exposes four list views: New, Working, Waiting, and
+All. A created case opens in New. After a status transition, the workspace follows the case to its
+new active-status view, or to All when the case becomes resolved or canceled. Priority and SLA
+ordering are deferred; every view retains the repository's newest-first ordering.
+
 ## Rules and invariants
 
 - Every case belongs to exactly one non-null organization resolved by the server.

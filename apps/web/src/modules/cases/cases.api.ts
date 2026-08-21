@@ -16,7 +16,7 @@ import {
 
 export type CaseItem = ListCasesResponse['items'][number]
 export type CaseListPage = ListCasesResponse
-export type CaseStatusFilter = 'all' | 'closed' | 'open' | CaseItem['status']
+export type CaseListView = 'all' | 'new' | 'waiting' | 'working'
 export type CaseStatusHistoryPage = ListCaseStatusHistoryResponse
 export type CaseTransitionInput = TransitionCaseData['body']
 export type CaseTransitionIntent = CaseTransitionInput extends infer Command
@@ -34,24 +34,23 @@ export const caseQueryKeys = {
   history(caseId: string) {
     return [...this.all, 'history', caseId] as const
   },
-  list(status: CaseStatusFilter) {
-    return [...this.all, 'list', status] as const
+  list(view: CaseListView) {
+    return [...this.all, 'list', view] as const
   },
 }
 
 export async function fetchCases({
   cursor,
-  status,
+  view,
 }: {
   cursor: string | null
-  status: CaseStatusFilter
+  view: CaseListView
 }): Promise<ListCasesResponse> {
   const response = await listCases({
     query: {
       ...(cursor ? { cursor } : {}),
       limit: 25,
-      ...(status === 'open' || status === 'closed' ? { statusGroup: status } : {}),
-      ...(status === 'all' || status === 'open' || status === 'closed' ? {} : { status: [status] }),
+      ...(view === 'all' ? {} : { status: [view] }),
     },
     throwOnError: true,
   })
