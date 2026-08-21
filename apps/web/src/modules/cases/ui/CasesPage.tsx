@@ -1,4 +1,4 @@
-import { RiAddLine, RiErrorWarningLine } from '@remixicon/react'
+import { RiAddLine, RiArrowLeftLine, RiErrorWarningLine } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -6,7 +6,16 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type FormEvent,
+  type Ref,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { Alert, AlertAction, AlertDescription } from '#components/ui/alert'
 import { Badge } from '#components/ui/badge'
@@ -38,18 +47,30 @@ const DESKTOP_VIEW_QUERY = '(min-width: 721px)'
 
 function ignoreSelectionChange() {}
 
+export type CaseSelectionNavigationMode = 'push' | 'replace'
+
 export function CasesPage({
   onSelectedIdChange = ignoreSelectionChange,
   requestedId = null,
 }: {
-  onSelectedIdChange?(caseId: string | null): void
+  onSelectedIdChange?(caseId: string | null, navigationMode: CaseSelectionNavigationMode): void
   requestedId?: string | null
 } = {}) {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<CaseStatusFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedIdRef = useRef<string | null>(null)
+  const previousRequestedIdRef = useRef(requestedId)
   const lastViewedIdRef = useRef(readLastViewedCaseId())
+  const workspaceRef = useRef<HTMLElement>(null)
+  const listTitleRef = useRef<HTMLHeadingElement>(null)
+  const detailTitleRef = useRef<HTMLHeadingElement>(null)
+  const mobileBackButtonRef = useRef<HTMLButtonElement>(null)
+  const caseButtonRefs = useRef(new Map<string, HTMLButtonElement>())
+  const listScrollPositionRef = useRef(0)
+  const returnFocusCaseIdRef = useRef<string | null>(null)
+  const pendingDetailFocusIdRef = useRef<string | null>(null)
+  const wasMobileDetailOpenRef = useRef(false)
   const isDesktop = useDesktopViewport()
   const cases = useInfiniteQuery<
     CaseListPage,
@@ -74,24 +95,33 @@ export function CasesPage({
     retry: false,
   })
   const selectCase = useCallback(
-    (caseId: string | null) => {
-      if (selectedIdRef.current === caseId) return
+    (caseId: string | null, navigationMode: CaseSelectionNavigationMode = 'replace') => {
+      if (selectedIdRef.current === caseId && (caseId !== null || requestedId === null)) return
       selectedIdRef.current = caseId
       setSelectedId(caseId)
       if (caseId) {
         lastViewedIdRef.current = caseId
         storeLastViewedCaseId(caseId)
       }
-      onSelectedIdChange(caseId)
+      onSelectedIdChange(caseId, navigationMode)
     },
-    [onSelectedIdChange],
+    [onSelectedIdChange, requestedId],
+  )
+  const rememberMobileListPosition = useCallback(
+    (caseId: string) => {
+      if (isDesktop) return
+      listScrollPositionRef.current = window.scrollY
+      returnFocusCaseIdRef.current = caseId
+    },
+    [isDesktop],
   )
   const refresh = () => queryClient.invalidateQueries({ queryKey: caseQueryKeys.all })
 
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
-      selectCase(created.id)
+      rememberMobileListPosition(created.id)
+      selectCase(created.id, isDesktop ? 'replace' : 'push')
       await refresh()
     },
   })
@@ -103,6 +133,14 @@ export function CasesPage({
     },
     onSuccess: refresh,
   })
+
+  useLayoutEffect(() => {
+    const previousRequestedId = previousRequestedIdRef.current
+    previousRequestedIdRef.current = requestedId
+    if (isDesktop || !previousRequestedId || requestedId) return
+    selectedIdRef.current = null
+    setSelectedId(null)
+  }, [isDesktop, requestedId])
 
   useEffect(() => {
     if (requestedId) {
@@ -131,6 +169,7 @@ export function CasesPage({
   const selected =
     items.find((item) => item.id === selectedId) ??
     (requestedCase.data?.id === selectedId ? requestedCase.data : null)
+  const mobileDetailOpen = !isDesktop && Boolean(selectedId || requestedId)
   const transitionMutation = useMutation({
     mutationFn: transitionCaseItem,
     onError: async (error) => {
@@ -139,13 +178,65 @@ export function CasesPage({
     onSuccess: refresh,
   })
 
+  useEffect(() => {
+    let restoreFrame: number | null = null
+    let settledRestoreFrame: number | null = null
+
+    if (isDesktop) {
+      wasMobileDetailOpenRef.current = false
+      return
+    }
+
+    const wasOpen = wasMobileDetailOpenRef.current
+    if (mobileDetailOpen && !wasOpen) {
+      pendingDetailFocusIdRef.current = selectedId ?? requestedId
+      const workspace = workspaceRef.current
+      if (workspace && typeof workspace.scrollIntoView === 'function') {
+        workspace.scrollIntoView({ block: 'start' })
+      }
+    } else if (!mobileDetailOpen && wasOpen) {
+      const returnTarget = returnFocusCaseIdRef.current
+        ? caseButtonRefs.current.get(returnFocusCaseIdRef.current)
+        : null
+      const scrollPosition = listScrollPositionRef.current
+      restoreFrame = window.requestAnimationFrame(() => {
+        settledRestoreFrame = window.requestAnimationFrame(() => {
+          ;(returnTarget ?? listTitleRef.current)?.focus({ preventScroll: true })
+          window.scrollTo({ behavior: 'auto', top: scrollPosition })
+        })
+      })
+      returnFocusCaseIdRef.current = null
+      pendingDetailFocusIdRef.current = null
+    }
+    wasMobileDetailOpenRef.current = mobileDetailOpen
+
+    return () => {
+      if (restoreFrame !== null) window.cancelAnimationFrame(restoreFrame)
+      if (settledRestoreFrame !== null) window.cancelAnimationFrame(settledRestoreFrame)
+    }
+  }, [isDesktop, mobileDetailOpen, requestedId, selectedId])
+
+  useEffect(() => {
+    if (!mobileDetailOpen || pendingDetailFocusIdRef.current === null) return
+    if (selected?.id === pendingDetailFocusIdRef.current) {
+      detailTitleRef.current?.focus({ preventScroll: true })
+      pendingDetailFocusIdRef.current = null
+      return
+    }
+    if (requestedCase.isError) {
+      mobileBackButtonRef.current?.focus({ preventScroll: true })
+      pendingDetailFocusIdRef.current = null
+    }
+  }, [mobileDetailOpen, requestedCase.isError, selected?.id])
+
   return (
-    <main className="pt-8 pb-24">
+    <main className="pt-2 pb-24">
       <section
-        className="mt-5 grid grid-cols-1 gap-5 min-[721px]:grid-cols-[minmax(300px,0.82fr)_minmax(0,1.18fr)]"
-        aria-labelledby="case-list-title"
+        ref={workspaceRef}
+        className="mt-2 grid grid-cols-1 gap-5 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)]"
+        aria-label="Sprawy"
       >
-        <Card className="min-h-[460px] gap-0 py-0">
+        <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
           <CardContent className="flex flex-1 flex-col p-6">
             <CaseCreateForm
               busy={createMutation.isPending}
@@ -154,8 +245,10 @@ export function CasesPage({
             />
             <div className="mb-5 flex items-start justify-between gap-5">
               <h1
+                ref={listTitleRef}
                 className="font-heading text-2xl font-semibold tracking-tight"
                 id="case-list-title"
+                tabIndex={-1}
               >
                 Sprawy
               </h1>
@@ -195,6 +288,10 @@ export function CasesPage({
                   return (
                     <li key={item.id}>
                       <Button
+                        ref={(button) => {
+                          if (button) caseButtonRefs.current.set(item.id, button)
+                          else caseButtonRefs.current.delete(item.id)
+                        }}
                         aria-pressed={selectedRow}
                         className={cn(
                           'h-auto w-full justify-between gap-4 whitespace-normal border px-3.5 py-3.5 text-left',
@@ -202,7 +299,10 @@ export function CasesPage({
                             ? 'border-border bg-accent text-accent-foreground'
                             : 'border-transparent bg-transparent',
                         )}
-                        onPress={() => selectCase(item.id)}
+                        onPress={() => {
+                          rememberMobileListPosition(item.id)
+                          selectCase(item.id, isDesktop ? 'replace' : 'push')
+                        }}
                         type="button"
                         variant="ghost"
                       >
@@ -238,11 +338,28 @@ export function CasesPage({
           </CardContent>
         </Card>
 
-        <Card className="min-h-[460px] gap-0 py-0">
+        <Card className="min-h-[460px] gap-0 py-0" hidden={!isDesktop && !mobileDetailOpen}>
           <CardContent className="flex flex-1 flex-col p-6">
+            {mobileDetailOpen ? (
+              <div className="mb-4 min-[721px]:hidden">
+                <Button
+                  ref={mobileBackButtonRef}
+                  aria-label="Wróć do listy spraw"
+                  className="size-11"
+                  onPress={() => selectCase(null, 'replace')}
+                  size="icon-lg"
+                  type="button"
+                  variant="ghost"
+                >
+                  <RiArrowLeftLine aria-hidden="true" />
+                </Button>
+              </div>
+            ) : null}
             {selected ? (
               <CaseDetail
                 caseItem={selected}
+                headingLevel={isDesktop ? 2 : 1}
+                headingRef={detailTitleRef}
                 transitionBusy={transitionMutation.isPending}
                 transitionError={transitionMutation.error}
                 updateBusy={updateMutation.isPending}
@@ -250,6 +367,10 @@ export function CasesPage({
                 onTransition={() => transitionMutation.mutate(selected)}
                 onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
               />
+            ) : requestedId && requestedCase.isError ? (
+              <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
+            ) : requestedId || selectedId ? (
+              <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
             ) : cases.isSuccess && status === 'all' && items.length === 0 ? (
               <CaseEmptyState
                 description="Wpisz jej tytuł po lewej stronie."
@@ -274,6 +395,8 @@ export function CasesPage({
 
 function CaseDetail({
   caseItem,
+  headingLevel,
+  headingRef,
   onTransition,
   onUpdate,
   transitionBusy,
@@ -282,6 +405,8 @@ function CaseDetail({
   updateError,
 }: {
   caseItem: CaseItem
+  headingLevel: 1 | 2
+  headingRef: Ref<HTMLHeadingElement>
   onTransition(): void
   onUpdate(input: CaseFormValue): Promise<unknown>
   transitionBusy: boolean
@@ -289,12 +414,19 @@ function CaseDetail({
   updateBusy: boolean
   updateError: Error | null
 }) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
+
   return (
     <article aria-labelledby="selected-case-title">
       <div className="mb-7 flex flex-col items-start justify-between gap-5 min-[721px]:flex-row">
-        <h2 className="font-heading text-2xl font-semibold tracking-tight" id="selected-case-title">
+        <Heading
+          ref={headingRef}
+          className="font-heading text-2xl font-semibold tracking-tight"
+          id="selected-case-title"
+          tabIndex={-1}
+        >
           {caseItem.title}
-        </h2>
+        </Heading>
         <Button isDisabled={transitionBusy} onPress={onTransition} type="button" variant="outline">
           {transitionBusy ? (
             <Spinner aria-hidden="true" className="motion-reduce:animate-none" />

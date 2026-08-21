@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
 
-import { CasesPage } from '../modules/cases/ui/CasesPage'
+import { type CaseSelectionNavigationMode, CasesPage } from '../modules/cases/ui/CasesPage'
 
 export const Route = createFileRoute('/cases')({
   component: CasesRoute,
@@ -17,9 +17,9 @@ function CasesRoute() {
   const { caseId } = Route.useSearch()
   const navigate = Route.useNavigate()
   const setSelectedCaseId = useCallback(
-    (nextCaseId: string | null) => {
+    (nextCaseId: string | null, navigationMode: CaseSelectionNavigationMode) => {
       void navigate({
-        replace: true,
+        replace: navigationMode === 'replace',
         search: nextCaseId ? { caseId: nextCaseId } : {},
       })
     },

@@ -118,6 +118,56 @@ describe('CasesPage', () => {
     expect(await screen.findByRole('heading', { name: 'Second case' })).toBeVisible()
   })
 
+  it('opens one mobile detail view and restores the triggering case from the icon-only back button', async () => {
+    mockDesktopViewport(false)
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(320)
+    vi.mocked(listCases).mockResolvedValue(
+      apiResult({ items: [caseItem, secondCaseItem], nextCursor: null }),
+    )
+    const onSelectedIdChange = vi.fn()
+    const user = userEvent.setup()
+
+    renderCasesPage({ onSelectedIdChange })
+
+    const listTitle = await screen.findByRole('heading', { level: 1, name: 'Sprawy' })
+    const secondCase = await screen.findByRole('button', { name: /Second case/ })
+    await user.click(secondCase)
+
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith(secondCaseItem.id, 'push')
+    expect(listTitle).not.toBeVisible()
+    const detailTitle = screen.getByRole('heading', { level: 1, name: 'Second case' })
+    expect(detailTitle).toBeVisible()
+    await waitFor(() => expect(detailTitle).toHaveFocus())
+
+    const back = screen.getByRole('button', { name: 'Wróć do listy spraw' })
+    expect(back.textContent).toBe('')
+    await user.click(back)
+
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith(null, 'replace')
+    expect(listTitle).toBeVisible()
+    await waitFor(() => expect(secondCase).toHaveFocus())
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 320 })
+  })
+
+  it('keeps mobile back navigation available when a direct case link fails to load', async () => {
+    mockDesktopViewport(false)
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(getCase).mockRejectedValue(new Error('Nie znaleziono sprawy.'))
+    const onSelectedIdChange = vi.fn()
+    const user = userEvent.setup()
+
+    renderCasesPage({ onSelectedIdChange, requestedId: secondCaseItem.id })
+
+    expect(await screen.findByText('Nie znaleziono sprawy.')).toBeVisible()
+    const back = screen.getByRole('button', { name: 'Wróć do listy spraw' })
+    await waitFor(() => expect(back).toHaveFocus())
+    await user.click(back)
+
+    expect(onSelectedIdChange).toHaveBeenLastCalledWith(null, 'replace')
+  })
+
   it('omits the decorative labels and customer id field', async () => {
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
     const user = userEvent.setup()
@@ -237,7 +287,11 @@ describe('CasesPage', () => {
   })
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 function renderCasesPage(props: Parameters<typeof CasesPage>[0] = {}) {
   const client = new QueryClient({
@@ -267,4 +321,16 @@ function versionConflict(currentVersion: number) {
     title: 'Conflict',
     type: 'about:blank',
   }
+}
+
+function mockDesktopViewport(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      addEventListener: vi.fn(),
+      matches,
+      media: '(min-width: 721px)',
+      removeEventListener: vi.fn(),
+    }),
+  )
 }

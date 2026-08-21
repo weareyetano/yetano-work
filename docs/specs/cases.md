@@ -89,6 +89,9 @@ read as an inherited requirement. It publishes versioned `case.created`, `case.u
 - Concurrent stale updates return the documented conflict response.
 - The web workspace handles loading, error, empty, and populated states and supports every case
   operation.
+- On narrow screens, the web workspace shows either the case list or the selected case. Opening a
+  case moves focus to its details, while in-app and browser back navigation restore the list,
+  previous scroll position, and triggering case. Wider screens retain the side-by-side workspace.
 
 ## Open questions
 
