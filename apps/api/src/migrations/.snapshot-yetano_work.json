@@ -122,8 +122,8 @@
           "default": null,
           "comment": null,
           "collation": null,
-          "enumItems": ["canceled", "new", "resolved", "waiting", "working"],
-          "mappedType": "enum"
+          "enumItems": [],
+          "mappedType": "text"
         },
         "id": {
           "name": "id",
@@ -207,7 +207,7 @@
           "default": null,
           "comment": null,
           "collation": null,
-          "enumItems": ["canceled", "new", "resolved", "waiting", "working"],
+          "enumItems": ["canceled", "new", "postponed", "resolved", "waiting", "working"],
           "mappedType": "enum"
         },
         "transition_id": {
@@ -280,9 +280,21 @@
         },
         {
           "name": "case_status_changes_from_status_check",
-          "expression": "\"from_status\" in ('canceled', 'new', 'resolved', 'waiting', 'working')",
-          "definition": "check (\"from_status\" in ('canceled', 'new', 'resolved', 'waiting', 'working'))",
+          "expression": "(from_status IS NULL) OR (from_status = ANY (ARRAY['canceled'::text, 'new'::text, 'postponed'::text, 'resolved'::text, 'waiting'::text, 'working'::text]))",
+          "definition": "CHECK (((from_status IS NULL) OR (from_status = ANY (ARRAY['canceled'::text, 'new'::text, 'postponed'::text, 'resolved'::text, 'waiting'::text, 'working'::text]))))",
           "columnName": "from_status"
+        },
+        {
+          "name": "case_status_changes_note_check",
+          "expression": "(note IS NULL) OR ((char_length(note) <= 2000) AND (btrim(note) <> ''::text))",
+          "definition": "CHECK (((note IS NULL) OR ((char_length(note) <= 2000) AND (btrim(note) <> ''::text))))",
+          "columnName": "note"
+        },
+        {
+          "name": "case_status_changes_runtime_check",
+          "expression": "(source <> 'runtime'::text) OR (type = 'created'::text) OR ((transition_id IS NOT NULL) AND (expected_version IS NOT NULL))",
+          "definition": "CHECK (((source <> 'runtime'::text) OR (type = 'created'::text) OR ((transition_id IS NOT NULL) AND (expected_version IS NOT NULL))))",
+          "columnName": "expected_version"
         },
         {
           "name": "case_status_changes_source_check",
@@ -292,8 +304,8 @@
         },
         {
           "name": "case_status_changes_to_status_check",
-          "expression": "\"to_status\" in ('canceled', 'new', 'resolved', 'waiting', 'working')",
-          "definition": "check (\"to_status\" in ('canceled', 'new', 'resolved', 'waiting', 'working'))",
+          "expression": "\"to_status\" in ('canceled', 'new', 'postponed', 'resolved', 'waiting', 'working')",
+          "definition": "check (\"to_status\" in ('canceled', 'new', 'postponed', 'resolved', 'waiting', 'working'))",
           "columnName": "to_status"
         },
         {
@@ -304,7 +316,16 @@
         }
       ],
       "triggers": [],
-      "foreignKeys": {},
+      "foreignKeys": {
+        "case_status_changes_case_fk": {
+          "columnNames": ["case_id"],
+          "constraintName": "case_status_changes_case_fk",
+          "localTableName": "public.case_status_changes",
+          "referencedColumnNames": ["id"],
+          "referencedTableName": "public.cases",
+          "updateRule": "cascade"
+        }
+      },
       "comment": null
     },
     {
@@ -427,7 +448,7 @@
           "default": null,
           "comment": null,
           "collation": null,
-          "enumItems": ["canceled", "new", "resolved", "waiting", "working"],
+          "enumItems": ["canceled", "new", "postponed", "resolved", "waiting", "working"],
           "mappedType": "enum"
         },
         "status_note": {
@@ -535,9 +556,21 @@
       ],
       "checks": [
         {
+          "name": "cases_closed_at_check",
+          "expression": "((status = ANY (ARRAY['resolved'::text, 'canceled'::text])) AND (closed_at IS NOT NULL)) OR ((status = ANY (ARRAY['new'::text, 'postponed'::text, 'waiting'::text, 'working'::text])) AND (closed_at IS NULL))",
+          "definition": "CHECK ((((status = ANY (ARRAY['resolved'::text, 'canceled'::text])) AND (closed_at IS NOT NULL)) OR ((status = ANY (ARRAY['new'::text, 'postponed'::text, 'waiting'::text, 'working'::text])) AND (closed_at IS NULL))))",
+          "columnName": "closed_at"
+        },
+        {
           "name": "cases_status_check",
-          "expression": "\"status\" in ('canceled', 'new', 'resolved', 'waiting', 'working')",
-          "definition": "check (\"status\" in ('canceled', 'new', 'resolved', 'waiting', 'working'))",
+          "expression": "\"status\" in ('canceled', 'new', 'postponed', 'resolved', 'waiting', 'working')",
+          "definition": "check (\"status\" in ('canceled', 'new', 'postponed', 'resolved', 'waiting', 'working'))",
+          "columnName": "status"
+        },
+        {
+          "name": "cases_status_note_check",
+          "expression": "((status_note IS NULL) OR ((char_length(status_note) <= 2000) AND (btrim(status_note) <> ''::text))) AND ((status <> ALL (ARRAY['waiting'::text, 'canceled'::text])) OR (status_note IS NOT NULL)) AND ((status <> 'postponed'::text) OR (status_note IS NULL))",
+          "definition": "CHECK ((((status_note IS NULL) OR ((char_length(status_note) <= 2000) AND (btrim(status_note) <> ''::text))) AND ((status <> ALL (ARRAY['waiting'::text, 'canceled'::text])) OR (status_note IS NOT NULL)) AND ((status <> 'postponed'::text) OR (status_note IS NULL))))",
           "columnName": "status"
         }
       ],
