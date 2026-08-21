@@ -75,7 +75,7 @@ describe('public API contracts', () => {
     expect(validator.Check({ title: 'Missing version' })).toBe(false)
   })
 
-  it('accepts allowed status transitions and requires waiting and cancellation notes', () => {
+  it('accepts allowed status transitions and enforces lifecycle notes', () => {
     const validator = Compile(ChangeCaseStatusRequestSchema)
     const identity = {
       expectedVersion: 2,
@@ -95,6 +95,36 @@ describe('public API contracts', () => {
     expect(validator.Check({ ...identity, fromStatus: 'new', toStatus: 'canceled' })).toBe(false)
     expect(validator.Check({ ...identity, fromStatus: 'resolved', toStatus: 'working' })).toBe(true)
     expect(validator.Check({ ...identity, fromStatus: 'working', toStatus: 'new' })).toBe(false)
+    expect(validator.Check({ ...identity, fromStatus: 'new', toStatus: 'postponed' })).toBe(true)
+    expect(
+      validator.Check({
+        ...identity,
+        fromStatus: 'new',
+        note: 'Later',
+        toStatus: 'postponed',
+      }),
+    ).toBe(false)
+    expect(validator.Check({ ...identity, fromStatus: 'postponed', toStatus: 'new' })).toBe(true)
+    expect(validator.Check({ ...identity, fromStatus: 'working', toStatus: 'postponed' })).toBe(
+      false,
+    )
+    expect(validator.Check({ ...identity, fromStatus: 'waiting', toStatus: 'postponed' })).toBe(
+      false,
+    )
+    expect(validator.Check({ ...identity, fromStatus: 'postponed', toStatus: 'resolved' })).toBe(
+      true,
+    )
+    expect(validator.Check({ ...identity, fromStatus: 'postponed', toStatus: 'canceled' })).toBe(
+      false,
+    )
+    expect(
+      validator.Check({
+        ...identity,
+        fromStatus: 'postponed',
+        note: 'No longer relevant',
+        toStatus: 'canceled',
+      }),
+    ).toBe(true)
   })
 
   it('accepts immutable case status history entries', () => {
@@ -133,5 +163,10 @@ describe('public API contracts', () => {
     expect(validator.Check({ search: '' })).toBe(false)
     expect(validator.Check({ search: '   ' })).toBe(false)
     expect(validator.Check({ search: 'x'.repeat(201) })).toBe(false)
+    expect(
+      validator.Check({
+        status: ['new', 'postponed', 'working', 'waiting', 'resolved', 'canceled'],
+      }),
+    ).toBe(true)
   })
 })

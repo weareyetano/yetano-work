@@ -3,8 +3,9 @@ import Type, { type TSchema } from 'typebox'
 import { CaseIdSchema, CustomerIdSchema, OrganizationIdSchema } from './ids.js'
 
 const StatusNoteSchema = Type.String({ maxLength: 2_000, minLength: 1 })
-const ActiveCaseStatusSchema = Type.Union([
+const NonTerminalCaseStatusSchema = Type.Union([
   Type.Literal('new'),
+  Type.Literal('postponed'),
   Type.Literal('waiting'),
   Type.Literal('working'),
 ])
@@ -13,6 +14,7 @@ const TerminalCaseStatusSchema = Type.Union([Type.Literal('canceled'), Type.Lite
 export const CaseStatusSchema = Type.Union(
   [
     Type.Literal('new'),
+    Type.Literal('postponed'),
     Type.Literal('working'),
     Type.Literal('waiting'),
     Type.Literal('resolved'),
@@ -27,7 +29,8 @@ export const CaseStatusSchema = Type.Union(
 export type CaseStatus = Type.Static<typeof CaseStatusSchema>
 
 export const CaseStatusGroupSchema = Type.Union([Type.Literal('open'), Type.Literal('closed')], {
-  description: 'Open or closed lifecycle group used to filter cases.',
+  description:
+    'Actively open or closed lifecycle group used to filter cases; postponed is excluded.',
   title: 'CaseStatusGroup',
 })
 
@@ -108,6 +111,20 @@ function transitionVariant<
   )
 }
 
+function transitionVariantWithoutNote<
+  const FromStatus extends TSchema,
+  const ToStatus extends TSchema,
+>(fromStatus: FromStatus, toStatus: ToStatus) {
+  return Type.Object(
+    {
+      ...TransitionIdentityProperties,
+      fromStatus,
+      toStatus,
+    },
+    { additionalProperties: false },
+  )
+}
+
 export const ChangeCaseStatusRequestSchema = Type.Union(
   [
     transitionVariant(
@@ -122,12 +139,14 @@ export const ChangeCaseStatusRequestSchema = Type.Union(
       Type.Literal('working'),
       Type.Optional(StatusNoteSchema),
     ),
+    transitionVariantWithoutNote(Type.Literal('new'), Type.Literal('postponed')),
+    transitionVariantWithoutNote(Type.Literal('postponed'), Type.Literal('new')),
     transitionVariant(
-      ActiveCaseStatusSchema,
+      NonTerminalCaseStatusSchema,
       Type.Literal('resolved'),
       Type.Optional(StatusNoteSchema),
     ),
-    transitionVariant(ActiveCaseStatusSchema, Type.Literal('canceled'), StatusNoteSchema),
+    transitionVariant(NonTerminalCaseStatusSchema, Type.Literal('canceled'), StatusNoteSchema),
     transitionVariant(
       TerminalCaseStatusSchema,
       Type.Literal('working'),
@@ -217,7 +236,7 @@ export const ListCasesQuerySchema = Type.Object(
     status: Type.Optional(
       Type.Union([
         CaseStatusSchema,
-        Type.Array(CaseStatusSchema, { maxItems: 5, minItems: 1, uniqueItems: true }),
+        Type.Array(CaseStatusSchema, { maxItems: 6, minItems: 1, uniqueItems: true }),
       ]),
     ),
     statusGroup: Type.Optional(CaseStatusGroupSchema),

@@ -61,11 +61,11 @@ export type ListCasesData = {
          *
          * Current lifecycle status of a case.
          */
-        status?: Array<'new' | 'working' | 'waiting' | 'resolved' | 'canceled'>;
+        status?: Array<'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled'>;
         /**
          * CaseStatusGroup
          *
-         * Open or closed lifecycle group used to filter cases.
+         * Actively open or closed lifecycle group used to filter cases; postponed is excluded.
          */
         statusGroup?: 'open' | 'closed';
     };
@@ -148,7 +148,7 @@ export type ListCasesResponses = {
              *
              * Current lifecycle status of a case.
              */
-            status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            status: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
             statusNote: string | null;
             title: string;
             updatedAt: string;
@@ -251,7 +251,7 @@ export type CreateCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        status: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
         statusNote: string | null;
         title: string;
         updatedAt: string;
@@ -357,7 +357,7 @@ export type ListCaseStatusHistoryResponses = {
             caseId: string;
             caseVersion: number;
             changedAt: string;
-            fromStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
+            fromStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
             id: string;
             note: string | null;
             source: 'migration' | 'runtime';
@@ -366,7 +366,7 @@ export type ListCaseStatusHistoryResponses = {
              *
              * Current lifecycle status of a case.
              */
-            toStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            toStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
             transitionId: string | null;
             type: 'created' | 'transitioned';
         }>;
@@ -479,7 +479,7 @@ export type GetCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        status: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
         statusNote: string | null;
         title: string;
         updatedAt: string;
@@ -617,7 +617,7 @@ export type UpdateCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        status: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        status: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
         statusNote: string | null;
         title: string;
         updatedAt: string;
@@ -660,13 +660,23 @@ export type TransitionCaseData = {
     } | {
         expectedVersion: number;
         transitionId: string;
-        fromStatus: 'new' | 'waiting' | 'working';
+        fromStatus: 'new';
+        toStatus: 'postponed';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'postponed';
+        toStatus: 'new';
+    } | {
+        expectedVersion: number;
+        transitionId: string;
+        fromStatus: 'new' | 'postponed' | 'waiting' | 'working';
         note?: string;
         toStatus: 'resolved';
     } | {
         expectedVersion: number;
         transitionId: string;
-        fromStatus: 'new' | 'waiting' | 'working';
+        fromStatus: 'new' | 'postponed' | 'waiting' | 'working';
         note: string;
         toStatus: 'canceled';
     } | {
@@ -787,7 +797,7 @@ export type TransitionCaseResponses = {
         caseId: string;
         caseVersion: number;
         changedAt: string;
-        fromStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
+        fromStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
         id: string;
         note: string | null;
         source: 'migration' | 'runtime';
@@ -796,7 +806,7 @@ export type TransitionCaseResponses = {
          *
          * Current lifecycle status of a case.
          */
-        toStatus: 'new' | 'working' | 'waiting' | 'resolved' | 'canceled';
+        toStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
         transitionId: string | null;
         type: 'created' | 'transitioned';
     };

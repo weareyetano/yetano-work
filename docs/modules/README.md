@@ -34,7 +34,7 @@ The catalog is derived from the compile-time module descriptors used by the API 
 | `cases.create` | `cases.read` | Create cases. |
 | `cases.update` | `cases.read` | Update case details. |
 | `cases.close` | `cases.read` | Resolve and cancel cases. |
-| `cases.transition` | `cases.read` | Move cases between open statuses. |
+| `cases.transition` | `cases.read` | Move cases among nonterminal workflow statuses. |
 | `cases.reopen` | `cases.read` | Reopen resolved and canceled cases. |
 
 | Operation | Kind | Capability |

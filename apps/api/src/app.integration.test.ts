@@ -290,6 +290,95 @@ describeWithDatabase('API with PostgreSQL', () => {
     ])
   })
 
+  it('postpones only new cases, restores them, and keeps them outside the open group', async () => {
+    const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
+    const createResponse = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Postpone lifecycle test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+    const postponeTransitionId = crypto.randomUUID()
+    const postpone = () =>
+      app.request(`/api/v1/cases/${created.id}/transition`, {
+        body: JSON.stringify({
+          expectedVersion: created.version,
+          fromStatus: 'new',
+          toStatus: 'postponed',
+          transitionId: postponeTransitionId,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+
+    const postponedResponse = await postpone()
+    const postponed = (await postponedResponse.json()) as CaseStatusChange
+    const replayResponse = await postpone()
+    expect(postponedResponse.status).toBe(200)
+    expect(replayResponse.status).toBe(200)
+    await expect(replayResponse.json()).resolves.toEqual(postponed)
+    expect(postponed).toMatchObject({ note: null, toStatus: 'postponed' })
+
+    const currentResponse = await app.request(`/api/v1/cases/${created.id}`)
+    await expect(currentResponse.json()).resolves.toMatchObject({
+      closedAt: null,
+      status: 'postponed',
+      statusNote: null,
+    })
+    const openResponse = await app.request('/api/v1/cases?statusGroup=open')
+    const postponedListResponse = await app.request('/api/v1/cases?status=postponed')
+    const open = (await openResponse.json()) as { items: Case[] }
+    const postponedList = (await postponedListResponse.json()) as { items: Case[] }
+    expect(open.items.map((item) => item.id)).not.toContain(created.id)
+    expect(postponedList.items.map((item) => item.id)).toEqual([created.id])
+
+    const restoreResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: postponed.caseVersion,
+        fromStatus: 'postponed',
+        toStatus: 'new',
+        transitionId: crypto.randomUUID(),
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const restored = (await restoreResponse.json()) as CaseStatusChange
+    expect(restored).toMatchObject({ fromStatus: 'postponed', note: null, toStatus: 'new' })
+
+    const postponeAgainResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: restored.caseVersion,
+        fromStatus: 'new',
+        toStatus: 'postponed',
+        transitionId: crypto.randomUUID(),
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const postponedAgain = (await postponeAgainResponse.json()) as CaseStatusChange
+    const resolveResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: postponedAgain.caseVersion,
+        fromStatus: 'postponed',
+        toStatus: 'resolved',
+        transitionId: crypto.randomUUID(),
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(resolveResponse.status).toBe(200)
+    const resolvedCaseResponse = await app.request(`/api/v1/cases/${created.id}`)
+    const resolvedCase = (await resolvedCaseResponse.json()) as Case
+    expect(resolvedCase).toMatchObject({ status: 'resolved', statusNote: null })
+    expect(resolvedCase.closedAt).toEqual(expect.any(String))
+
+    const eventVersions = await orm.em.getConnection().execute<Array<{ schema_version: number }>>(
+      `select schema_version from platform_outbox_events
+         where type = 'case.transitioned' order by aggregate_version`,
+    )
+    expect(eventVersions.map((event) => event.schema_version)).toEqual([2, 2, 2, 2])
+  })
+
   it('paginates case lists and applies status and customer filters', async () => {
     const app = createTestApp('ddbdc2cc-bbc9-4426-97bf-d99520983bbb')
     const customerId = '5a4d55ee-f3c6-45c3-8309-e7c684f0a2be'

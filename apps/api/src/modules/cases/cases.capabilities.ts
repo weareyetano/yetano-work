@@ -30,7 +30,7 @@ export const casesCapabilities: readonly CapabilityDefinition[] = [
     requires: [CASES_CAPABILITIES.read],
   },
   {
-    description: 'Move cases between open statuses.',
+    description: 'Move cases among nonterminal workflow statuses.',
     id: CASES_CAPABILITIES.transition,
     requires: [CASES_CAPABILITIES.read],
   },

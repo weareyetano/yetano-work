@@ -29,6 +29,7 @@ const CaseTransitionedPayloadSchema = Type.Object(
     fromStatus: Type.Union([
       Type.Literal('canceled'),
       Type.Literal('new'),
+      Type.Literal('postponed'),
       Type.Literal('resolved'),
       Type.Literal('waiting'),
       Type.Literal('working'),
@@ -36,6 +37,7 @@ const CaseTransitionedPayloadSchema = Type.Object(
     toStatus: Type.Union([
       Type.Literal('canceled'),
       Type.Literal('new'),
+      Type.Literal('postponed'),
       Type.Literal('resolved'),
       Type.Literal('waiting'),
       Type.Literal('working'),
@@ -63,7 +65,7 @@ export const caseTransitionedEvent = defineEvent({
   description: 'A case lifecycle status changed.',
   id: 'case.transitioned',
   payloadSchema: CaseTransitionedPayloadSchema,
-  schemaVersion: 1,
+  schemaVersion: 2,
 })
 
 export const casesEvents = [caseCreatedEvent, caseUpdatedEvent, caseTransitionedEvent] as const

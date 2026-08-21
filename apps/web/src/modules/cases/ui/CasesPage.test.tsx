@@ -64,15 +64,15 @@ describe('CasesPage', () => {
   it('renders the deliberate empty state', async () => {
     renderCasesPage()
 
-    expect(await screen.findByText('Brak nowych spraw.')).toBeInTheDocument()
-    expect(screen.getByText('Nowe sprawy pojawią się tutaj po utworzeniu.')).toBeInTheDocument()
+    expect(await screen.findByText('Brak otwartych spraw.')).toBeInTheDocument()
+    expect(screen.getByText('Nowe i aktywne sprawy pojawią się tutaj.')).toBeInTheDocument()
     expect(screen.getByText('Brak wybranej sprawy.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Dodaj sprawę' })).toBeVisible()
     expect(screen.getByRole('heading', { level: 1, name: 'Sprawy' })).toHaveClass('sr-only')
     expect(screen.queryByRole('form', { name: 'Nowa sprawa' })).not.toBeInTheDocument()
   })
 
-  it('offers only the four work views and requests their exact filters', async () => {
+  it('offers only the three lifecycle views and requests their exact filters', async () => {
     const user = userEvent.setup()
     renderCasesPage()
 
@@ -83,42 +83,33 @@ describe('CasesPage', () => {
       within(listbox)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['Nowe', 'Pracujemy', 'Czekamy', 'Wszystkie'])
-    expect(view).toHaveTextContent('Nowe')
+    ).toEqual(['Otwarte', 'Odłożone', 'Zamknięte'])
+    expect(view).toHaveTextContent('Otwarte')
     await user.keyboard('{Escape}')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, status: ['new'] },
+        query: { limit: 25, statusGroup: 'open' },
         throwOnError: true,
       }),
     )
 
-    await selectView(user, 'Pracujemy')
+    await selectView(user, 'Odłożone')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, status: ['working'] },
+        query: { limit: 25, status: ['postponed'] },
         throwOnError: true,
       }),
     )
-    expect(await screen.findByText('Brak spraw, nad którymi pracujemy.')).toBeVisible()
+    expect(await screen.findByText('Brak odłożonych spraw.')).toBeVisible()
 
-    await selectView(user, 'Czekamy')
+    await selectView(user, 'Zamknięte')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, status: ['waiting'] },
+        query: { limit: 25, statusGroup: 'closed' },
         throwOnError: true,
       }),
     )
-    expect(await screen.findByText('Brak spraw, na które czekamy.')).toBeVisible()
-
-    await selectView(user, 'Wszystkie')
-    await waitFor(() =>
-      expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25 },
-        throwOnError: true,
-      }),
-    )
-    expect(await screen.findByText('Brak spraw.')).toBeVisible()
+    expect(await screen.findByText('Brak zamkniętych spraw.')).toBeVisible()
   })
 
   it('debounces search inside the selected view and clears it directly', async () => {
@@ -136,17 +127,17 @@ describe('CasesPage', () => {
     expect(listCases).toHaveBeenCalledTimes(initialCallCount)
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, search: 'Invoice', status: ['new'] },
+        query: { limit: 25, search: 'Invoice', statusGroup: 'open' },
         throwOnError: true,
       }),
     )
     expect(await screen.findByText('Brak pasujących spraw.')).toBeVisible()
     expect(screen.getByText('Spróbuj innej frazy albo wyczyść wyszukiwanie.')).toBeVisible()
 
-    await selectView(user, 'Pracujemy')
+    await selectView(user, 'Odłożone')
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, search: 'Invoice', status: ['working'] },
+        query: { limit: 25, search: 'Invoice', status: ['postponed'] },
         throwOnError: true,
       }),
     )
@@ -156,11 +147,11 @@ describe('CasesPage', () => {
     expect(screen.queryByRole('button', { name: 'Wyczyść wyszukiwanie' })).not.toBeInTheDocument()
     await waitFor(() =>
       expect(listCases).toHaveBeenLastCalledWith({
-        query: { limit: 25, status: ['working'] },
+        query: { limit: 25, status: ['postponed'] },
         throwOnError: true,
       }),
     )
-    expect(await screen.findByText('Brak spraw, nad którymi pracujemy.')).toBeVisible()
+    expect(await screen.findByText('Brak odłożonych spraw.')).toBeVisible()
   })
 
   it('selects the case requested in the URL before the last viewed case', async () => {
@@ -246,7 +237,7 @@ describe('CasesPage', () => {
     expect(secondCase).toHaveFocus()
 
     listPanel.scrollTop = 240
-    await selectView(user, 'Pracujemy')
+    await selectView(user, 'Odłożone')
 
     expect(listPanel.scrollTop).toBe(0)
   })
@@ -388,9 +379,9 @@ describe('CasesPage', () => {
     renderCasesPage({ onCreateModeChange, onSelectedIdChange })
 
     const view = getViewSelect()
-    await screen.findByText('Brak nowych spraw.')
-    await selectView(user, 'Pracujemy')
-    await screen.findByText('Brak spraw, nad którymi pracujemy.')
+    await screen.findByText('Brak otwartych spraw.')
+    await selectView(user, 'Zamknięte')
+    await screen.findByText('Brak zamkniętych spraw.')
     await user.click(screen.getByRole('button', { name: 'Dodaj sprawę' }))
 
     expect(onCreateModeChange).toHaveBeenLastCalledWith(true, 'push')
@@ -413,7 +404,7 @@ describe('CasesPage', () => {
         throwOnError: true,
       }),
     )
-    await waitFor(() => expect(view).toHaveTextContent('Nowe'))
+    await waitFor(() => expect(view).toHaveTextContent('Otwarte'))
     expect(onSelectedIdChange).toHaveBeenLastCalledWith(caseItem.id, 'replace')
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
   })
@@ -454,7 +445,7 @@ describe('CasesPage', () => {
     const user = userEvent.setup()
     renderCasesPage()
 
-    await screen.findByText('Brak nowych spraw.')
+    await screen.findByText('Brak otwartych spraw.')
     await user.click(screen.getByRole('button', { name: 'Dodaj sprawę' }))
     const createForm = screen.getByRole('form', { name: 'Nowa sprawa' })
     const title = within(createForm).getByLabelText('Tytuł')
@@ -493,8 +484,9 @@ describe('CasesPage', () => {
       }),
     )
     expect(updateCase).not.toHaveBeenCalled()
-    expect(getViewSelect()).toHaveTextContent('Pracujemy')
+    expect(getViewSelect()).toHaveTextContent('Otwarte')
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Odłóż' })).not.toBeInTheDocument()
   })
 
   it('requires a note when moving a case to waiting without duplicating it above the form', async () => {
@@ -532,7 +524,67 @@ describe('CasesPage', () => {
       }),
     )
     expect(screen.queryByText('Oczekuje na odpowiedź klienta')).not.toBeInTheDocument()
-    expect(getViewSelect()).toHaveTextContent('Czekamy')
+    expect(getViewSelect()).toHaveTextContent('Otwarte')
+    expect(screen.queryByRole('button', { name: 'Odłóż' })).not.toBeInTheDocument()
+  })
+
+  it('postpones a new case without a dialog and restores it as new', async () => {
+    const postponedCase = {
+      ...caseItem,
+      status: 'postponed' as const,
+      version: 2,
+    }
+    const restoredCase = { ...caseItem, version: 3 }
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValueOnce(apiResult({ items: [postponedCase], nextCursor: null }))
+      .mockResolvedValueOnce(apiResult({ items: [postponedCase], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [restoredCase], nextCursor: null }))
+    vi.mocked(transitionCase)
+      .mockResolvedValueOnce(apiResult(statusChange('postponed')))
+      .mockResolvedValueOnce(
+        apiResult({ ...statusChange('new', null, 'postponed'), caseVersion: 3 }),
+      )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Odłóż' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(transitionCase).toHaveBeenNthCalledWith(1, {
+        body: {
+          expectedVersion: 1,
+          fromStatus: 'new',
+          toStatus: 'postponed',
+          transitionId: expect.any(String),
+        },
+        path: { caseId: caseItem.id },
+        throwOnError: true,
+      }),
+    )
+    expect(getViewSelect()).toHaveTextContent('Odłożone')
+    expect(await screen.findByText('Odłożona')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Przywróć' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Pracuj' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Oczekuj' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Przywróć' }))
+
+    await waitFor(() =>
+      expect(transitionCase).toHaveBeenNthCalledWith(2, {
+        body: {
+          expectedVersion: 2,
+          fromStatus: 'postponed',
+          toStatus: 'new',
+          transitionId: expect.any(String),
+        },
+        path: { caseId: caseItem.id },
+        throwOnError: true,
+      }),
+    )
+    expect(getViewSelect()).toHaveTextContent('Otwarte')
+    expect(await screen.findByRole('button', { name: 'Odłóż' })).toBeVisible()
   })
 
   it('groups every available mobile status transition behind one menu', async () => {
@@ -553,7 +605,7 @@ describe('CasesPage', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Pracuj', 'Oczekuj', 'Rozwiąż', 'Anuluj'])
+    ).toEqual(['Pracuj', 'Odłóż', 'Oczekuj', 'Rozwiąż', 'Anuluj'])
 
     await user.click(within(menu).getByRole('menuitem', { name: 'Oczekuj' }))
     expect(screen.getByRole('dialog', { name: 'Na co czekamy?' })).toBeVisible()
@@ -600,7 +652,7 @@ describe('CasesPage', () => {
     expect(within(rows[0] as HTMLElement).getByText('Odpowiedź klienta')).toHaveClass('text-xs')
   })
 
-  it('moves a resolved case to the all view and keeps its details open', async () => {
+  it('moves a resolved case to the closed view and keeps its details open', async () => {
     const resolvedCase = {
       ...caseItem,
       closedAt: '2026-08-19T11:00:00.000Z',
@@ -617,12 +669,12 @@ describe('CasesPage', () => {
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
     await user.click(screen.getByRole('button', { name: 'Rozwiąż' }))
 
-    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Wszystkie'))
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Zamknięte'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
 
-  it('moves a canceled case to the all view and keeps its details open', async () => {
+  it('moves a canceled case to the closed view and keeps its details open', async () => {
     const canceledCase = {
       ...caseItem,
       closedAt: '2026-08-19T11:00:00.000Z',
@@ -642,12 +694,12 @@ describe('CasesPage', () => {
     await user.type(screen.getByLabelText('Notatka'), 'Duplikat')
     await user.click(screen.getByRole('button', { name: 'Anuluj sprawę' }))
 
-    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Wszystkie'))
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Zamknięte'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
   })
 
-  it('moves a reopened case to the working view and keeps its details open', async () => {
+  it('moves a reopened case to the open view and keeps its details open', async () => {
     const canceledCase = {
       ...caseItem,
       closedAt: '2026-08-19T11:00:00.000Z',
@@ -672,7 +724,7 @@ describe('CasesPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Otwórz ponownie' }))
 
-    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Pracujemy'))
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Otwarte'))
     expect(await screen.findByDisplayValue('Invoice access')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeVisible()
   })
@@ -772,9 +824,9 @@ function versionConflict(currentVersion: number) {
 }
 
 function statusChange(
-  toStatus: 'canceled' | 'resolved' | 'waiting' | 'working',
+  toStatus: 'canceled' | 'new' | 'postponed' | 'resolved' | 'waiting' | 'working',
   note: string | null = null,
-  fromStatus: 'canceled' | 'new' | 'resolved' | 'waiting' | 'working' = 'new',
+  fromStatus: 'canceled' | 'new' | 'postponed' | 'resolved' | 'waiting' | 'working' = 'new',
 ) {
   return {
     actorId: 'development-user',

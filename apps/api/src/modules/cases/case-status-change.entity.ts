@@ -17,7 +17,7 @@ export const CaseStatusChangeEntity = defineEntity({
     changedAt: p.datetime().fieldName('changed_at'),
     expectedVersion: p.integer().fieldName('expected_version').nullable(),
     fromStatus: p
-      .enum(['canceled', 'new', 'resolved', 'waiting', 'working'] as const)
+      .enum(['canceled', 'new', 'postponed', 'resolved', 'waiting', 'working'] as const)
       .$type<CaseStatus>()
       .fieldName('from_status')
       .nullable(),
@@ -26,7 +26,7 @@ export const CaseStatusChangeEntity = defineEntity({
     organizationId: p.uuid().$type<OrganizationId>().fieldName('organization_id'),
     source: p.enum(['migration', 'runtime'] as const),
     toStatus: p
-      .enum(['canceled', 'new', 'resolved', 'waiting', 'working'] as const)
+      .enum(['canceled', 'new', 'postponed', 'resolved', 'waiting', 'working'] as const)
       .$type<CaseStatus>()
       .fieldName('to_status'),
     transitionId: p.uuid().fieldName('transition_id').nullable(),

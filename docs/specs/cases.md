@@ -8,13 +8,15 @@
 ## Summary
 
 A case is a lightweight organization-scoped record for work that needs a durable title, optional
-context, and an explicit lifecycle. It supports intake, active work, waiting, successful resolution,
-cancellation, and immutable status history without assignment, tasks, general activities,
-archival, or deletion.
+context, and an explicit lifecycle. It supports intake, active work, waiting, postponement,
+successful resolution, cancellation, and immutable status history without assignment, tasks,
+general activities, archival, or deletion.
 
 ## Terminology and scope
 
 - An **open case** is new, being worked, or waiting.
+- A **postponed case** is a new case deliberately moved out of the current backlog before work
+  begins. It is neither actively open nor closed.
 - A **closed case** is resolved or canceled and records when it was last closed.
 - The **active organization** is resolved by the server and is never selected by case API input.
 - A **customer reference** is an optional UUID. It is a soft cross-module reference because a
@@ -31,7 +33,7 @@ Users with the declared capabilities can:
 1. Create a new case.
 2. Get one case or list cases in the active organization.
 3. Update title, description, or customer reference using the last observed version.
-4. Move a case through new, working, waiting, resolved, and canceled statuses.
+4. Move a case through new, postponed, working, waiting, resolved, and canceled statuses.
 5. Read its immutable status history.
 
 Status transitions use a client-generated transition identifier. Repeating the same command returns
@@ -42,20 +44,23 @@ The supported transitions are:
 
 | Current status | Available next status |
 | --- | --- |
-| `new` | `working`, `waiting`, `resolved`, `canceled` |
+| `new` | `working`, `waiting`, `postponed`, `resolved`, `canceled` |
+| `postponed` | `new`, `resolved`, `canceled` |
 | `working` | `waiting`, `resolved`, `canceled` |
 | `waiting` | `working`, `resolved`, `canceled` |
 | `resolved`, `canceled` | `working` |
 
-Lists use opaque cursor pagination. They accept exact status, open or closed status group, customer,
-and case-insensitive text filters with a bounded page size. Text search matches literal fragments of
-the title, description, or case identifier. Results are ordered newest first with the case identifier
-as a stable tie-breaker. Status history is independently cursor-paginated newest first.
+Lists use opaque cursor pagination. They accept exact status, actively open or closed status group,
+customer, and case-insensitive text filters with a bounded page size. The open group contains new,
+working, and waiting cases; postponed cases are queried by exact status; the closed group contains
+resolved and canceled cases. Text search matches literal fragments of the title, description, or
+case identifier. Results are ordered newest first with the case identifier as a stable tie-breaker.
+Status history is independently cursor-paginated newest first.
 
-The web workspace starts in the New view and exposes four list views: New, Working, Waiting, and
-All. A created case opens in New. After a status transition, the workspace follows the case to its
-new active-status view, or to All when the case becomes resolved or canceled. Priority and SLA
-ordering are deferred; every view retains the repository's newest-first ordering.
+The web workspace starts in the Open view and exposes three list views: Open, Postponed, and Closed.
+A created or restored case opens in Open. Postponing a new case follows it to Postponed; resolving or
+canceling a case follows it to Closed. Priority and SLA ordering are deferred; every view retains the
+repository's newest-first ordering.
 
 The case search field narrows the selected list view after a short typing delay. Its value remains
 local to the workspace while users change views or open and return from a case, and resets after a
@@ -89,6 +94,8 @@ and the single-panel list-to-detail flow.
 - A description is optional, trimmed, and no longer than 10,000 characters; blank input becomes
   null.
 - New cases have status `new`, version 1, no status note, and no close timestamp.
+- Only new cases can be postponed. Postponing and restoring are one-step transitions without a note.
+- Postponed cases have no status note or close timestamp and restore to `new`, not `working`.
 - `waiting` and `canceled` require a non-blank status note.
 - Resolved and canceled cases have a close timestamp; reopened cases do not.
 - Reopening a resolved or canceled case moves it to `working`.
@@ -115,11 +122,11 @@ in [`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). T
 create, get, list, update, transition, and status-history operations under `/api/v1/cases`. OpenAPI
 and the web client are generated from those routes.
 
-The module declares read, create, update, transition, close, and reopen capabilities. Open-to-open
-movement requires transition, active-to-terminal movement requires close, and terminal-to-working
-movement requires reopen. Mutating capabilities include read as an inherited requirement. It
-publishes versioned `case.created`, `case.updated`, and `case.transitioned` events through the
-transactional outbox.
+The module declares read, create, update, transition, close, and reopen capabilities. Movement among
+active statuses plus postponing or restoring requires transition, nonterminal-to-terminal movement
+requires close, and terminal-to-working movement requires reopen. Mutating capabilities include read
+as an inherited requirement. It publishes versioned `case.created`, `case.updated`, and
+`case.transitioned` events through the transactional outbox.
 
 ## Edge cases and failure behavior
 
@@ -142,6 +149,8 @@ transactional outbox.
 - Concurrent stale updates return the documented conflict response.
 - The web workspace handles loading, error, empty, and populated states and supports every case
   operation.
+- The Postpone action is available only for new cases, performs no note prompt, and moves the case to
+  Postponed; Restore returns it to New and the Open view.
 - The creation panel preserves entered values after a failed request and restores the previous case
   on desktop, or the list and triggering add action on narrow screens, when canceled.
 - On narrow screens, the web workspace shows either the case list or the selected case. Opening a
