@@ -54,13 +54,14 @@ Lists use opaque cursor pagination. They accept exact status, actively open or c
 customer, and case-insensitive text filters with a bounded page size. The open group contains new,
 working, and waiting cases; postponed cases are queried by exact status; the closed group contains
 resolved and canceled cases. Text search matches literal fragments of the title, description, or
-case identifier. Results are ordered newest first with the case identifier as a stable tie-breaker.
-Status history is independently cursor-paginated newest first.
+case identifier. Results are ordered by most recent modification with the case identifier as a
+stable tie-breaker. Status history is independently cursor-paginated newest first.
 
 The web workspace starts in the Open view and exposes three list views: Open, Postponed, and Closed.
 A created or restored case opens in Open. Postponing a new case follows it to Postponed; resolving or
-canceling a case follows it to Closed. Priority and SLA ordering are deferred; every view retains the
-repository's newest-first ordering.
+canceling a case follows it to Closed. Priority and SLA ordering are deferred; every view orders
+cases by most recent modification, with newly created cases naturally included because their
+creation and modification timestamps initially match.
 
 The case search field narrows the selected list view after a short typing delay. Its value remains
 local to the workspace while users change views or open and return from a case, and resets after a

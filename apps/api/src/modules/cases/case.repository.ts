@@ -11,8 +11,8 @@ import type {
 import { CaseEntity, type CaseRecord } from './case.entity.js'
 
 export interface CaseCursor {
-  createdAt: Date
   id: CaseId
+  updatedAt: Date
 }
 
 export interface CaseListFilters {
@@ -65,8 +65,8 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
       if (filters.cursor) {
         conjunctions.push({
           $or: [
-            { createdAt: { $lt: filters.cursor.createdAt } },
-            { createdAt: filters.cursor.createdAt, id: { $lt: filters.cursor.id } },
+            { updatedAt: { $lt: filters.cursor.updatedAt } },
+            { id: { $lt: filters.cursor.id }, updatedAt: filters.cursor.updatedAt },
           ],
         })
       }
@@ -74,7 +74,7 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
 
       const records = await entityManager.find(CaseEntity, where, {
         limit: filters.limit + 1,
-        orderBy: [{ createdAt: 'DESC' }, { id: 'DESC' }],
+        orderBy: [{ updatedAt: 'DESC' }, { id: 'DESC' }],
       })
       return {
         hasMore: records.length > filters.limit,
