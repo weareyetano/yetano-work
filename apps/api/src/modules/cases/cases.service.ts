@@ -496,15 +496,15 @@ function toStatusChange(record: CaseStatusChangeRecord): CaseStatusChange {
   }
 }
 
-function encodeCaseCursor(record: Pick<CaseRecord, 'createdAt' | 'id'>) {
+function encodeCaseCursor(record: Pick<CaseRecord, 'id' | 'updatedAt'>) {
   return Buffer.from(
-    JSON.stringify({ createdAt: record.createdAt.toISOString(), id: record.id }),
+    JSON.stringify({ id: record.id, updatedAt: record.updatedAt.toISOString() }),
   ).toString('base64url')
 }
 
 function decodeCaseCursor(value: string): CaseCursor {
-  const decoded = decodeCursor(value, 'createdAt')
-  return { createdAt: decoded.date, id: decoded.id as CaseId }
+  const decoded = decodeCursor(value, 'updatedAt')
+  return { id: decoded.id as CaseId, updatedAt: decoded.date }
 }
 
 function encodeHistoryCursor(record: Pick<CaseStatusChangeRecord, 'changedAt' | 'id'>) {
@@ -518,7 +518,7 @@ function decodeHistoryCursor(value: string): CaseStatusHistoryCursor {
   return { changedAt: decoded.date, id: decoded.id }
 }
 
-function decodeCursor(value: string, dateKey: 'changedAt' | 'createdAt') {
+function decodeCursor(value: string, dateKey: 'changedAt' | 'updatedAt') {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
     if (!parsed || typeof parsed !== 'object') throw new Error('Invalid cursor')

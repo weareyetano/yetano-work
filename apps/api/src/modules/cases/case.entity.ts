@@ -4,16 +4,16 @@ import type { CaseId, CustomerId, OrganizationId } from '@yetano/contracts'
 export const CaseEntity = defineEntity({
   indexes: [
     {
-      name: 'cases_org_created_idx',
-      properties: ['organizationId', 'createdAt', 'id'],
+      name: 'cases_org_updated_idx',
+      properties: ['organizationId', 'updatedAt', 'id'],
     },
     {
-      name: 'cases_org_status_created_idx',
-      properties: ['organizationId', 'status', 'createdAt', 'id'],
+      name: 'cases_org_status_updated_idx',
+      properties: ['organizationId', 'status', 'updatedAt', 'id'],
     },
     {
-      name: 'cases_org_customer_created_idx',
-      properties: ['organizationId', 'customerId', 'createdAt', 'id'],
+      name: 'cases_org_customer_updated_idx',
+      properties: ['organizationId', 'customerId', 'updatedAt', 'id'],
     },
   ],
   name: 'Case',

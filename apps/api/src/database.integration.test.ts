@@ -78,6 +78,7 @@ describeWithDatabase('database migrations', () => {
   })
 
   it('refuses to remove postponed support while postponed data exists', async () => {
+    await orm.migrator.down({ to: 'Migration20260821180000' })
     const connection = orm.em.getConnection()
     await connection.execute(`insert into cases (
       id, closed_at, created_at, customer_id, description, organization_id, status, status_note,
@@ -96,6 +97,7 @@ describeWithDatabase('database migrations', () => {
       await connection.execute(
         `delete from cases where id = '33333333-3333-4333-8333-333333333333'`,
       )
+      await orm.migrator.up()
     }
   })
 })

@@ -394,8 +394,21 @@ describeWithDatabase('API with PostgreSQL', () => {
       return (await response.json()) as Case
     }
     const first = await createCase('First')
-    await createCase('Second', customerId)
-    await createCase('Third')
+    const second = await createCase('Second', customerId)
+    const third = await createCase('Third')
+    const connection = orm.em.getConnection()
+    await connection.execute('update "cases" set "updated_at" = ? where "id" = ?', [
+      '2026-08-21T12:00:00.000Z',
+      first.id,
+    ])
+    await connection.execute('update "cases" set "updated_at" = ? where "id" = ?', [
+      '2026-08-21T11:00:00.000Z',
+      second.id,
+    ])
+    await connection.execute('update "cases" set "updated_at" = ? where "id" = ?', [
+      '2026-08-21T10:00:00.000Z',
+      third.id,
+    ])
 
     const firstPageResponse = await app.request('/api/v1/cases?limit=2')
     const firstPage = (await firstPageResponse.json()) as {
@@ -403,6 +416,7 @@ describeWithDatabase('API with PostgreSQL', () => {
       nextCursor: string | null
     }
     expect(firstPage.items).toHaveLength(2)
+    expect(firstPage.items.map((item) => item.id)).toEqual([first.id, second.id])
     expect(firstPage.nextCursor).toEqual(expect.any(String))
 
     const nextPageResponse = await app.request(
@@ -411,9 +425,7 @@ describeWithDatabase('API with PostgreSQL', () => {
     const nextPage = (await nextPageResponse.json()) as { items: Case[]; nextCursor: string | null }
     expect(nextPage.items).toHaveLength(1)
     const allIds = [...firstPage.items, ...nextPage.items].map((item) => item.id)
-    expect(allIds).toHaveLength(3)
-    expect(new Set(allIds).size).toBe(3)
-    expect(allIds).toContain(first.id)
+    expect(allIds).toEqual([first.id, second.id, third.id])
     expect(nextPage.nextCursor).toBeNull()
 
     await app.request(`/api/v1/cases/${first.id}/transition`, {
