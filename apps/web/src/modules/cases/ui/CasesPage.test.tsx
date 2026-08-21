@@ -109,6 +109,48 @@ describe('CasesPage', () => {
     expect(await screen.findByText('Brak spraw.')).toBeVisible()
   })
 
+  it('debounces search inside the selected view and clears it directly', async () => {
+    vi.mocked(listCases)
+      .mockResolvedValueOnce(apiResult({ items: [caseItem], nextCursor: null }))
+      .mockResolvedValue(apiResult({ items: [], nextCursor: null }))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await screen.findByRole('button', { name: /Invoice access/ })
+    const initialCallCount = vi.mocked(listCases).mock.calls.length
+    const search = screen.getByRole('searchbox', { name: 'Szukaj spraw' })
+    await user.type(search, '  Invoice  ')
+
+    expect(listCases).toHaveBeenCalledTimes(initialCallCount)
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, search: 'Invoice', status: ['new'] },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Brak pasujących spraw.')).toBeVisible()
+    expect(screen.getByText('Spróbuj innej frazy albo wyczyść wyszukiwanie.')).toBeVisible()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Widok spraw' }), 'working')
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, search: 'Invoice', status: ['working'] },
+        throwOnError: true,
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Wyczyść wyszukiwanie' }))
+    expect(search).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Wyczyść wyszukiwanie' })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(listCases).toHaveBeenLastCalledWith({
+        query: { limit: 25, status: ['working'] },
+        throwOnError: true,
+      }),
+    )
+    expect(await screen.findByText('Brak spraw, nad którymi pracujemy.')).toBeVisible()
+  })
+
   it('selects the case requested in the URL before the last viewed case', async () => {
     localStorage.setItem('yetano:last-viewed-case-id', caseItem.id)
     vi.mocked(listCases).mockResolvedValue(

@@ -92,6 +92,15 @@ export function createCasesRoutes() {
         queryParameter('cursor', Type.String()),
         queryParameter('customerId', Type.String({ format: 'uuid' })),
         queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
+        queryParameter(
+          'search',
+          Type.String({
+            description: 'Case-insensitive text matched against case title, description, and id.',
+            maxLength: 200,
+            minLength: 1,
+            pattern: '\\S',
+          }),
+        ),
         {
           explode: true,
           in: 'query' as const,
@@ -322,11 +331,13 @@ function parseListQuery(context: {
 }): Record<string, unknown> | null {
   const limitValue = context.req.query('limit')
   if (limitValue && !/^\d+$/.test(limitValue)) return null
+  const searchValue = context.req.query('search')
   const statuses = context.req.queries('status')
   return {
     ...(context.req.query('cursor') ? { cursor: context.req.query('cursor') } : {}),
     ...(context.req.query('customerId') ? { customerId: context.req.query('customerId') } : {}),
     ...(limitValue ? { limit: Number(limitValue) } : {}),
+    ...(searchValue !== undefined ? { search: searchValue } : {}),
     ...(statuses?.length === 1 ? { status: statuses[0] } : {}),
     ...(statuses && statuses.length > 1 ? { status: statuses } : {}),
     ...(context.req.query('statusGroup') ? { statusGroup: context.req.query('statusGroup') } : {}),

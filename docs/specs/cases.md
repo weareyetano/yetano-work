@@ -47,14 +47,19 @@ The supported transitions are:
 | `waiting` | `working`, `resolved`, `canceled` |
 | `resolved`, `canceled` | `working` |
 
-Lists use opaque cursor pagination. They accept exact status, open or closed status group, and
-customer filters with a bounded page size. Results are ordered newest first with the case identifier
+Lists use opaque cursor pagination. They accept exact status, open or closed status group, customer,
+and case-insensitive text filters with a bounded page size. Text search matches literal fragments of
+the title, description, or case identifier. Results are ordered newest first with the case identifier
 as a stable tie-breaker. Status history is independently cursor-paginated newest first.
 
 The web workspace starts in the New view and exposes four list views: New, Working, Waiting, and
 All. A created case opens in New. After a status transition, the workspace follows the case to its
 new active-status view, or to All when the case becomes resolved or canceled. Priority and SLA
 ordering are deferred; every view retains the repository's newest-first ordering.
+
+The case search field narrows the selected list view after a short typing delay. Its value remains
+local to the workspace while users change views or open and return from a case, and resets after a
+page reload. It can be cleared directly and distinguishes no matches from a genuinely empty view.
 
 Creating a case starts from the add action next to the list view filter. It opens the same workspace
 panel used for case details, with a required title and optional description. The initial New status

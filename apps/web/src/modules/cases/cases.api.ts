@@ -34,22 +34,25 @@ export const caseQueryKeys = {
   history(caseId: string) {
     return [...this.all, 'history', caseId] as const
   },
-  list(view: CaseListView) {
-    return [...this.all, 'list', view] as const
+  list(view: CaseListView, search: string) {
+    return [...this.all, 'list', view, search] as const
   },
 }
 
 export async function fetchCases({
   cursor,
+  search,
   view,
 }: {
   cursor: string | null
+  search: string
   view: CaseListView
 }): Promise<ListCasesResponse> {
   const response = await listCases({
     query: {
       ...(cursor ? { cursor } : {}),
       limit: 25,
+      ...(search ? { search } : {}),
       ...(view === 'all' ? {} : { status: [view] }),
     },
     throwOnError: true,

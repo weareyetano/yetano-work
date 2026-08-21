@@ -432,6 +432,18 @@
             }
           },
           {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text matched against case title, description, and id.",
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "\\S"
+            }
+          },
+          {
             "explode": true,
             "in": "query",
             "name": "status",

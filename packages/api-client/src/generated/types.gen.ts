@@ -53,6 +53,10 @@ export type ListCasesData = {
         customerId?: string;
         limit?: number;
         /**
+         * Case-insensitive text matched against case title, description, and id.
+         */
+        search?: string;
+        /**
          * CaseStatus
          *
          * Current lifecycle status of a case.

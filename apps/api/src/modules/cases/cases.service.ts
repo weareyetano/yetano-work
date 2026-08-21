@@ -182,11 +182,13 @@ export function createCasesService({
             throw new CaseValidationError('status and statusGroup cannot be combined.')
           }
           const limit = input.limit ?? 25
+          const search = input.search?.trim()
           const repository = createCaseRepository(context.entityManager)
           const result = await repository.list(context.executionContext.organizationId, {
             ...(input.cursor ? { cursor: decodeCaseCursor(input.cursor) } : {}),
             ...(input.customerId ? { customerId: input.customerId } : {}),
             limit,
+            ...(search ? { search } : {}),
             ...(input.status ? { status: input.status } : {}),
             ...(input.statusGroup ? { statusGroup: input.statusGroup } : {}),
           })
