@@ -1,5 +1,40 @@
 import { expect, test } from '@playwright/test'
 
+const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
+
+function workspaceCase(index: number) {
+  return {
+    closedAt: null,
+    createdAt: '2026-08-21T10:00:00.000Z',
+    customerId: null,
+    description: `Opis sprawy ${index}`,
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    organizationId,
+    status: 'new',
+    statusNote: null,
+    title: `Sprawa ${index}`,
+    updatedAt: '2026-08-21T10:00:00.000Z',
+    version: 1,
+  }
+}
+
+function workspaceHistory(caseId: string) {
+  return Array.from({ length: 30 }, (_, index) => ({
+    actorId: 'development-user',
+    actorType: 'user',
+    caseId,
+    caseVersion: index + 1,
+    changedAt: new Date(Date.UTC(2026, 7, 21, 10, index)).toISOString(),
+    fromStatus: null,
+    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    note: `Wpis historii ${index + 1}`,
+    source: 'runtime',
+    toStatus: 'new',
+    transitionId: null,
+    type: 'created',
+  }))
+}
+
 test('uses the preset select for case views', async ({ page }) => {
   await page.goto('/cases')
 
@@ -19,6 +54,81 @@ test('uses the preset select for case views', async ({ page }) => {
     'Czekamy',
     'Wszystkie',
   ])
+})
+
+test('keeps the desktop case list and details in independent scroll panes', async ({ page }) => {
+  const firstPage = Array.from({ length: 25 }, (_, index) => workspaceCase(index + 1))
+  const secondPage = Array.from({ length: 5 }, (_, index) => workspaceCase(index + 26))
+
+  await page.route(/\/api\/v1\/cases(?:\?.*)?$/, async (route) => {
+    const url = new URL(route.request().url())
+    const isNextPage = url.searchParams.has('cursor')
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        items: isNextPage ? secondPage : firstPage,
+        nextCursor: isNextPage ? null : 'next-page',
+      },
+      status: 200,
+    })
+  })
+  await page.route(/\/api\/v1\/cases\/[^/]+\/status-history(?:\?.*)?$/, async (route) => {
+    const caseId = new URL(route.request().url()).pathname.split('/').at(-2) as string
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { items: workspaceHistory(caseId), nextCursor: null },
+      status: 200,
+    })
+  })
+
+  await page.goto('/cases')
+
+  const listPanel = page.getByRole('region', { name: 'Panel listy spraw' })
+  const detailPanel = page.getByRole('region', { name: 'Panel szczegółów sprawy' })
+  await expect(page.getByRole('button', { name: /Sprawa 25/ })).toBeAttached()
+  await expect(listPanel).toHaveCSS('overflow-y', 'auto')
+  await expect(detailPanel).toHaveCSS('overflow-y', 'auto')
+  await expect
+    .poll(() => listPanel.evaluate((element) => element.scrollHeight > element.clientHeight))
+    .toBe(true)
+  await expect
+    .poll(() => detailPanel.evaluate((element) => element.scrollHeight > element.clientHeight))
+    .toBe(true)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollHeight <= document.documentElement.clientHeight,
+    ),
+  ).toBe(true)
+
+  await listPanel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight)
+  await listPanel.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  const nextPageCase = page.getByRole('button', { name: /Sprawa 26/ })
+  await expect(nextPageCase).toBeAttached()
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(documentHeight)
+
+  await detailPanel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  expect(await detailPanel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await nextPageCase.scrollIntoViewIfNeeded()
+  const listPosition = await listPanel.evaluate((element) => element.scrollTop)
+  await nextPageCase.click()
+
+  await expect(detailPanel.getByLabel('Tytuł')).toHaveValue('Sprawa 26')
+  expect(await listPanel.evaluate((element) => element.scrollTop)).toBe(listPosition)
+  expect(await detailPanel.evaluate((element) => element.scrollTop)).toBe(0)
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  await expect(nextPageCase).toBeFocused()
+  expect(
+    await nextPageCase.evaluate((element) => {
+      const row = element.getBoundingClientRect()
+      const panel = element.closest('[aria-label="Panel listy spraw"]')?.getBoundingClientRect()
+      return Boolean(panel && row.top >= panel.top && row.bottom <= panel.bottom)
+    }),
+  ).toBe(true)
 })
 
 test('creates and resolves a case through the generated API client', async ({ page }) => {
