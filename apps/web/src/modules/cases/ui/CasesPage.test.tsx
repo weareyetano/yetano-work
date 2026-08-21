@@ -226,6 +226,31 @@ describe('CasesPage', () => {
     expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
+  it('keeps the desktop list position while resetting new details and filtered results', async () => {
+    vi.mocked(listCases).mockResolvedValue(
+      apiResult({ items: [caseItem, secondCaseItem], nextCursor: null }),
+    )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const listPanel = await screen.findByRole('region', { name: 'Panel listy spraw' })
+    const detailPanel = screen.getByRole('region', { name: 'Panel szczegółów sprawy' })
+    const secondCase = await screen.findByRole('button', { name: /Second case/ })
+    listPanel.scrollTop = 240
+    detailPanel.scrollTop = 180
+
+    await user.click(secondCase)
+
+    expect(listPanel.scrollTop).toBe(240)
+    expect(detailPanel.scrollTop).toBe(0)
+    expect(secondCase).toHaveFocus()
+
+    listPanel.scrollTop = 240
+    await selectView(user, 'Pracujemy')
+
+    expect(listPanel.scrollTop).toBe(0)
+  })
+
   it('opens one mobile detail view and restores the triggering case from the icon-only back button', async () => {
     mockDesktopViewport(false)
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})

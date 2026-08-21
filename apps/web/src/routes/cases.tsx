@@ -22,6 +22,7 @@ function CasesRoute() {
     (nextCaseId: string | null, navigationMode: CaseSelectionNavigationMode) => {
       void navigate({
         replace: navigationMode === 'replace',
+        resetScroll: false,
         search: nextCaseId ? { caseId: nextCaseId } : {},
       })
     },
@@ -31,6 +32,7 @@ function CasesRoute() {
     (open: boolean, navigationMode: CaseSelectionNavigationMode) => {
       void navigate({
         replace: navigationMode === 'replace',
+        resetScroll: false,
         search: open ? { mode: 'new' as const } : {},
       })
     },

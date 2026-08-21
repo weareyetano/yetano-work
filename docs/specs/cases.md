@@ -74,6 +74,13 @@ status badge. On wide screens, its Save action is followed by every lifecycle tr
 allowed for the case. On narrow screens, Save remains directly available while those transitions,
 including Cancel, are grouped under a Change status menu.
 
+On wide screens, the case workspace fits inside the available viewport and keeps the case list and
+detail panel independently scrollable. Search and view controls remain visible above the list.
+Selecting a case preserves the list position while opening its details at the top, and loading the
+next cursor page appends cases inside the list without extending the document. Changing the list
+view or effective search resets the list to its beginning. Narrow screens retain document scrolling
+and the single-panel list-to-detail flow.
+
 ## Rules and invariants
 
 - Every case belongs to exactly one non-null organization resolved by the server.
@@ -140,6 +147,9 @@ transactional outbox.
 - On narrow screens, the web workspace shows either the case list or the selected case. Opening a
   case moves focus to its details, while in-app and browser back navigation restore the list,
   previous scroll position, and triggering case. Wider screens retain the side-by-side workspace.
+- On wide screens, the document remains fixed while the list and detail panels scroll independently;
+  selecting a case preserves the visible list context and keeps keyboard focus on the triggering
+  case, while the selected details start at the top.
 
 ## Open questions
 

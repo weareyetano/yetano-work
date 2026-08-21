@@ -115,6 +115,8 @@ export function CasesPage({
   const previousSelectedIdRef = useRef<string | null>(null)
   const lastViewedIdRef = useRef(readLastViewedCaseId())
   const workspaceRef = useRef<HTMLElement>(null)
+  const listViewportRef = useRef<HTMLDivElement>(null)
+  const detailViewportRef = useRef<HTMLDivElement>(null)
   const listTitleRef = useRef<HTMLHeadingElement>(null)
   const detailTitleInputRef = useRef<HTMLInputElement>(null)
   const createTitleRef = useRef<HTMLInputElement>(null)
@@ -251,6 +253,17 @@ export function CasesPage({
     items.find((item) => item.id === selectedId) ??
     (requestedCase.data?.id === selectedId ? requestedCase.data : null)
   const mobileDetailOpen = !isDesktop && Boolean(isCreating || selectedId || requestedId)
+
+  useLayoutEffect(() => {
+    if (!isDesktop || !listViewportRef.current) return
+    listViewportRef.current.scrollTop = 0
+  }, [debouncedSearch, isDesktop, view])
+
+  useLayoutEffect(() => {
+    if (!isDesktop || !detailViewportRef.current) return
+    detailViewportRef.current.scrollTop = 0
+  }, [isCreating, isDesktop, selected?.id])
+
   const transitionMutation = useMutation({
     mutationFn: ({ current, input }: { current: CaseItem; input: CaseTransitionIntent }) =>
       transitionCaseItem(current, input),
@@ -368,14 +381,17 @@ export function CasesPage({
   }, [mobileDetailOpen, requestedCase.isError, selected?.id])
 
   return (
-    <main className="pt-2 pb-24">
+    <main className="flex min-h-0 flex-col pt-2 pb-24 min-[721px]:h-[calc(100dvh-4rem)] min-[721px]:overflow-hidden min-[721px]:pb-4">
       <section
         ref={workspaceRef}
-        className="mt-2 grid grid-cols-1 items-start gap-4 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)]"
+        className="mt-2 grid min-h-0 flex-1 grid-cols-1 items-start gap-4 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)] min-[721px]:items-stretch"
         aria-label="Sprawy"
       >
-        <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
-          <CardContent className="flex flex-1 flex-col p-4">
+        <Card
+          className="min-h-[460px] gap-0 py-0 min-[721px]:h-full min-[721px]:min-h-0"
+          hidden={mobileDetailOpen}
+        >
+          <CardContent className="flex min-h-0 flex-1 flex-col p-4">
             <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
               <h1 ref={listTitleRef} className="sr-only" id="case-list-title" tabIndex={-1}>
                 Sprawy
@@ -437,76 +453,92 @@ export function CasesPage({
               </div>
             </div>
 
-            {cases.isPending ? <LoadingStatus label="Ładowanie spraw…" /> : null}
-            {cases.isError ? (
-              <ErrorNotice error={cases.error} retry={() => cases.refetch()} />
-            ) : null}
-            {cases.isSuccess && items.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>{emptyState.title}</EmptyTitle>
-                  <EmptyDescription>{emptyState.description}</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : null}
-            {items.length > 0 ? (
-              <ul className="flex flex-col gap-2" aria-label="Lista spraw">
-                {items.map((item) => {
-                  const selectedRow = selectedId === item.id
-                  return (
-                    <li key={item.id}>
-                      <Button
-                        ref={(button) => {
-                          if (button) caseButtonRefs.current.set(item.id, button)
-                          else caseButtonRefs.current.delete(item.id)
-                        }}
-                        aria-pressed={selectedRow}
-                        className={cn(
-                          'h-auto w-full justify-between gap-3 border-0 px-3 py-2.5 text-left whitespace-normal',
-                          selectedRow ? 'bg-muted text-foreground' : 'bg-transparent',
-                        )}
-                        onPress={() => {
-                          openCase(item.id)
-                        }}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <span className="grid min-w-0 gap-1">
-                          <strong className="truncate">{item.title}</strong>
-                          <small
-                            className={selectedRow ? 'text-foreground/70' : 'text-muted-foreground'}
-                          >
-                            Aktualizacja {formatDate(item.updatedAt)}
-                          </small>
-                        </span>
-                        <Badge variant={isOpenStatus(item.status) ? 'default' : 'secondary'}>
-                          {statusLabel(item.status)}
-                        </Badge>
-                      </Button>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : null}
-            {cases.hasNextPage ? (
-              <Button
-                className="mt-4 w-full"
-                isDisabled={cases.isFetchingNextPage}
-                onPress={() => cases.fetchNextPage()}
-                type="button"
-                variant="outline"
-              >
-                {cases.isFetchingNextPage ? (
-                  <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
-                ) : null}
-                {cases.isFetchingNextPage ? 'Ładowanie…' : 'Pokaż kolejne'}
-              </Button>
-            ) : null}
+            <section
+              ref={listViewportRef}
+              aria-label="Panel listy spraw"
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            >
+              {cases.isPending ? <LoadingStatus label="Ładowanie spraw…" /> : null}
+              {cases.isError ? (
+                <ErrorNotice error={cases.error} retry={() => cases.refetch()} />
+              ) : null}
+              {cases.isSuccess && items.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyTitle>{emptyState.title}</EmptyTitle>
+                    <EmptyDescription>{emptyState.description}</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : null}
+              {items.length > 0 ? (
+                <ul className="flex flex-col gap-2" aria-label="Lista spraw">
+                  {items.map((item) => {
+                    const selectedRow = selectedId === item.id
+                    return (
+                      <li key={item.id}>
+                        <Button
+                          ref={(button) => {
+                            if (button) caseButtonRefs.current.set(item.id, button)
+                            else caseButtonRefs.current.delete(item.id)
+                          }}
+                          aria-pressed={selectedRow}
+                          className={cn(
+                            'h-auto w-full justify-between gap-3 border-0 px-3 py-2.5 text-left whitespace-normal',
+                            selectedRow ? 'bg-muted text-foreground' : 'bg-transparent',
+                          )}
+                          onPress={() => {
+                            openCase(item.id)
+                          }}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <span className="grid min-w-0 gap-1">
+                            <strong className="truncate">{item.title}</strong>
+                            <small
+                              className={
+                                selectedRow ? 'text-foreground/70' : 'text-muted-foreground'
+                              }
+                            >
+                              Aktualizacja {formatDate(item.updatedAt)}
+                            </small>
+                          </span>
+                          <Badge variant={isOpenStatus(item.status) ? 'default' : 'secondary'}>
+                            {statusLabel(item.status)}
+                          </Badge>
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : null}
+              {cases.hasNextPage ? (
+                <Button
+                  className="mt-4 w-full"
+                  isDisabled={cases.isFetchingNextPage}
+                  onPress={() => cases.fetchNextPage()}
+                  type="button"
+                  variant="outline"
+                >
+                  {cases.isFetchingNextPage ? (
+                    <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+                  ) : null}
+                  {cases.isFetchingNextPage ? 'Ładowanie…' : 'Pokaż kolejne'}
+                </Button>
+              ) : null}
+            </section>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[460px] gap-0 py-0" hidden={!isDesktop && !mobileDetailOpen}>
-          <CardContent className="flex flex-1 flex-col p-4">
+        <Card
+          className="min-h-[460px] gap-0 py-0 min-[721px]:h-full min-[721px]:min-h-0"
+          hidden={!isDesktop && !mobileDetailOpen}
+        >
+          <CardContent
+            ref={detailViewportRef}
+            aria-label="Panel szczegółów sprawy"
+            className="flex flex-1 flex-col p-4 min-[721px]:min-h-0 min-[721px]:overflow-y-auto min-[721px]:overscroll-contain"
+            role="region"
+          >
             {mobileDetailOpen ? (
               <div className="mb-4 min-[721px]:hidden">
                 <Button
