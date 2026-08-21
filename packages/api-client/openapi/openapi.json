@@ -220,6 +220,10 @@
                         },
                         {
                           "type": "string",
+                          "const": "postponed"
+                        },
+                        {
+                          "type": "string",
                           "const": "working"
                         },
                         {
@@ -458,6 +462,10 @@
                   },
                   {
                     "type": "string",
+                    "const": "postponed"
+                  },
+                  {
+                    "type": "string",
                     "const": "working"
                   },
                   {
@@ -497,7 +505,7 @@
                   "const": "closed"
                 }
               ],
-              "description": "Open or closed lifecycle group used to filter cases.",
+              "description": "Actively open or closed lifecycle group used to filter cases; postponed is excluded.",
               "title": "CaseStatusGroup"
             }
           }
@@ -587,6 +595,10 @@
                               {
                                 "type": "string",
                                 "const": "new"
+                              },
+                              {
+                                "type": "string",
+                                "const": "postponed"
                               },
                               {
                                 "type": "string",
@@ -893,6 +905,10 @@
                                   },
                                   {
                                     "type": "string",
+                                    "const": "postponed"
+                                  },
+                                  {
+                                    "type": "string",
                                     "const": "working"
                                   },
                                   {
@@ -949,6 +965,10 @@
                               {
                                 "type": "string",
                                 "const": "new"
+                              },
+                              {
+                                "type": "string",
+                                "const": "postponed"
                               },
                               {
                                 "type": "string",
@@ -1282,6 +1302,10 @@
                         {
                           "type": "string",
                           "const": "new"
+                        },
+                        {
+                          "type": "string",
+                          "const": "postponed"
                         },
                         {
                           "type": "string",
@@ -1649,6 +1673,10 @@
                         {
                           "type": "string",
                           "const": "new"
+                        },
+                        {
+                          "type": "string",
+                          "const": "postponed"
                         },
                         {
                           "type": "string",
@@ -2098,10 +2126,70 @@
                         "format": "uuid"
                       },
                       "fromStatus": {
+                        "type": "string",
+                        "const": "new"
+                      },
+                      "toStatus": {
+                        "type": "string",
+                        "const": "postponed"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "expectedVersion",
+                      "transitionId",
+                      "fromStatus",
+                      "toStatus"
+                    ],
+                    "properties": {
+                      "expectedVersion": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "transitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "fromStatus": {
+                        "type": "string",
+                        "const": "postponed"
+                      },
+                      "toStatus": {
+                        "type": "string",
+                        "const": "new"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "expectedVersion",
+                      "transitionId",
+                      "fromStatus",
+                      "toStatus"
+                    ],
+                    "properties": {
+                      "expectedVersion": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "transitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "fromStatus": {
                         "anyOf": [
                           {
                             "type": "string",
                             "const": "new"
+                          },
+                          {
+                            "type": "string",
+                            "const": "postponed"
                           },
                           {
                             "type": "string",
@@ -2148,6 +2236,10 @@
                           {
                             "type": "string",
                             "const": "new"
+                          },
+                          {
+                            "type": "string",
+                            "const": "postponed"
                           },
                           {
                             "type": "string",
@@ -2281,6 +2373,10 @@
                             },
                             {
                               "type": "string",
+                              "const": "postponed"
+                            },
+                            {
+                              "type": "string",
                               "const": "working"
                             },
                             {
@@ -2337,6 +2433,10 @@
                         {
                           "type": "string",
                           "const": "new"
+                        },
+                        {
+                          "type": "string",
+                          "const": "postponed"
                         },
                         {
                           "type": "string",

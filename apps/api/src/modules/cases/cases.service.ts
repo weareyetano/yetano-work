@@ -228,9 +228,10 @@ export function createCasesService({
             }
 
             const now = new Date()
+            const note = transitionNote(input.request)
             const resultingVersion = record.version + 1
             record.status = input.request.toStatus
-            record.statusNote = input.request.note ?? null
+            record.statusNote = note ?? null
             record.closedAt = isTerminalStatus(input.request.toStatus) ? now : null
             record.updatedAt = now
             const change = context.entityManager.create(CaseStatusChangeEntity, {
@@ -242,7 +243,7 @@ export function createCasesService({
               expectedVersion: input.request.expectedVersion,
               fromStatus: input.request.fromStatus,
               id: randomUUID(),
-              note: input.request.note ?? null,
+              note: note ?? null,
               organizationId: context.executionContext.organizationId,
               source: 'runtime',
               toStatus: input.request.toStatus,
@@ -347,12 +348,17 @@ function transitionOperation(request: ChangeCaseStatusRequest): TransitionOperat
 }
 
 function normalizeTransitionRequest(request: ChangeCaseStatusRequest): ChangeCaseStatusRequest {
-  const note = normalizeStatusNote(request.note)
+  const note = normalizeStatusNote(transitionNote(request))
   if ((request.toStatus === 'waiting' || request.toStatus === 'canceled') && !note) {
     throw new CaseValidationError('A note is required when waiting or canceling a case.')
   }
+  if (!('note' in request)) return request
   const { note: _note, ...command } = request
   return (note ? { ...command, note } : command) as ChangeCaseStatusRequest
+}
+
+function transitionNote(request: ChangeCaseStatusRequest) {
+  return 'note' in request ? request.note : undefined
 }
 
 function resolveReplay(
@@ -365,7 +371,7 @@ function resolveReplay(
     record.expectedVersion !== request.expectedVersion ||
     record.fromStatus !== request.fromStatus ||
     record.toStatus !== request.toStatus ||
-    (record.note ?? null) !== (request.note ?? null)
+    (record.note ?? null) !== (transitionNote(request) ?? null)
   ) {
     throw new CaseTransitionIdConflictError(
       'The transition id has already been used for another command.',

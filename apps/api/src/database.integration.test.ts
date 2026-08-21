@@ -35,7 +35,7 @@ describeWithDatabase('database migrations', () => {
   })
 
   it('maps legacy lifecycle data without publishing historical outbox events', async () => {
-    await orm.migrator.down()
+    await orm.migrator.down({ to: 'Migration20260819180117' })
     const connection = orm.em.getConnection()
     await connection.execute(`insert into cases (
       id, closed_at, created_at, customer_id, description, organization_id, status, title,
@@ -73,6 +73,28 @@ describeWithDatabase('database migrations', () => {
     } finally {
       await connection.execute(
         'truncate table case_status_changes, cases, platform_outbox_events restart identity',
+      )
+    }
+  })
+
+  it('refuses to remove postponed support while postponed data exists', async () => {
+    const connection = orm.em.getConnection()
+    await connection.execute(`insert into cases (
+      id, closed_at, created_at, customer_id, description, organization_id, status, status_note,
+      title, updated_at, version
+    ) values (
+      '33333333-3333-4333-8333-333333333333', null, now(), null, null,
+      'ddbdc2cc-bbc9-4426-97bf-d99520983bbb', 'postponed', null,
+      'Postponed rollback guard', now(), 1
+    )`)
+
+    try {
+      await expect(orm.migrator.down()).rejects.toThrow(
+        'Cannot roll back case postponement while postponed lifecycle data exists.',
+      )
+    } finally {
+      await connection.execute(
+        `delete from cases where id = '33333333-3333-4333-8333-333333333333'`,
       )
     }
   })

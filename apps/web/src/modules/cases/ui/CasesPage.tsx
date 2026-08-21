@@ -104,7 +104,7 @@ export function CasesPage({
   requestedId?: string | null
 } = {}) {
   const queryClient = useQueryClient()
-  const [view, setView] = useState<CaseListView>('new')
+  const [view, setView] = useState<CaseListView>('open')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedSearch(search.trim())
   const [isCreating, setIsCreating] = useState(createRequested)
@@ -180,7 +180,7 @@ export function CasesPage({
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
-      setView('new')
+      setView('open')
       setIsCreating(false)
       previousSelectedIdRef.current = null
       pendingDetailFocusIdRef.current = created.id
@@ -434,10 +434,9 @@ export function CasesPage({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem id="new">Nowe</SelectItem>
-                    <SelectItem id="working">Pracujemy</SelectItem>
-                    <SelectItem id="waiting">Czekamy</SelectItem>
-                    <SelectItem id="all">Wszystkie</SelectItem>
+                    <SelectItem id="open">Otwarte</SelectItem>
+                    <SelectItem id="postponed">Odłożone</SelectItem>
+                    <SelectItem id="closed">Zamknięte</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -584,11 +583,6 @@ export function CasesPage({
               <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
             ) : requestedId || selectedId ? (
               <LoadingStatus className="min-h-[390px]" label="Ładowanie sprawy…" />
-            ) : cases.isSuccess && view === 'all' && items.length === 0 ? (
-              <CaseEmptyState
-                description="Użyj przycisku „Dodaj sprawę” po lewej stronie."
-                title="Dodaj pierwszą sprawę."
-              />
             ) : cases.isSuccess && items.length === 0 ? (
               <CaseEmptyState
                 description="Zmień widok albo utwórz nową sprawę."
@@ -771,7 +765,7 @@ type CaseStatusAction =
   | {
       label: string
       requiresNote?: false
-      toStatus: 'resolved' | 'working'
+      toStatus: 'new' | 'postponed' | 'resolved' | 'working'
       variant: 'default' | 'outline'
     }
 
@@ -780,10 +774,24 @@ function caseStatusActions(caseItem: CaseItem): CaseStatusAction[] {
     return [{ label: 'Otwórz ponownie', toStatus: 'working', variant: 'outline' }]
   }
 
+  if (caseItem.status === 'postponed') {
+    return [
+      { label: 'Przywróć', toStatus: 'new', variant: 'default' },
+      { label: 'Rozwiąż', toStatus: 'resolved', variant: 'outline' },
+      {
+        label: 'Anuluj',
+        requiresNote: true,
+        toStatus: 'canceled',
+        variant: 'destructive',
+      },
+    ]
+  }
+
   return [
     ...(caseItem.status === 'new'
       ? ([
           { label: 'Pracuj', toStatus: 'working', variant: 'default' },
+          { label: 'Odłóż', toStatus: 'postponed', variant: 'outline' },
         ] satisfies CaseStatusAction[])
       : []),
     ...(caseItem.status === 'new' || caseItem.status === 'working'
@@ -1126,6 +1134,7 @@ function statusLabel(status: CaseItem['status']) {
   return {
     canceled: 'Anulowana',
     new: 'Nowa',
+    postponed: 'Odłożona',
     resolved: 'Rozwiązana',
     waiting: 'Czekamy',
     working: 'Pracujemy',
@@ -1133,7 +1142,8 @@ function statusLabel(status: CaseItem['status']) {
 }
 
 function caseListViewForStatus(status: CaseItem['status']): CaseListView {
-  return status === 'canceled' || status === 'resolved' ? 'all' : status
+  if (status === 'canceled' || status === 'resolved') return 'closed'
+  return status === 'postponed' ? 'postponed' : 'open'
 }
 
 function caseListEmptyState(view: CaseListView, search: string) {
@@ -1144,21 +1154,17 @@ function caseListEmptyState(view: CaseListView, search: string) {
     }
   }
   return {
-    all: {
-      description: 'Utwórz pierwszą sprawę przyciskiem „Dodaj sprawę”.',
-      title: 'Brak spraw.',
+    closed: {
+      description: 'Rozwiązane i anulowane sprawy pojawią się tutaj.',
+      title: 'Brak zamkniętych spraw.',
     },
-    new: {
-      description: 'Nowe sprawy pojawią się tutaj po utworzeniu.',
-      title: 'Brak nowych spraw.',
+    open: {
+      description: 'Nowe i aktywne sprawy pojawią się tutaj.',
+      title: 'Brak otwartych spraw.',
     },
-    waiting: {
-      description: 'Sprawy, na które czekamy, pojawią się tutaj.',
-      title: 'Brak spraw, na które czekamy.',
-    },
-    working: {
-      description: 'Rozpocznij pracę nad nową sprawą, aby pojawiła się tutaj.',
-      title: 'Brak spraw, nad którymi pracujemy.',
+    postponed: {
+      description: 'Nową sprawę możesz odłożyć na później.',
+      title: 'Brak odłożonych spraw.',
     },
   }[view]
 }

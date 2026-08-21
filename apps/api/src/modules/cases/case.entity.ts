@@ -24,7 +24,7 @@ export const CaseEntity = defineEntity({
     description: p.text().nullable(),
     id: p.uuid().$type<CaseId>().primary(),
     organizationId: p.uuid().$type<OrganizationId>().fieldName('organization_id'),
-    status: p.enum(['canceled', 'new', 'resolved', 'waiting', 'working'] as const),
+    status: p.enum(['canceled', 'new', 'postponed', 'resolved', 'waiting', 'working'] as const),
     statusNote: p.text().fieldName('status_note').nullable(),
     title: p.string().length(200),
     updatedAt: p.datetime().fieldName('updated_at'),

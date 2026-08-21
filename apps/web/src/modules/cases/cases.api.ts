@@ -16,7 +16,7 @@ import {
 
 export type CaseItem = ListCasesResponse['items'][number]
 export type CaseListPage = ListCasesResponse
-export type CaseListView = 'all' | 'new' | 'waiting' | 'working'
+export type CaseListView = 'closed' | 'open' | 'postponed'
 export type CaseStatusHistoryPage = ListCaseStatusHistoryResponse
 export type CaseTransitionInput = TransitionCaseData['body']
 export type CaseTransitionIntent = CaseTransitionInput extends infer Command
@@ -48,12 +48,18 @@ export async function fetchCases({
   search: string
   view: CaseListView
 }): Promise<ListCasesResponse> {
+  const viewFilter =
+    view === 'postponed'
+      ? { status: ['postponed' as const] }
+      : view === 'open'
+        ? { statusGroup: 'open' as const }
+        : { statusGroup: 'closed' as const }
   const response = await listCases({
     query: {
       ...(cursor ? { cursor } : {}),
       limit: 25,
       ...(search ? { search } : {}),
-      ...(view === 'all' ? {} : { status: [view] }),
+      ...viewFilter,
     },
     throwOnError: true,
   })

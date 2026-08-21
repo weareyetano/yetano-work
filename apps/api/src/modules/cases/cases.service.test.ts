@@ -16,8 +16,20 @@ describe('cases service transition authorization routing', () => {
       request: command({ fromStatus: 'new', toStatus: 'working' }),
     },
     {
+      capability: 'cases.transition',
+      request: command({ fromStatus: 'new', toStatus: 'postponed' }),
+    },
+    {
+      capability: 'cases.transition',
+      request: command({ fromStatus: 'postponed', toStatus: 'new' }),
+    },
+    {
       capability: 'cases.close',
       request: command({ fromStatus: 'working', toStatus: 'resolved' }),
+    },
+    {
+      capability: 'cases.close',
+      request: command({ fromStatus: 'postponed', toStatus: 'resolved' }),
     },
     {
       capability: 'cases.reopen',
@@ -39,6 +51,9 @@ describe('cases service transition authorization routing', () => {
 function command(
   statuses:
     | { fromStatus: 'new'; toStatus: 'working' }
+    | { fromStatus: 'new'; toStatus: 'postponed' }
+    | { fromStatus: 'postponed'; toStatus: 'new' }
+    | { fromStatus: 'postponed'; toStatus: 'resolved' }
     | { fromStatus: 'working'; toStatus: 'resolved' }
     | { fromStatus: 'resolved'; toStatus: 'working' },
 ): ChangeCaseStatusRequest {

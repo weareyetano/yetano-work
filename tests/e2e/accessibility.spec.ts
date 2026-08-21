@@ -21,7 +21,7 @@ test('empty cases workspace has no detectable WCAG A or AA violations', async ({
   await mockCaseList(page, { items: [], nextCursor: null })
   await page.goto('/cases')
 
-  await expect(page.getByText('Brak nowych spraw.')).toBeVisible()
+  await expect(page.getByText('Brak otwartych spraw.')).toBeVisible()
   await expectNoWcagViolations(page)
 })
 
@@ -105,7 +105,13 @@ test('mobile status actions remain keyboard accessible in their menu', async ({ 
 
   const menu = page.getByRole('menu', { name: 'Zmień status' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveCount(4)
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    'Pracuj',
+    'Odłóż',
+    'Oczekuj',
+    'Rozwiąż',
+    'Anuluj',
+  ])
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => document.documentElement.clientWidth),
   )
