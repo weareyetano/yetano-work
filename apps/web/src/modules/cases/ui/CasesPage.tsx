@@ -332,12 +332,12 @@ export function CasesPage({
     <main className="pt-2 pb-24">
       <section
         ref={workspaceRef}
-        className="mt-2 grid grid-cols-1 gap-5 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)]"
+        className="mt-2 grid grid-cols-1 items-start gap-4 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)]"
         aria-label="Sprawy"
       >
         <Card className="min-h-[460px] gap-0 py-0" hidden={mobileDetailOpen}>
-          <CardContent className="flex flex-1 flex-col p-6">
-            <div className="mb-5 flex items-start justify-between gap-5">
+          <CardContent className="flex flex-1 flex-col p-4">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <h1
                 ref={listTitleRef}
                 className="font-heading text-2xl font-semibold tracking-tight"
@@ -399,10 +399,8 @@ export function CasesPage({
                         }}
                         aria-pressed={selectedRow}
                         className={cn(
-                          'h-auto w-full justify-between gap-4 whitespace-normal border px-3.5 py-3.5 text-left',
-                          selectedRow
-                            ? 'border-border bg-accent text-accent-foreground'
-                            : 'border-transparent bg-transparent',
+                          'h-auto w-full justify-between gap-3 border-0 px-3 py-2.5 text-left whitespace-normal',
+                          selectedRow ? 'bg-muted text-foreground' : 'bg-transparent',
                         )}
                         onPress={() => {
                           openCase(item.id)
@@ -412,7 +410,9 @@ export function CasesPage({
                       >
                         <span className="grid min-w-0 gap-1">
                           <strong className="truncate">{item.title}</strong>
-                          <small className="text-muted-foreground">
+                          <small
+                            className={selectedRow ? 'text-foreground/70' : 'text-muted-foreground'}
+                          >
                             Aktualizacja {formatDate(item.updatedAt)}
                           </small>
                         </span>
@@ -443,7 +443,7 @@ export function CasesPage({
         </Card>
 
         <Card className="min-h-[460px] gap-0 py-0" hidden={!isDesktop && !mobileDetailOpen}>
-          <CardContent className="flex flex-1 flex-col p-6">
+          <CardContent className="flex flex-1 flex-col p-4">
             {mobileDetailOpen ? (
               <div className="mb-4 min-[721px]:hidden">
                 <Button
@@ -719,10 +719,7 @@ function CaseStatusHistory({ caseId }: { caseId: string }) {
   const entries = history.data?.pages.flatMap((page) => page.items) ?? []
 
   return (
-    <section
-      aria-label="Historia statusu"
-      className="mt-6 overflow-hidden rounded-lg border border-border bg-accent p-4"
-    >
+    <section aria-label="Historia statusu" className="mt-4">
       {history.isPending ? <LoadingStatus label="Ładowanie historii…" /> : null}
       {history.isError ? (
         <ErrorNotice error={history.error} retry={() => history.refetch()} />
@@ -731,40 +728,26 @@ function CaseStatusHistory({ caseId }: { caseId: string }) {
         <p className="text-sm text-muted-foreground">Brak wpisów historii.</p>
       ) : null}
       {entries.length > 0 ? (
-        <ol className="grid gap-3">
+        <ol className="grid gap-2">
           {entries.map((entry, index) => {
             const isCurrent = index === 0
             return (
               <li
                 aria-current={isCurrent ? 'true' : undefined}
-                className={cn(
-                  'py-1',
-                  isCurrent ? '-mx-4 -mt-4 bg-zinc-700 px-4 py-3 text-white last:-mb-4' : undefined,
-                )}
+                className="rounded-xl bg-muted/50 px-3 py-2.5"
                 key={entry.id}
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <strong className="text-sm">
-                    {entry.type === 'created'
-                      ? `Utworzono jako „${statusLabel(entry.toStatus)}”`
-                      : `${statusLabel(entry.fromStatus ?? 'new')} → ${statusLabel(entry.toStatus)}`}
-                  </strong>
+                <div className="flex items-start justify-between gap-4">
+                  <strong className="text-sm font-semibold">{statusLabel(entry.toStatus)}</strong>
                   <time
-                    className={cn('text-xs', isCurrent ? 'text-zinc-300' : 'text-muted-foreground')}
+                    className="shrink-0 text-right text-xs text-muted-foreground"
                     dateTime={entry.changedAt}
                   >
                     {formatDate(entry.changedAt)}
                   </time>
                 </div>
                 {entry.note ? (
-                  <p
-                    className={cn(
-                      'mt-1 text-sm',
-                      isCurrent ? 'text-zinc-300' : 'text-muted-foreground',
-                    )}
-                  >
-                    {entry.note}
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{entry.note}</p>
                 ) : null}
               </li>
             )
@@ -866,7 +849,7 @@ function CaseForm({
 
   return (
     <form aria-label={ariaLabel} onSubmit={(event) => void submit(event)}>
-      <FieldGroup className="gap-[18px]">
+      <FieldGroup className="gap-4">
         <Field>
           <FieldLabel htmlFor="case-title">
             Tytuł{' '}
