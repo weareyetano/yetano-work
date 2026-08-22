@@ -14,7 +14,11 @@ describe('execution context resolvers', () => {
     const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
     const factory = createExecutionContextFactory({
       actorResolver: createDevActorResolver(),
-      capabilityResolver: createDevCapabilityResolver(),
+      capabilityResolver: createDevCapabilityResolver([
+        'cases.close',
+        'cases.reopen',
+        'cases.transition',
+      ]),
       organizationResolver: createSingleOrganizationResolver({
         config: createConfig('test', organizationId),
       }),
@@ -40,10 +44,21 @@ describe('execution context resolvers', () => {
     )
   })
 
+  it('grants every capability supplied by the application module catalog', async () => {
+    const resolver = createDevCapabilityResolver(['cases.read', 'tasks.read'])
+
+    const capabilities = await resolver.resolve(
+      { id: 'local-dev', type: 'user' },
+      'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
+    )
+
+    expect([...capabilities]).toEqual(['cases.read', 'tasks.read'])
+  })
+
   it('accepts bounded correlation ids and falls back to the request id otherwise', async () => {
     const factory = createExecutionContextFactory({
       actorResolver: createDevActorResolver(),
-      capabilityResolver: createDevCapabilityResolver(),
+      capabilityResolver: createDevCapabilityResolver([]),
       organizationResolver: createSingleOrganizationResolver({ config: createConfig('test') }),
     })
 

@@ -52,6 +52,11 @@ export interface ExtensionMetadata {
   provides: readonly string[]
 }
 
+export interface ModuleHttpDefinition {
+  access: 'protected' | 'public'
+  path: `/${string}`
+}
+
 export interface ModuleDefinition {
   capabilities: readonly CapabilityDefinition[]
   dependencies: readonly string[]
@@ -61,6 +66,7 @@ export interface ModuleDefinition {
     subscribes: readonly EventSubscription[]
   }
   extensions: ExtensionMetadata
+  http: ModuleHttpDefinition
   id: string
   operations: readonly OperationDefinition<unknown, unknown>[]
   registrations: Record<string, Resolver<unknown>>

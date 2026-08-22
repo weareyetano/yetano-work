@@ -17,6 +17,7 @@ export const healthModule = defineModule({
   entities: [],
   events: { publishes: [], subscribes: [] },
   extensions: { contributes: [], provides: [] },
+  http: { access: 'public', path: '/health' },
   id: 'health',
   operations: [getHealthOperation],
   registrations: {

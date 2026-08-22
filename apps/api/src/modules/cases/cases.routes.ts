@@ -55,7 +55,7 @@ export function createCasesRoutes() {
   const routes = new Hono<AppEnvironment>()
 
   routes.post(
-    '/cases',
+    '',
     describeRoute({
       description: 'Creates a new case in the server-resolved organization.',
       operationId: 'createCase',
@@ -84,7 +84,7 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases',
+    '',
     describeRoute({
       description: 'Lists cases in the server-resolved organization.',
       operationId: 'listCases',
@@ -133,7 +133,7 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId/status-history',
+    '/:caseId/status-history',
     describeRoute({
       description: 'Lists immutable status history for one organization-scoped case.',
       operationId: 'listCaseStatusHistory',
@@ -166,7 +166,7 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Gets one organization-scoped case.',
       operationId: 'getCase',
@@ -194,7 +194,7 @@ export function createCasesRoutes() {
   )
 
   routes.patch(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Updates editable case fields using optimistic concurrency.',
       operationId: 'updateCase',
@@ -223,7 +223,7 @@ export function createCasesRoutes() {
   )
 
   routes.post(
-    '/cases/:caseId/transition',
+    '/:caseId/transition',
     describeRoute({
       description: 'Transitions a case status idempotently using a client-generated command id.',
       operationId: 'transitionCase',

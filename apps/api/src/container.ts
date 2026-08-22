@@ -66,7 +66,10 @@ export function createRootContainer({
 
   container.register({
     actorResolver: asValue(actorResolver ?? createDevActorResolver()),
-    capabilityResolver: asValue(capabilityResolver ?? createDevCapabilityResolver()),
+    capabilityResolver: asValue(
+      capabilityResolver ??
+        createDevCapabilityResolver(applicationModuleCatalog.capabilities.keys()),
+    ),
     config: asValue(config),
     executionContextFactory: asFunction(createExecutionContextFactory).singleton(),
     logger: asValue(logger),

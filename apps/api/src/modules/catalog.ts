@@ -12,10 +12,12 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
   const events = new Set<string>()
   const operations = new Set<string>()
   const extensionPoints = new Set<string>()
+  const httpPaths = new Map<string, string>()
   const registrations = new Set<string>()
 
   for (const module of modules) {
     assertUnique(moduleIds, module.id, 'module')
+    assertHttpDefinition(module, httpPaths)
     for (const capability of module.capabilities) {
       assertUnique(capabilities, capability.id, 'capability', capability)
     }
@@ -100,6 +102,35 @@ function assertAcyclic(modules: readonly ModuleDefinition[]) {
   }
 
   for (const module of modules) visit(module.id)
+}
+
+function assertHttpDefinition(module: ModuleDefinition, paths: Map<string, string>) {
+  if (!/^\/[a-z0-9]+(?:[-/][a-z0-9]+)*$/.test(module.http.path)) {
+    throw new Error(`Module ${module.id} has invalid HTTP path ${module.http.path}`)
+  }
+  for (const [path, moduleId] of paths) {
+    if (
+      path === module.http.path ||
+      path.startsWith(`${module.http.path}/`) ||
+      module.http.path.startsWith(`${path}/`)
+    ) {
+      throw new Error(
+        `Module ${module.id} HTTP path ${module.http.path} overlaps module ${moduleId} path ${path}`,
+      )
+    }
+  }
+  paths.set(module.http.path, module.id)
+
+  if (module.http.access !== 'public') return
+  if (module.capabilities.length > 0) {
+    throw new Error(`Public module ${module.id} cannot declare capabilities`)
+  }
+  const protectedOperation = module.operations.find((operation) => operation.capability !== null)
+  if (protectedOperation) {
+    throw new Error(
+      `Public module ${module.id} operation ${protectedOperation.id} cannot require a capability`,
+    )
+  }
 }
 
 function assertUnique(

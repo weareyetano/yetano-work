@@ -16,6 +16,7 @@ const lines = [
 
 for (const module of applicationModules as readonly ModuleDefinition[]) {
   lines.push(`## ${module.id}`, '')
+  lines.push(`- HTTP: ${module.http.access} at \`${module.http.path}\``)
   lines.push(`- Dependencies: ${format(module.dependencies)}`)
   lines.push(`- Entities: ${format(module.entities.map((entity) => String(entity.name)))}`)
   lines.push(`- Container registrations: ${format(Object.keys(module.registrations))}`)
