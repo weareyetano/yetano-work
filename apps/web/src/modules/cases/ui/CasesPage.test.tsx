@@ -217,6 +217,56 @@ describe('CasesPage', () => {
     expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
+  it('requires confirmation before selecting another case with a dirty draft', async () => {
+    vi.mocked(listCases).mockResolvedValue(
+      apiResult({ items: [caseItem, secondCaseItem], nextCursor: null }),
+    )
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const title = await screen.findByDisplayValue('Invoice access')
+    await user.clear(title)
+    await user.type(title, 'Unsaved invoice title')
+    const secondCase = screen.getByRole('button', { name: /Second case/ })
+    await user.click(secondCase)
+
+    const dialog = screen.getByRole('dialog', { name: 'Niezapisane zmiany' })
+    expect(title).toHaveValue('Unsaved invoice title')
+    await user.click(within(dialog).getByRole('button', { name: 'Zostań przy edycji' }))
+    expect(title).toHaveValue('Unsaved invoice title')
+
+    await user.click(secondCase)
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Niezapisane zmiany' })).getByRole('button', {
+        name: 'Odrzuć zmiany',
+      }),
+    )
+    expect(await screen.findByDisplayValue('Second case')).toBeVisible()
+  })
+
+  it('requires confirmation before changing the view with a dirty draft', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const title = await screen.findByDisplayValue('Invoice access')
+    await user.type(title, ' unsaved')
+    await selectView(user, 'Odłożone')
+
+    const dialog = screen.getByRole('dialog', { name: 'Niezapisane zmiany' })
+    await user.click(within(dialog).getByRole('button', { name: 'Zostań przy edycji' }))
+    expect(getViewSelect()).toHaveTextContent('Otwarte')
+    expect(title).toHaveValue('Invoice access unsaved')
+
+    await selectView(user, 'Odłożone')
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Niezapisane zmiany' })).getByRole('button', {
+        name: 'Odrzuć zmiany',
+      }),
+    )
+    await waitFor(() => expect(getViewSelect()).toHaveTextContent('Odłożone'))
+  })
+
   it('keeps the desktop list position while resetting new details and filtered results', async () => {
     vi.mocked(listCases).mockResolvedValue(
       apiResult({ items: [caseItem, secondCaseItem], nextCursor: null }),
@@ -729,7 +779,7 @@ describe('CasesPage', () => {
     expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeVisible()
   })
 
-  it('refreshes the selected case after an update conflict', async () => {
+  it('preserves the local draft after an update conflict until the server version is loaded', async () => {
     const refreshed = {
       ...caseItem,
       title: 'Title changed elsewhere',
@@ -754,16 +804,74 @@ describe('CasesPage', () => {
         body: expect.objectContaining({ customerId: caseItem.customerId }),
       }),
     )
-    expect(
-      await screen.findByText(
-        'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i spróbuj ponownie.',
-      ),
-    ).toBeInTheDocument()
-    expect(await screen.findByDisplayValue('Title changed elsewhere')).toBeVisible()
+    expect(await screen.findByText(/Lokalny szkic został zachowany/)).toBeInTheDocument()
+    expect(screen.getByText(/Wersja serwera 2: Title changed elsewhere/)).toBeInTheDocument()
+    expect(within(screen.getByRole('article')).getByLabelText('Tytuł')).toHaveValue(
+      'Locally edited title',
+    )
+    expect(listCases).toHaveBeenCalledTimes(2)
+
+    await user.click(screen.getByRole('button', { name: 'Załaduj wersję z serwera' }))
     expect(within(screen.getByRole('article')).getByLabelText('Tytuł')).toHaveValue(
       'Title changed elsewhere',
     )
-    expect(listCases).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText(/Lokalny szkic został zachowany/)).not.toBeInTheDocument()
+  })
+
+  it('requires confirmation before a status change and discards only after consent', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(transitionCase).mockResolvedValue(apiResult(statusChange('postponed')))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    const title = await screen.findByDisplayValue('Invoice access')
+    await user.type(title, ' unsaved')
+    await user.click(screen.getByRole('button', { name: 'Odłóż' }))
+
+    let dialog = screen.getByRole('dialog', { name: 'Niezapisane zmiany' })
+    await user.click(within(dialog).getByRole('button', { name: 'Zostań przy edycji' }))
+    expect(transitionCase).not.toHaveBeenCalled()
+    expect(title).toHaveValue('Invoice access unsaved')
+
+    await user.click(screen.getByRole('button', { name: 'Odłóż' }))
+    dialog = screen.getByRole('dialog', { name: 'Niezapisane zmiany' })
+    await user.click(within(dialog).getByRole('button', { name: 'Odrzuć zmiany' }))
+
+    await waitFor(() => expect(transitionCase).toHaveBeenCalledTimes(1))
+    expect(title).toHaveValue('Invoice access')
+  })
+
+  it('disables every other case mutation while an update is pending', async () => {
+    const updatedCase = { ...caseItem, title: 'Updated title', version: 2 }
+    let releaseUpdate!: () => void
+    const updateGate = new Promise<void>((resolve) => {
+      releaseUpdate = resolve
+    })
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(updateCase).mockImplementation(async () => {
+      await updateGate
+      return apiResult(updatedCase)
+    })
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    const detail = screen.getByRole('article')
+    const title = await within(detail).findByDisplayValue('Invoice access')
+    await user.clear(title)
+    await user.type(title, updatedCase.title)
+    await user.click(within(detail).getByRole('button', { name: 'Zapisz' }))
+
+    await waitFor(() => expect(updateCase).toHaveBeenCalledTimes(1))
+    expect(title).toBeDisabled()
+    expect(within(detail).getByRole('button', { name: 'Zapisywanie…' })).toBeDisabled()
+    expect(within(detail).getByRole('button', { name: 'Pracuj' })).toBeDisabled()
+    expect(within(detail).getByRole('button', { name: 'Odłóż' })).toBeDisabled()
+
+    releaseUpdate()
+    await waitFor(() =>
+      expect(within(detail).getByRole('button', { name: 'Pracuj' })).toBeEnabled(),
+    )
   })
 
   it('refreshes the selected case after a transition conflict', async () => {
