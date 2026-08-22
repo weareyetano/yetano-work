@@ -1,5 +1,5 @@
 import * as RemixIcons from '@remixicon/react'
-import type { ComponentType, ComponentProps } from 'react'
+import type { ComponentProps, ComponentType } from 'react'
 
 const APP_BRAND_STORAGE_KEY = 'yetano:app-brand-settings'
 
@@ -51,7 +51,9 @@ function normalizeBrandSettings(value: unknown): AppBrandSettings {
   const iconIdCandidate = candidate.iconId
 
   const appName =
-    typeof appNameCandidate === 'string' && appNameCandidate.trim() ? appNameCandidate.trim() : defaultSettings.appName
+    typeof appNameCandidate === 'string' && appNameCandidate.trim()
+      ? appNameCandidate.trim()
+      : defaultSettings.appName
 
   const iconId = isBrandIconId(iconIdCandidate) ? iconIdCandidate : null
 

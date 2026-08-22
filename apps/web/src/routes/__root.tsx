@@ -1,6 +1,6 @@
+import { RiSettings3Line } from '@remixicon/react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { RiSettings3Line } from '@remixicon/react'
 
 import { ModuleNavigation } from '#components/module-navigation'
 import { LinkButton } from '#components/ui/button'
@@ -19,14 +19,14 @@ export const Route = createRootRoute({
 })
 
 function RootLayout() {
-  const [appSettings, setAppSettings] = useState<AppBrandSettings>(
-    readBrandSettingsFromStorage,
-  )
+  const [appSettings, setAppSettings] = useState<AppBrandSettings>(readBrandSettingsFromStorage)
 
   useEffect(() => {
     const updateSettings = (event: Event) => {
       const next =
-        event instanceof CustomEvent ? normalizeBrandSettings(event.detail) : readBrandSettingsFromStorage()
+        event instanceof CustomEvent
+          ? normalizeBrandSettings(event.detail)
+          : readBrandSettingsFromStorage()
       setAppSettings(next)
     }
 

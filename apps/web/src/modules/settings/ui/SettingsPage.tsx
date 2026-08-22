@@ -16,8 +16,8 @@ import {
   APP_BRAND_ICON_OPTIONS,
   APP_BRAND_NAME_DEFAULT,
   getBrandIconComponent,
-  notifyBrandSettingsChanged,
   normalizeBrandSettings,
+  notifyBrandSettingsChanged,
   readBrandSettingsFromStorage,
   writeBrandSettingsToStorage,
 } from '#lib/app-brand'
@@ -36,7 +36,9 @@ function SettingsPage() {
 
   const selectedOptionLabel = useMemo(() => {
     if (!settings.iconId) return 'Brak ikonki'
-    return APP_BRAND_ICON_OPTIONS.find((option) => option.id === settings.iconId)?.label ?? 'Brak ikonki'
+    return (
+      APP_BRAND_ICON_OPTIONS.find((option) => option.id === settings.iconId)?.label ?? 'Brak ikonki'
+    )
   }, [settings.iconId])
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -58,9 +60,7 @@ function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Ustawienia</CardTitle>
-          <CardDescription>
-            Zmień nazwę apki oraz ikonę wyświetlaną przy nazwie.
-          </CardDescription>
+          <CardDescription>Zmień nazwę apki oraz ikonę wyświetlaną przy nazwie.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
@@ -95,7 +95,9 @@ function SettingsPage() {
                   <SelectTrigger>
                     <SelectValue>
                       <span className="inline-flex items-center gap-2">
-                        {SelectedIcon && <SelectedIcon className="size-4 shrink-0 text-foreground/80" />}
+                        {SelectedIcon && (
+                          <SelectedIcon className="size-4 shrink-0 text-foreground/80" />
+                        )}
                         {selectedOptionLabel}
                       </span>
                     </SelectValue>
