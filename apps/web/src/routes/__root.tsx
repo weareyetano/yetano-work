@@ -1,9 +1,15 @@
-import { RiSettings3Line } from '@remixicon/react'
+import { RiLoginBoxLine, RiMenu3Line, RiSettings3Line } from '@remixicon/react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
 import { ModuleNavigation } from '#components/module-navigation'
-import { LinkButton } from '#components/ui/button'
+import { Button } from '#components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '#components/ui/dropdown-menu'
 import {
   APP_BRAND_NAME_DEFAULT,
   APP_BRAND_SETTINGS_CHANGED_EVENT,
@@ -53,16 +59,29 @@ function RootLayout() {
           </span>
         </a>
         <ModuleNavigation className="col-start-2 max-[720px]:col-start-1 max-[720px]:row-start-2" />
-        <LinkButton
-          className="justify-self-end max-[720px]:col-start-1 max-[720px]:row-start-3"
-          href="/settings"
-          size="sm"
-          variant="ghost"
-        >
-          <RiSettings3Line aria-hidden="true" />
-          <span className="sr-only">Ustawienia</span>
-          <span className="max-[720px]:hidden">Ustawienia</span>
-        </LinkButton>
+        <DropdownMenuTrigger>
+          <Button
+            aria-label="Otwórz menu aplikacji"
+            className="justify-self-end max-[720px]:col-start-1 max-[720px]:row-start-3"
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <RiMenu3Line aria-hidden="true" />
+          </Button>
+          <DropdownMenu aria-label="Menu aplikacji" className="min-w-52" placement="bottom end">
+            <DropdownMenuItem href="/settings" id="settings">
+              <RiSettings3Line aria-hidden="true" />
+              Ustawienia
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem id="login" isDisabled textValue="Zaloguj się — wkrótce">
+              <RiLoginBoxLine aria-hidden="true" />
+              <span>Zaloguj się</span>
+              <span className="ml-auto text-xs text-muted-foreground">Wkrótce</span>
+            </DropdownMenuItem>
+          </DropdownMenu>
+        </DropdownMenuTrigger>
       </header>
       <Outlet />
     </div>
