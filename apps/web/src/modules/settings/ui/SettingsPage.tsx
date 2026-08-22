@@ -1,4 +1,4 @@
-import { RiCloseLine } from '@remixicon/react'
+import { RiProhibitedLine } from '@remixicon/react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 
@@ -20,7 +20,6 @@ type AppBrandSettings = ReturnType<typeof normalizeBrandSettings>
 
 function SettingsPage() {
   const [settings, setSettings] = useState<AppBrandSettings>(() => readBrandSettingsFromStorage())
-  const [status, setStatus] = useState('')
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -33,7 +32,6 @@ function SettingsPage() {
     writeBrandSettingsToStorage(nextSettings)
     notifyBrandSettingsChanged(nextSettings)
     setSettings(nextSettings)
-    setStatus('Zapisano ustawienia.')
   }
 
   return (
@@ -80,7 +78,7 @@ function SettingsPage() {
                     type="button"
                     variant={settings.iconId === null ? 'default' : 'outline'}
                   >
-                    <RiCloseLine aria-hidden="true" />
+                    <RiProhibitedLine aria-hidden="true" />
                   </Button>
                   {APP_BRAND_ICON_OPTIONS.map((option) => {
                     const Icon = getBrandIconComponent(option.id)
@@ -105,16 +103,9 @@ function SettingsPage() {
               </FieldContent>
             </Field>
 
-            <div className="flex items-center justify-between gap-2">
-              <Button size="default" type="submit">
-                Zapisz
-              </Button>
-              {status ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {status}
-                </p>
-              ) : null}
-            </div>
+            <Button size="default" type="submit">
+              Zapisz
+            </Button>
           </form>
         </CardContent>
       </Card>
