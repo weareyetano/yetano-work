@@ -27,6 +27,18 @@ const APP_BRAND_ICON_OPTIONS: readonly AppBrandIconOption[] = [
   { id: 'apps', label: 'Aplikacje', iconName: 'RiAppsLine' },
   { id: 'rocket', label: 'Rakieta', iconName: 'RiRocketLine' },
   { id: 'star', label: 'Gwiazda', iconName: 'RiStarLine' },
+  { id: 'planet', label: 'Planeta', iconName: 'RiPlanetLine' },
+  { id: 'global', label: 'Globalna', iconName: 'RiGlobalLine' },
+  { id: 'leaf', label: 'Liść', iconName: 'RiLeafLine' },
+  { id: 'cloud', label: 'Chmura', iconName: 'RiCloudLine' },
+  { id: 'shield', label: 'Tarcza', iconName: 'RiShieldLine' },
+  { id: 'diamond', label: 'Diament', iconName: 'RiDiamondLine' },
+  { id: 'shapes', label: 'Kształty', iconName: 'RiShapesLine' },
+  { id: 'command', label: 'Symbol', iconName: 'RiCommandLine' },
+  { id: 'compass', label: 'Kompas', iconName: 'RiCompass3Line' },
+  { id: 'infinity', label: 'Nieskończoność', iconName: 'RiInfinityLine' },
+  { id: 'code', label: 'Kod', iconName: 'RiCodeBoxLine' },
+  { id: 'sparkling', label: 'Blask', iconName: 'RiSparkling2Line' },
 ]
 
 const iconRegistry = RemixIcons as Record<string, unknown>

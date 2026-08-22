@@ -1,17 +1,11 @@
+import { RiCloseLine } from '@remixicon/react'
 import type { FormEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { Button } from '#components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '#components/ui/card'
 import { Field, FieldContent, FieldLabel } from '#components/ui/field'
 import { Input } from '#components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#components/ui/select'
 import {
   APP_BRAND_ICON_OPTIONS,
   APP_BRAND_NAME_DEFAULT,
@@ -24,22 +18,9 @@ import {
 
 type AppBrandSettings = ReturnType<typeof normalizeBrandSettings>
 
-const NO_ICON_ID = 'none'
-
 function SettingsPage() {
   const [settings, setSettings] = useState<AppBrandSettings>(() => readBrandSettingsFromStorage())
   const [status, setStatus] = useState('')
-
-  const SelectedIcon = getBrandIconComponent(settings.iconId)
-  const PreviewIcon = getBrandIconComponent(settings.iconId)
-  const previewLabel = settings.appName.trim() || APP_BRAND_NAME_DEFAULT
-
-  const selectedOptionLabel = useMemo(() => {
-    if (!settings.iconId) return 'Brak ikonki'
-    return (
-      APP_BRAND_ICON_OPTIONS.find((option) => option.id === settings.iconId)?.label ?? 'Brak ikonki'
-    )
-  }, [settings.iconId])
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -60,7 +41,6 @@ function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Ustawienia</CardTitle>
-          <CardDescription>Zmień nazwę apki oraz ikonę wyświetlaną przy nazwie.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
@@ -79,50 +59,52 @@ function SettingsPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Ikona logotypu (opcjonalnie)</FieldLabel>
+              <FieldLabel id="app-icon-label">Ikona logotypu (opcjonalnie)</FieldLabel>
               <FieldContent>
-                <Select
-                  aria-label="Ikona logotypu"
-                  className="w-full min-w-64"
-                  selectedKey={settings.iconId ?? NO_ICON_ID}
-                  onSelectionChange={(iconId) =>
-                    setSettings((next) => ({
-                      ...next,
-                      iconId: iconId === NO_ICON_ID ? null : String(iconId),
-                    }))
-                  }
+                <div
+                  aria-labelledby="app-icon-label"
+                  className="flex flex-wrap gap-2"
+                  role="group"
                 >
-                  <SelectTrigger>
-                    <SelectValue>
-                      <span className="inline-flex items-center gap-2">
-                        {SelectedIcon && (
-                          <SelectedIcon className="size-4 shrink-0 text-foreground/80" />
-                        )}
-                        {selectedOptionLabel}
-                      </span>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem id={NO_ICON_ID}>Brak ikonki</SelectItem>
-                    {APP_BRAND_ICON_OPTIONS.map((option) => {
-                      const Icon = getBrandIconComponent(option.id)
-                      return (
-                        <SelectItem id={option.id} key={option.id}>
-                          <span className="inline-flex items-center gap-2">
-                            {Icon && <Icon className="size-4 shrink-0 text-foreground/80" />}
-                            {option.label}
-                          </span>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
+                  <Button
+                    aria-label="Bez ikony"
+                    aria-pressed={settings.iconId === null}
+                    className="size-11"
+                    onPress={() => setSettings((next) => ({ ...next, iconId: null }))}
+                    size="icon"
+                    type="button"
+                    variant={settings.iconId === null ? 'default' : 'outline'}
+                  >
+                    <RiCloseLine aria-hidden="true" />
+                  </Button>
+                  {APP_BRAND_ICON_OPTIONS.map((option) => {
+                    const Icon = getBrandIconComponent(option.id)
+                    if (!Icon) return null
+
+                    return (
+                      <Button
+                        aria-label={`Wybierz ikonę: ${option.label}`}
+                        aria-pressed={settings.iconId === option.id}
+                        className="size-11"
+                        key={option.id}
+                        onPress={() =>
+                          setSettings((next) => ({ ...next, iconId: option.id }))
+                        }
+                        size="icon"
+                        type="button"
+                        variant={settings.iconId === option.id ? 'default' : 'outline'}
+                      >
+                        <Icon aria-hidden="true" />
+                      </Button>
+                    )
+                  })}
+                </div>
               </FieldContent>
             </Field>
 
             <div className="flex items-center justify-between gap-2">
               <Button size="default" type="submit">
-                Zapisz ustawienia
+                Zapisz
               </Button>
               {status ? (
                 <p className="text-sm text-muted-foreground" role="status">
@@ -131,15 +113,6 @@ function SettingsPage() {
               ) : null}
             </div>
 
-            <div className="rounded-lg border border-border/80 bg-muted/50 px-3 py-2 text-sm">
-              <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                Podgląd logotypu
-              </p>
-              <p className="inline-flex items-center gap-2 font-heading text-base">
-                {PreviewIcon && <PreviewIcon className="size-4 shrink-0" />}
-                {previewLabel}
-              </p>
-            </div>
           </form>
         </CardContent>
       </Card>
