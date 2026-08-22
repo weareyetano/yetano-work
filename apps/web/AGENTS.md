@@ -18,3 +18,5 @@ These instructions extend the repository root `AGENTS.md` for `apps/web`.
 - Use semantic theme tokens instead of literal feature colors. Do not introduce a form library until
   the repository records that separate decision.
 - Cover logic with Vitest/Testing Library and user-visible critical paths with Playwright.
+- For user-visible web changes, run `pnpm check`, `pnpm build`, and the relevant
+  `pnpm test:e2e` path before declaring the change complete.
