@@ -1,4 +1,3 @@
-import { RiProhibitedLine } from '@remixicon/react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 
@@ -69,17 +68,6 @@ function SettingsPage() {
                   aria-labelledby="app-icon-label"
                   className="grid grid-cols-5 gap-2 sm:grid-cols-10"
                 >
-                  <Button
-                    aria-label="Bez ikony"
-                    aria-pressed={settings.iconId === null}
-                    className="size-11"
-                    onPress={() => setSettings((next) => ({ ...next, iconId: null }))}
-                    size="icon"
-                    type="button"
-                    variant={settings.iconId === null ? 'default' : 'outline'}
-                  >
-                    <RiProhibitedLine aria-hidden="true" />
-                  </Button>
                   {APP_BRAND_ICON_OPTIONS.map((option) => {
                     const Icon = getBrandIconComponent(option.id)
                     if (!Icon) return null
@@ -90,7 +78,12 @@ function SettingsPage() {
                         aria-pressed={settings.iconId === option.id}
                         className="size-11"
                         key={option.id}
-                        onPress={() => setSettings((next) => ({ ...next, iconId: option.id }))}
+                        onPress={() =>
+                          setSettings((next) => ({
+                            ...next,
+                            iconId: next.iconId === option.id ? null : option.id,
+                          }))
+                        }
                         size="icon"
                         type="button"
                         variant={settings.iconId === option.id ? 'default' : 'outline'}

@@ -21,6 +21,7 @@ type AppBrandSettings = {
 }
 
 const APP_BRAND_ICON_OPTIONS: readonly AppBrandIconOption[] = [
+  { id: 'bubble-chart', label: 'Bąbelki', iconName: 'RiBubbleChartLine' },
   { id: 'building', label: 'Budynek', iconName: 'RiBuildingLine' },
   { id: 'briefcase', label: 'Biuro', iconName: 'RiBriefcaseLine' },
   { id: 'store', label: 'Sklep', iconName: 'RiStore2Line' },
@@ -39,7 +40,7 @@ const APP_BRAND_ICON_OPTIONS: readonly AppBrandIconOption[] = [
   { id: 'infinity', label: 'Nieskończoność', iconName: 'RiInfinityLine' },
   { id: 'code', label: 'Kod', iconName: 'RiCodeBoxLine' },
   { id: 'sparkling', label: 'Blask', iconName: 'RiSparkling2Line' },
-  { id: 'sun', label: 'Słońce', iconName: 'RiSunLine' },
+  { id: 'shake-hands', label: 'Uścisk dłoni', iconName: 'RiShakeHandsFill' },
 ]
 
 const iconRegistry = RemixIcons as Record<string, unknown>
