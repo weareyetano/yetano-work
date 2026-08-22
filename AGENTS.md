@@ -38,8 +38,9 @@
 
 - Use one task, writer, short-lived topic branch, and isolated worktree together. Read-only work
   needs no branch. Create worktrees from a fresh base, never from inside another worktree.
-- Reuse an existing topic branch. Otherwise start from verified `origin/main` without switching or
-  repurposing the primary checkout, then run `pnpm worktree:setup`.
+- Reuse the current task's existing topic branch. Otherwise start from the latest verified
+  `origin/main` without switching or repurposing the primary checkout, then run
+  `pnpm worktree:setup`.
 - Before creating a branch, inspect the working tree, worktrees, refs, and existing PRs. Stop on a
   collision; never reset or overwrite existing work.
 - Name branches `<type>/<kebab-case-summary>` and include an issue number when available, for example
