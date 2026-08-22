@@ -61,11 +61,7 @@ function SettingsPage() {
             <Field>
               <FieldLabel id="app-icon-label">Ikona logotypu (opcjonalnie)</FieldLabel>
               <FieldContent>
-                <div
-                  aria-labelledby="app-icon-label"
-                  className="flex flex-wrap gap-2"
-                  role="group"
-                >
+                <fieldset aria-labelledby="app-icon-label" className="flex flex-wrap gap-2">
                   <Button
                     aria-label="Bez ikony"
                     aria-pressed={settings.iconId === null}
@@ -87,9 +83,7 @@ function SettingsPage() {
                         aria-pressed={settings.iconId === option.id}
                         className="size-11"
                         key={option.id}
-                        onPress={() =>
-                          setSettings((next) => ({ ...next, iconId: option.id }))
-                        }
+                        onPress={() => setSettings((next) => ({ ...next, iconId: option.id }))}
                         size="icon"
                         type="button"
                         variant={settings.iconId === option.id ? 'default' : 'outline'}
@@ -98,7 +92,7 @@ function SettingsPage() {
                       </Button>
                     )
                   })}
-                </div>
+                </fieldset>
               </FieldContent>
             </Field>
 
@@ -112,7 +106,6 @@ function SettingsPage() {
                 </p>
               ) : null}
             </div>
-
           </form>
         </CardContent>
       </Card>
