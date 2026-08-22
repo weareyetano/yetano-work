@@ -40,7 +40,7 @@ const APP_BRAND_ICON_OPTIONS: readonly AppBrandIconOption[] = [
   { id: 'infinity', label: 'Nieskończoność', iconName: 'RiInfinityLine' },
   { id: 'code', label: 'Kod', iconName: 'RiCodeBoxLine' },
   { id: 'sparkling', label: 'Blask', iconName: 'RiSparkling2Line' },
-  { id: 'shake-hands', label: 'Uścisk dłoni', iconName: 'RiShakeHandsFill' },
+  { id: 'shake-hands', label: 'Uścisk dłoni', iconName: 'RiShakeHandsLine' },
 ]
 
 const iconRegistry = RemixIcons as Record<string, unknown>
