@@ -45,7 +45,12 @@ function SettingsPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
             <Field>
-              <FieldLabel htmlFor="app-name">Nazwa aplikacji</FieldLabel>
+              <FieldLabel htmlFor="app-name">
+                Nazwa aplikacji{' '}
+                <span aria-hidden="true" className="text-destructive">
+                  *
+                </span>
+              </FieldLabel>
               <FieldContent>
                 <Input
                   id="app-name"
@@ -53,15 +58,19 @@ function SettingsPage() {
                   onChange={(event) =>
                     setSettings((next) => ({ ...next, appName: event.target.value }))
                   }
+                  required
                   value={settings.appName}
                 />
               </FieldContent>
             </Field>
 
             <Field>
-              <FieldLabel id="app-icon-label">Ikona logotypu (opcjonalnie)</FieldLabel>
+              <FieldLabel id="app-icon-label">Ikona logotypu</FieldLabel>
               <FieldContent>
-                <fieldset aria-labelledby="app-icon-label" className="flex flex-wrap gap-2">
+                <fieldset
+                  aria-labelledby="app-icon-label"
+                  className="grid grid-cols-5 gap-2 sm:grid-cols-10"
+                >
                   <Button
                     aria-label="Bez ikony"
                     aria-pressed={settings.iconId === null}
