@@ -25,7 +25,7 @@ const APP_BRAND_ICON_OPTIONS: readonly AppBrandIconOption[] = [
   { id: 'building', label: 'Budynek', iconName: 'RiBuildingLine' },
   { id: 'briefcase', label: 'Biuro', iconName: 'RiBriefcaseLine' },
   { id: 'store', label: 'Sklep', iconName: 'RiStore2Line' },
-  { id: 'apps', label: 'Aplikacje', iconName: 'RiAppsLine' },
+  { id: 'apps', label: 'Budynek', iconName: 'RiBuilding3Line' },
   { id: 'rocket', label: 'Rakieta', iconName: 'RiRocketLine' },
   { id: 'star', label: 'Gwiazda', iconName: 'RiStarLine' },
   { id: 'planet', label: 'Planeta', iconName: 'RiPlanetLine' },
