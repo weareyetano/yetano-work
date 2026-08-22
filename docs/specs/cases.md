@@ -54,7 +54,8 @@ Lists use opaque cursor pagination. They accept exact status, actively open or c
 customer, and case-insensitive text filters with a bounded page size. The open group contains new,
 working, and waiting cases; postponed cases are queried by exact status; the closed group contains
 resolved and canceled cases. Text search matches literal fragments of the title, description, or
-case identifier. Results are ordered by most recent modification with the case identifier as a
+case identifier. When exact statuses and a status group are supplied together, results satisfy both
+filters. Results are ordered by most recent modification with the case identifier as a
 stable tie-breaker. Status history is independently cursor-paginated newest first.
 
 The web workspace starts in the Open view and exposes three list views: Open, Postponed, and Closed.

@@ -24,6 +24,23 @@ describe('API application without runtime services', () => {
     expect(document.paths).toHaveProperty('/api/v1/health')
   })
 
+  it('exports the shared six-value case status filter constraint', async () => {
+    const response = await app.request('/api/openapi.json')
+    const document = await response.json()
+    const parameters = document.paths['/api/v1/cases'].get.parameters as Array<{
+      name: string
+      schema: Record<string, unknown>
+    }>
+    const statusParameter = parameters.find((parameter) => parameter.name === 'status')
+
+    expect(statusParameter?.schema).toMatchObject({
+      maxItems: 6,
+      minItems: 1,
+      title: 'CaseStatusFilter',
+      uniqueItems: true,
+    })
+  })
+
   it('keeps liveness independent from the database', async () => {
     const response = await app.request('/health/live')
 

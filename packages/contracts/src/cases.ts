@@ -36,6 +36,43 @@ export const CaseStatusGroupSchema = Type.Union([Type.Literal('open'), Type.Lite
 
 export type CaseStatusGroup = Type.Static<typeof CaseStatusGroupSchema>
 
+export const CaseCursorSchema = Type.String({
+  description: 'Opaque cursor returned by a previous case-list request.',
+  minLength: 1,
+  title: 'CaseCursor',
+})
+
+export type CaseCursor = Type.Static<typeof CaseCursorSchema>
+
+export const CaseListLimitSchema = Type.Integer({
+  description: 'Maximum number of cases returned in one page.',
+  maximum: 100,
+  minimum: 1,
+  title: 'CaseListLimit',
+})
+
+export type CaseListLimit = Type.Static<typeof CaseListLimitSchema>
+
+export const CaseSearchFilterSchema = Type.String({
+  description: 'Case-insensitive text matched against case title, description, and id.',
+  maxLength: 200,
+  minLength: 1,
+  pattern: '\\S',
+  title: 'CaseSearchFilter',
+})
+
+export type CaseSearchFilter = Type.Static<typeof CaseSearchFilterSchema>
+
+export const CaseStatusFilterSchema = Type.Array(CaseStatusSchema, {
+  description: 'Unique case statuses included in the result.',
+  maxItems: 6,
+  minItems: 1,
+  title: 'CaseStatusFilter',
+  uniqueItems: true,
+})
+
+export type CaseStatusFilter = Type.Static<typeof CaseStatusFilterSchema>
+
 export const CaseSchema = Type.Object(
   {
     closedAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
@@ -187,8 +224,8 @@ export type CaseStatusChange = Type.Static<typeof CaseStatusChangeSchema>
 
 export const CaseStatusHistoryQuerySchema = Type.Object(
   {
-    cursor: Type.Optional(Type.String({ minLength: 1 })),
-    limit: Type.Optional(Type.Integer({ maximum: 100, minimum: 1 })),
+    cursor: Type.Optional(CaseCursorSchema),
+    limit: Type.Optional(CaseListLimitSchema),
   },
   {
     additionalProperties: false,
@@ -222,28 +259,17 @@ export type CasePathParameters = Type.Static<typeof CasePathParametersSchema>
 
 export const ListCasesQuerySchema = Type.Object(
   {
-    cursor: Type.Optional(Type.String({ minLength: 1 })),
+    cursor: Type.Optional(CaseCursorSchema),
     customerId: Type.Optional(CustomerIdSchema),
-    limit: Type.Optional(Type.Integer({ maximum: 100, minimum: 1 })),
-    search: Type.Optional(
-      Type.String({
-        description: 'Case-insensitive text matched against case title, description, and id.',
-        maxLength: 200,
-        minLength: 1,
-        pattern: '\\S',
-      }),
-    ),
-    status: Type.Optional(
-      Type.Union([
-        CaseStatusSchema,
-        Type.Array(CaseStatusSchema, { maxItems: 6, minItems: 1, uniqueItems: true }),
-      ]),
-    ),
+    limit: Type.Optional(CaseListLimitSchema),
+    search: Type.Optional(CaseSearchFilterSchema),
+    status: Type.Optional(CaseStatusFilterSchema),
     statusGroup: Type.Optional(CaseStatusGroupSchema),
   },
   {
     additionalProperties: false,
-    description: 'Cursor pagination and optional case filters.',
+    description:
+      'Cursor pagination and optional case filters. Status and statusGroup combine by intersection.',
     title: 'ListCasesQuery',
   },
 )

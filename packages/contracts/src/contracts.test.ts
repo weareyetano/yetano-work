@@ -168,5 +168,17 @@ describe('public API contracts', () => {
         status: ['new', 'postponed', 'working', 'waiting', 'resolved', 'canceled'],
       }),
     ).toBe(true)
+    expect(
+      validator.Check({
+        status: ['new', 'postponed', 'working', 'waiting', 'resolved', 'canceled'],
+        statusGroup: 'open',
+      }),
+    ).toBe(true)
+    expect(validator.Check({ status: 'new' })).toBe(false)
+    expect(
+      validator.Check({
+        status: ['new', 'postponed', 'working', 'waiting', 'resolved', 'canceled', 'new'],
+      }),
+    ).toBe(false)
   })
 })

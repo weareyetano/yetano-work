@@ -49,10 +49,27 @@ export type ListCasesData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * CaseCursor
+         *
+         * Opaque cursor returned by a previous case-list request.
+         */
         cursor?: string;
+        /**
+         * CustomerId
+         *
+         * Soft cross-module reference to a customer.
+         */
         customerId?: string;
+        /**
+         * CaseListLimit
+         *
+         * Maximum number of cases returned in one page.
+         */
         limit?: number;
         /**
+         * CaseSearchFilter
+         *
          * Case-insensitive text matched against case title, description, and id.
          */
         search?: string;
@@ -272,7 +289,17 @@ export type ListCaseStatusHistoryData = {
         caseId: string;
     };
     query?: {
+        /**
+         * CaseCursor
+         *
+         * Opaque cursor returned by a previous case-list request.
+         */
         cursor?: string;
+        /**
+         * CaseListLimit
+         *
+         * Maximum number of cases returned in one page.
+         */
         limit?: number;
     };
     url: '/api/v1/cases/{caseId}/status-history';
