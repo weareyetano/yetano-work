@@ -2,7 +2,8 @@
 
 ## Working agreements
 
-- Follow the nearest `AGENTS.md`; nested files add path-specific rules.
+- For every file you change, read and follow the nearest `AGENTS.md`; nested instructions extend
+  this file.
 - Read `README.md` before changing architecture, generated code, or deferred technology choices.
 - Preserve unrelated working-tree changes. Never hand-edit generated files.
 - Keep repository documentation in English.
