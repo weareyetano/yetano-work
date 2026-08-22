@@ -129,6 +129,7 @@ function catalogWithHandler(handle: (event: PublishedEventEnvelope) => Promise<v
         subscribes: [{ eventId: testEvent.id, handle, id: 'test.deliver-handler' }],
       },
       extensions: { contributes: [], provides: [] },
+      http: { access: 'public', path: '/test-events' },
       id: 'test-events',
       operations: [],
       registrations: {},

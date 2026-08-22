@@ -20,7 +20,7 @@ export interface CaseListFilters {
   customerId?: CustomerId
   limit: number
   search?: string
-  status?: CaseStatus | CaseStatus[]
+  status?: CaseStatus[]
   statusGroup?: CaseStatusGroup
 }
 
@@ -40,16 +40,16 @@ export function createCaseRepository(entityManager: EntityManager): CaseReposito
     async list(organizationId, filters) {
       const where: FilterQuery<CaseRecord> = { organizationId }
       const conjunctions: FilterQuery<CaseRecord>[] = []
-      if (filters.status) {
-        where.status = Array.isArray(filters.status) ? { $in: filters.status } : filters.status
-      }
+      if (filters.status) conjunctions.push({ status: { $in: filters.status } })
       if (filters.statusGroup) {
-        where.status = {
-          $in:
-            filters.statusGroup === 'open'
-              ? ['new', 'waiting', 'working']
-              : ['canceled', 'resolved'],
-        }
+        conjunctions.push({
+          status: {
+            $in:
+              filters.statusGroup === 'open'
+                ? ['new', 'waiting', 'working']
+                : ['canceled', 'resolved'],
+          },
+        })
       }
       if (filters.customerId) where.customerId = filters.customerId
       if (filters.search) {

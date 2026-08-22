@@ -7,7 +7,7 @@ import { problem } from '../../problem.js'
 
 export function createHealthRoutes() {
   return new Hono<AppEnvironment>().get(
-    '/health',
+    '',
     describeRoute({
       description: 'Checks whether the API can reach its PostgreSQL database.',
       operationId: 'getHealth',

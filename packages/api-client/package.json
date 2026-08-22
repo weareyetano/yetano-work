@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "catalog:",
+    "@yetano/contracts": "workspace:*",
     "typescript": "catalog:"
   }
 }

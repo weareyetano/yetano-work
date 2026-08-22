@@ -1,22 +1,26 @@
 import {
+  CaseCursorSchema,
   type CaseId,
   CaseIdSchema,
+  CaseListLimitSchema,
   CaseListSchema,
   type CasePathParameters,
   CasePathParametersSchema,
   CaseSchema,
+  CaseSearchFilterSchema,
   CaseStatusChangeSchema,
+  CaseStatusFilterSchema,
   CaseStatusGroupSchema,
   type CaseStatusHistoryQuery,
   CaseStatusHistoryQuerySchema,
   CaseStatusHistorySchema,
-  CaseStatusSchema,
   CaseTransitionIdConflictSchema,
   CaseVersionConflictSchema,
   type ChangeCaseStatusRequest,
   ChangeCaseStatusRequestSchema,
   type CreateCaseRequest,
   CreateCaseRequestSchema,
+  CustomerIdSchema,
   type ListCasesQuery,
   ListCasesQuerySchema,
   ProblemDetailsSchema,
@@ -55,7 +59,7 @@ export function createCasesRoutes() {
   const routes = new Hono<AppEnvironment>()
 
   routes.post(
-    '/cases',
+    '',
     describeRoute({
       description: 'Creates a new case in the server-resolved organization.',
       operationId: 'createCase',
@@ -84,29 +88,21 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases',
+    '',
     describeRoute({
       description: 'Lists cases in the server-resolved organization.',
       operationId: 'listCases',
       parameters: [
-        queryParameter('cursor', Type.String()),
-        queryParameter('customerId', Type.String({ format: 'uuid' })),
-        queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
-        queryParameter(
-          'search',
-          Type.String({
-            description: 'Case-insensitive text matched against case title, description, and id.',
-            maxLength: 200,
-            minLength: 1,
-            pattern: '\\S',
-          }),
-        ),
+        queryParameter('cursor', CaseCursorSchema),
+        queryParameter('customerId', CustomerIdSchema),
+        queryParameter('limit', CaseListLimitSchema),
+        queryParameter('search', CaseSearchFilterSchema),
         {
           explode: true,
           in: 'query' as const,
           name: 'status',
           required: false,
-          schema: Type.Array(CaseStatusSchema, { maxItems: 5, minItems: 1, uniqueItems: true }),
+          schema: CaseStatusFilterSchema,
           style: 'form' as const,
         },
         queryParameter('statusGroup', CaseStatusGroupSchema),
@@ -133,14 +129,14 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId/status-history',
+    '/:caseId/status-history',
     describeRoute({
       description: 'Lists immutable status history for one organization-scoped case.',
       operationId: 'listCaseStatusHistory',
       parameters: [
         pathParameter('caseId'),
-        queryParameter('cursor', Type.String()),
-        queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
+        queryParameter('cursor', CaseCursorSchema),
+        queryParameter('limit', CaseListLimitSchema),
       ],
       responses: {
         ...errorResponses,
@@ -166,7 +162,7 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Gets one organization-scoped case.',
       operationId: 'getCase',
@@ -194,7 +190,7 @@ export function createCasesRoutes() {
   )
 
   routes.patch(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Updates editable case fields using optimistic concurrency.',
       operationId: 'updateCase',
@@ -223,7 +219,7 @@ export function createCasesRoutes() {
   )
 
   routes.post(
-    '/cases/:caseId/transition',
+    '/:caseId/transition',
     describeRoute({
       description: 'Transitions a case status idempotently using a client-generated command id.',
       operationId: 'transitionCase',
@@ -338,8 +334,7 @@ function parseListQuery(context: {
     ...(context.req.query('customerId') ? { customerId: context.req.query('customerId') } : {}),
     ...(limitValue ? { limit: Number(limitValue) } : {}),
     ...(searchValue !== undefined ? { search: searchValue } : {}),
-    ...(statuses?.length === 1 ? { status: statuses[0] } : {}),
-    ...(statuses && statuses.length > 1 ? { status: statuses } : {}),
+    ...(statuses ? { status: statuses } : {}),
     ...(context.req.query('statusGroup') ? { statusGroup: context.req.query('statusGroup') } : {}),
   }
 }

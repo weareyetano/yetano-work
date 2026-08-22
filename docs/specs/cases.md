@@ -54,7 +54,8 @@ Lists use opaque cursor pagination. They accept exact status, actively open or c
 customer, and case-insensitive text filters with a bounded page size. The open group contains new,
 working, and waiting cases; postponed cases are queried by exact status; the closed group contains
 resolved and canceled cases. Text search matches literal fragments of the title, description, or
-case identifier. Results are ordered by most recent modification with the case identifier as a
+case identifier. When exact statuses and a status group are supplied together, results satisfy both
+filters. Results are ordered by most recent modification with the case identifier as a
 stable tie-breaker. Status history is independently cursor-paginated newest first.
 
 The web workspace starts in the Open view and exposes three list views: Open, Postponed, and Closed.
@@ -79,6 +80,16 @@ The detail panel uses the editable title field as its only visible title and omi
 status badge. On wide screens, its Save action is followed by every lifecycle transition currently
 allowed for the case. On narrow screens, Save remains directly available while those transitions,
 including Cancel, are grouped under a Change status menu.
+
+Title and description edits in the detail panel form a local draft tied to the selected case and
+the last server version observed when editing began. Selecting another case, changing the list view,
+or starting a status transition requires users to keep editing or explicitly discard a dirty draft.
+Browser-level navigation also warns while a dirty draft exists. Any in-flight case update or status
+transition disables all other mutating actions for that case.
+
+When an update fails because its expected version is stale, the workspace keeps the local draft and
+shows it alongside the newer server summary. The server value replaces the draft only after the user
+explicitly chooses to load that version. Automatic merging is deferred.
 
 On wide screens, the case workspace fits inside the available viewport and keeps the case list and
 detail panel independently scrollable. Search and view controls remain visible above the list.
@@ -148,6 +159,9 @@ as an inherited requirement. It publishes versioned `case.created`, `case.update
 - Repeated transition commands with the same transition identifier return the original result and
   do not create duplicate history or lifecycle events.
 - Concurrent stale updates return the documented conflict response.
+- Unsaved detail edits survive refreshes and version conflicts, and case selection, view changes,
+  and status transitions require explicit confirmation before discarding them.
+- While one case mutation is pending, every other mutating action for that case is disabled.
 - The web workspace handles loading, error, empty, and populated states and supports every case
   operation.
 - The Postpone action is available only for new cases, performs no note prompt, and moves the case to

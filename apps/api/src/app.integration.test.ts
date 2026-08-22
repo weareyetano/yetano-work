@@ -327,10 +327,15 @@ describeWithDatabase('API with PostgreSQL', () => {
     })
     const openResponse = await app.request('/api/v1/cases?statusGroup=open')
     const postponedListResponse = await app.request('/api/v1/cases?status=postponed')
+    const postponedOpenResponse = await app.request(
+      '/api/v1/cases?status=postponed&statusGroup=open',
+    )
     const open = (await openResponse.json()) as { items: Case[] }
     const postponedList = (await postponedListResponse.json()) as { items: Case[] }
+    const postponedOpen = (await postponedOpenResponse.json()) as { items: Case[] }
     expect(open.items.map((item) => item.id)).not.toContain(created.id)
     expect(postponedList.items.map((item) => item.id)).toEqual([created.id])
+    expect(postponedOpen.items).toEqual([])
 
     const restoreResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
       body: JSON.stringify({
