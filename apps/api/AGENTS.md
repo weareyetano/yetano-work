@@ -18,5 +18,4 @@ These instructions extend the repository root `AGENTS.md` for `apps/api`.
 - After contract or route changes, run `pnpm api:generate` and commit the generated OpenAPI/client
   changes. Never edit generated output manually.
 
-For a vertical API change, use `.agents/skills/yetano-api-slice/SKILL.md`. For final evidence, use
-`.agents/skills/yetano-verify/SKILL.md`.
+For a vertical API change, use `.agents/skills/yetano-api-slice/SKILL.md`.

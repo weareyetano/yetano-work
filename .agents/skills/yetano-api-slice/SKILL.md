@@ -5,8 +5,9 @@ description: Implement a typed Yetano capability through shared contracts, Hono 
 
 # Yetano typed API slice
 
-Build one coherent capability through the existing contract-first path. Use the health capability in
-[Health slice map](references/health-slice.md) as a navigation example, not as code to copy blindly.
+Build one coherent capability through the existing contract-first path. Read the
+[Health slice map](references/health-slice.md) only when you need a concrete example or the current
+repository layout is unclear; use it for navigation, not as code to copy blindly.
 
 ## Workflow
 
@@ -27,7 +28,7 @@ Build one coherent capability through the existing contract-first path. Use the 
 7. Run `pnpm api:generate`. Review the OpenAPI and generated client diff; never edit it by hand.
 8. When the web consumes the operation, call the generated client through TanStack Query and cover
    loading, error, empty, and success states. Add Playwright coverage for the critical user path.
-9. Use `.agents/skills/yetano-verify/SKILL.md` to select and report the final gates.
+9. Run the final gates required by the applicable `AGENTS.md` files and report their exact outcomes.
 
 ## Completion contract
 
