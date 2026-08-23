@@ -2,7 +2,7 @@ import { access, readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const ROOT_INSTRUCTIONS_LIMIT = 12 * 1024
+const ROOT_INSTRUCTIONS_LIMIT = 6 * 1024
 const SKILL_LINE_LIMIT = 150
 const REQUIRED_INSTRUCTIONS = [
   'apps/api/AGENTS.md',
@@ -147,11 +147,6 @@ export async function validateAgentAssets(root) {
     const description = fields.get('description')
     if (!description || description.length < 20 || description.length > 350) {
       errors.push(`${relativeSkillPath}: description must contain 20-350 characters`)
-    }
-
-    const routerPath = `.agents/skills/${skillName}/SKILL.md`
-    if (!rootInstructions.includes(routerPath)) {
-      errors.push(`AGENTS.md: task router does not reference ${routerPath}`)
     }
 
     for (const match of body.matchAll(/\]\(((?:references|scripts)\/[^)#\s]+)(?:#[^)]*)?\)/g)) {

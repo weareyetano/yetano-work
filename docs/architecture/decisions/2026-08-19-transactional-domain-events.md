@@ -69,4 +69,5 @@ event consumers discoverable and avoid process-global hooks.
 - [Trusted execution context](2026-08-19-trusted-execution-context.md)
 - [Cases specification](../../specs/cases.md)
 - [Idempotent case lifecycle transitions](2026-08-21-idempotent-case-lifecycle-transitions.md)
+- [Typed idempotent event subscriptions](2026-08-23-typed-idempotent-event-subscriptions.md)
 - [open-mercato issue #5230](https://github.com/open-mercato/open-mercato/issues/5230)

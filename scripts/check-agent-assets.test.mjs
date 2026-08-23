@@ -24,8 +24,7 @@ function claudeAdapter(
 
 async function fixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'yetano-agents-'))
-  const routes = skills.map((name) => `.agents/skills/${name}/SKILL.md`).join('\n')
-  await writeFile(path.join(root, 'AGENTS.md'), routes)
+  await writeFile(path.join(root, 'AGENTS.md'), '# Repository instructions\n')
   await writeFile(path.join(root, 'CLAUDE.md'), '@AGENTS.md\n')
 
   for (const nested of ['apps/api', 'apps/web', 'packages/contracts']) {
@@ -52,11 +51,11 @@ test('accepts a valid agent asset tree', async (context) => {
   assert.deepEqual(await validateAgentAssets(root), [])
 })
 
-test('catches a missing task-router entry', async (context) => {
+test('does not require skill routes in AGENTS.md', async (context) => {
   const root = await fixture()
   context.after(() => rm(root, { force: true, recursive: true }))
-  await writeFile(path.join(root, 'AGENTS.md'), '.agents/skills/yetano-verify/SKILL.md\n')
-  assert.ok((await validateAgentAssets(root)).some((error) => error.includes('task router')))
+  await writeFile(path.join(root, 'AGENTS.md'), '# Instructions without a task router\n')
+  assert.deepEqual(await validateAgentAssets(root), [])
 })
 
 test('catches invalid frontmatter', async (context) => {
@@ -82,7 +81,7 @@ test('catches a missing referenced resource', async (context) => {
 test('catches an oversized root instruction file', async (context) => {
   const root = await fixture()
   context.after(() => rm(root, { force: true, recursive: true }))
-  await writeFile(path.join(root, 'AGENTS.md'), 'x'.repeat(12 * 1024 + 1))
+  await writeFile(path.join(root, 'AGENTS.md'), 'x'.repeat(6 * 1024 + 1))
   assert.ok((await validateAgentAssets(root)).some((error) => error.includes('byte limit')))
 })
 

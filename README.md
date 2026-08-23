@@ -68,9 +68,9 @@ green.
 
 ## AI-assisted development
 
-Repository-specific agent workflows live in `.agents/skills`. `AGENTS.md` routes work to
-the smallest relevant skill, while nested instruction files document API, web, and contract
-conventions close to their code.
+Repository-specific agent workflows live in `.agents/skills`. Codex discovers them from their
+metadata. Path-specific instructions may require a skill when repository guarantees depend on that
+workflow; other API, web, and contract conventions remain close to their code.
 
 Codex reads the canonical skills directly and invokes them as `$yetano-verify`,
 `$yetano-api-slice`, or `$yetano-code-review`. Claude Code uses the matching `/yetano-*`
@@ -81,8 +81,8 @@ remain canonical in `.agents/skills`.
 pnpm agents:check
 ```
 
-This command validates skill metadata, references, routing, size limits, and the layered
-instruction files, including the Claude Code adapters. Keep product and architecture facts in
+This command validates skill metadata, references, size limits, and the layered instruction files,
+including the Claude Code adapters. Keep product and architecture facts in
 the canonical documentation or nearest `AGENTS.md`; skills should describe procedures rather
 than duplicate those facts.
 

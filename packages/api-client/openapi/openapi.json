@@ -413,7 +413,10 @@
             "name": "cursor",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Opaque cursor returned by a previous case-list request.",
+              "minLength": 1,
+              "title": "CaseCursor"
             }
           },
           {
@@ -422,7 +425,9 @@
             "required": false,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "Soft cross-module reference to a customer.",
+              "format": "uuid",
+              "title": "CustomerId"
             }
           },
           {
@@ -431,8 +436,10 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "Maximum number of cases returned in one page.",
               "maximum": 100,
-              "minimum": 1
+              "minimum": 1,
+              "title": "CaseListLimit"
             }
           },
           {
@@ -444,7 +451,8 @@
               "description": "Case-insensitive text matched against case title, description, and id.",
               "maxLength": 200,
               "minLength": 1,
-              "pattern": "\\S"
+              "pattern": "\\S",
+              "title": "CaseSearchFilter"
             }
           },
           {
@@ -484,8 +492,10 @@
                 "description": "Current lifecycle status of a case.",
                 "title": "CaseStatus"
               },
-              "maxItems": 5,
+              "description": "Unique case statuses included in the result.",
+              "maxItems": 6,
               "minItems": 1,
+              "title": "CaseStatusFilter",
               "uniqueItems": true
             },
             "style": "form"
@@ -821,7 +831,10 @@
             "name": "cursor",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Opaque cursor returned by a previous case-list request.",
+              "minLength": 1,
+              "title": "CaseCursor"
             }
           },
           {
@@ -830,8 +843,10 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "Maximum number of cases returned in one page.",
               "maximum": 100,
-              "minimum": 1
+              "minimum": 1,
+              "title": "CaseListLimit"
             }
           }
         ],

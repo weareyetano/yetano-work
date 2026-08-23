@@ -18,6 +18,5 @@ These instructions extend the repository root `AGENTS.md` for `apps/web`.
 - Use semantic theme tokens instead of literal feature colors. Do not introduce a form library until
   the repository records that separate decision.
 - Cover logic with Vitest/Testing Library and user-visible critical paths with Playwright.
-
-Run the UI profile from `.agents/skills/yetano-verify/SKILL.md` before declaring a user-visible
-change complete.
+- For user-visible web changes, run `pnpm check`, `pnpm build`, and the relevant
+  `pnpm test:e2e` path before declaring the change complete.

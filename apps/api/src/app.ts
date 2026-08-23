@@ -2,7 +2,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { RequestContext } from '@mikro-orm/core'
 import { Scalar } from '@scalar/hono-api-reference'
 import { asValue } from 'awilix'
-import { Hono } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { compress } from 'hono/compress'
 import { requestId } from 'hono/request-id'
@@ -12,7 +12,8 @@ import { openAPIRouteHandler } from 'hono-openapi'
 import type { AppContainer } from './container.js'
 import { createRequestScope } from './container.js'
 import type { AppEnvironment } from './http-types.js'
-import { applicationModules } from './modules/index.js'
+import type { ModuleCatalog } from './modules/catalog.js'
+import { applicationModuleCatalog } from './modules/index.js'
 import {
   AuthenticationRequiredError,
   AuthorizationDeniedError,
@@ -21,9 +22,13 @@ import { problem } from './problem.js'
 
 interface CreateAppOptions {
   container?: AppContainer
+  moduleCatalog?: ModuleCatalog
 }
 
-export function createApp({ container }: CreateAppOptions = {}) {
+export function createApp({
+  container,
+  moduleCatalog = applicationModuleCatalog,
+}: CreateAppOptions = {}) {
   const app = new Hono<AppEnvironment>()
 
   app.use('*', requestId())
@@ -72,27 +77,12 @@ export function createApp({ container }: CreateAppOptions = {}) {
     return RequestContext.create(entityManager, next)
   })
 
-  app.use('/api/v1/cases/*', async (context, next) => {
-    try {
-      const executionContext = await context
-        .get('scope')
-        .resolve('executionContextFactory')
-        .create(context.req.raw, context.get('requestId'))
-      context.set('executionContext', executionContext)
-      await next()
-    } catch (error) {
-      if (error instanceof AuthenticationRequiredError) {
-        return problem(context, 401, 'Unauthorized', error.message)
-      }
-      if (error instanceof AuthorizationDeniedError) {
-        return problem(context, 403, 'Forbidden', error.message)
-      }
-      throw error
-    }
-  })
-
   const apiRoutes = new Hono<AppEnvironment>()
-  for (const module of applicationModules) apiRoutes.route('/api/v1', module.routes())
+  for (const module of moduleCatalog.modules) {
+    const path = `/api/v1${module.http.path}`
+    if (module.http.access === 'protected') apiRoutes.use(`${path}/*`, protectModule())
+    apiRoutes.route(path, module.routes())
+  }
   app.route('/', apiRoutes)
 
   if (container?.resolve('config').nodeEnv !== 'production') {
@@ -131,6 +121,12 @@ export function createApp({ container }: CreateAppOptions = {}) {
   }
 
   app.onError((error, context) => {
+    if (error instanceof AuthenticationRequiredError) {
+      return problem(context, 401, 'Unauthorized', error.message)
+    }
+    if (error instanceof AuthorizationDeniedError) {
+      return problem(context, 403, 'Forbidden', error.message)
+    }
     container?.resolve('logger').error('Unhandled request error', {
       error: error instanceof Error ? error.message : String(error),
       requestId: context.get('requestId'),
@@ -141,4 +137,15 @@ export function createApp({ container }: CreateAppOptions = {}) {
   app.notFound((context) => problem(context, 404, 'Not Found', 'Resource not found.'))
 
   return app
+}
+
+function protectModule(): MiddlewareHandler<AppEnvironment> {
+  return async (context, next) => {
+    const executionContext = await context
+      .get('scope')
+      .resolve('executionContextFactory')
+      .create(context.req.raw, context.get('requestId'))
+    context.set('executionContext', executionContext)
+    await next()
+  }
 }

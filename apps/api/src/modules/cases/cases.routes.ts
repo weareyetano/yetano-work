@@ -1,22 +1,26 @@
 import {
+  CaseCursorSchema,
   type CaseId,
   CaseIdSchema,
+  CaseListLimitSchema,
   CaseListSchema,
   type CasePathParameters,
   CasePathParametersSchema,
   CaseSchema,
+  CaseSearchFilterSchema,
   CaseStatusChangeSchema,
+  CaseStatusFilterSchema,
   CaseStatusGroupSchema,
   type CaseStatusHistoryQuery,
   CaseStatusHistoryQuerySchema,
   CaseStatusHistorySchema,
-  CaseStatusSchema,
   CaseTransitionIdConflictSchema,
   CaseVersionConflictSchema,
   type ChangeCaseStatusRequest,
   ChangeCaseStatusRequestSchema,
   type CreateCaseRequest,
   CreateCaseRequestSchema,
+  CustomerIdSchema,
   type ListCasesQuery,
   ListCasesQuerySchema,
   ProblemDetailsSchema,
@@ -32,6 +36,7 @@ import type { AppEnvironment } from '../../http-types.js'
 import { problem } from '../../problem.js'
 import {
   CaseNotFoundError,
+  type CasesService,
   CaseTransitionIdConflictError,
   CaseValidationError,
   CaseVersionConflictError,
@@ -55,7 +60,7 @@ export function createCasesRoutes() {
   const routes = new Hono<AppEnvironment>()
 
   routes.post(
-    '/cases',
+    '',
     describeRoute({
       description: 'Creates a new case in the server-resolved organization.',
       operationId: 'createCase',
@@ -73,10 +78,10 @@ export function createCasesRoutes() {
       const request = await readJson(context, createCaseValidator)
       if (!request) return invalidRequest(context)
       return runCaseAction(context, async () => {
-        const value = await context
-          .get('scope')
-          .resolve('casesService')
-          .create(request as CreateCaseRequest, context.get('executionContext'))
+        const value = await resolveCasesService(context).create(
+          request as CreateCaseRequest,
+          context.get('executionContext'),
+        )
         context.header('Location', `/api/v1/cases/${value.id}`)
         return context.json(value, 201)
       })
@@ -84,29 +89,21 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases',
+    '',
     describeRoute({
       description: 'Lists cases in the server-resolved organization.',
       operationId: 'listCases',
       parameters: [
-        queryParameter('cursor', Type.String()),
-        queryParameter('customerId', Type.String({ format: 'uuid' })),
-        queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
-        queryParameter(
-          'search',
-          Type.String({
-            description: 'Case-insensitive text matched against case title, description, and id.',
-            maxLength: 200,
-            minLength: 1,
-            pattern: '\\S',
-          }),
-        ),
+        queryParameter('cursor', CaseCursorSchema),
+        queryParameter('customerId', CustomerIdSchema),
+        queryParameter('limit', CaseListLimitSchema),
+        queryParameter('search', CaseSearchFilterSchema),
         {
           explode: true,
           in: 'query' as const,
           name: 'status',
           required: false,
-          schema: Type.Array(CaseStatusSchema, { maxItems: 5, minItems: 1, uniqueItems: true }),
+          schema: CaseStatusFilterSchema,
           style: 'form' as const,
         },
         queryParameter('statusGroup', CaseStatusGroupSchema),
@@ -122,10 +119,10 @@ export function createCasesRoutes() {
       if (!query || !listCasesValidator.Check(query)) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .list(query as ListCasesQuery, context.get('executionContext')),
+          await resolveCasesService(context).list(
+            query as ListCasesQuery,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -133,14 +130,14 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId/status-history',
+    '/:caseId/status-history',
     describeRoute({
       description: 'Lists immutable status history for one organization-scoped case.',
       operationId: 'listCaseStatusHistory',
       parameters: [
         pathParameter('caseId'),
-        queryParameter('cursor', Type.String()),
-        queryParameter('limit', Type.Integer({ maximum: 100, minimum: 1 })),
+        queryParameter('cursor', CaseCursorSchema),
+        queryParameter('limit', CaseListLimitSchema),
       ],
       responses: {
         ...errorResponses,
@@ -155,10 +152,11 @@ export function createCasesRoutes() {
       if (!caseId || !query || !statusHistoryValidator.Check(query)) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .history(caseId, query as CaseStatusHistoryQuery, context.get('executionContext')),
+          await resolveCasesService(context).history(
+            caseId,
+            query as CaseStatusHistoryQuery,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -166,7 +164,7 @@ export function createCasesRoutes() {
   )
 
   routes.get(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Gets one organization-scoped case.',
       operationId: 'getCase',
@@ -183,10 +181,7 @@ export function createCasesRoutes() {
       if (!caseId) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .get(caseId, context.get('executionContext')),
+          await resolveCasesService(context).get(caseId, context.get('executionContext')),
           200,
         ),
       )
@@ -194,7 +189,7 @@ export function createCasesRoutes() {
   )
 
   routes.patch(
-    '/cases/:caseId',
+    '/:caseId',
     describeRoute({
       description: 'Updates editable case fields using optimistic concurrency.',
       operationId: 'updateCase',
@@ -212,10 +207,11 @@ export function createCasesRoutes() {
       if (!caseId || !request) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .update(caseId, request as UpdateCaseRequest, context.get('executionContext')),
+          await resolveCasesService(context).update(
+            caseId,
+            request as UpdateCaseRequest,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -223,7 +219,7 @@ export function createCasesRoutes() {
   )
 
   routes.post(
-    '/cases/:caseId/transition',
+    '/:caseId/transition',
     describeRoute({
       description: 'Transitions a case status idempotently using a client-generated command id.',
       operationId: 'transitionCase',
@@ -241,14 +237,11 @@ export function createCasesRoutes() {
       if (!caseId || !request) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .transition(
-              caseId,
-              request as ChangeCaseStatusRequest,
-              context.get('executionContext'),
-            ),
+          await resolveCasesService(context).transition(
+            caseId,
+            request as ChangeCaseStatusRequest,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -256,6 +249,10 @@ export function createCasesRoutes() {
   )
 
   return routes
+}
+
+function resolveCasesService(context: Context<AppEnvironment>) {
+  return context.get('scope').resolve('casesService') as CasesService
 }
 
 async function runCaseAction<ResponseType extends Response>(
@@ -338,8 +335,7 @@ function parseListQuery(context: {
     ...(context.req.query('customerId') ? { customerId: context.req.query('customerId') } : {}),
     ...(limitValue ? { limit: Number(limitValue) } : {}),
     ...(searchValue !== undefined ? { search: searchValue } : {}),
-    ...(statuses?.length === 1 ? { status: statuses[0] } : {}),
-    ...(statuses && statuses.length > 1 ? { status: statuses } : {}),
+    ...(statuses ? { status: statuses } : {}),
     ...(context.req.query('statusGroup') ? { statusGroup: context.req.query('statusGroup') } : {}),
   }
 }

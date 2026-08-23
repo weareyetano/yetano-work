@@ -1,8 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql'
+import Type from 'typebox'
 import { describe, expect, it, vi } from 'vitest'
 
 import { applicationModuleCatalog } from '../../modules/index.js'
-import type { EventDefinition } from '../../modules/module.js'
+import { defineEvent } from '../../modules/module.js'
 import type { OutboxWriter } from '../events/outbox.js'
 import type { ExecutionContext } from './context.js'
 import { AuthorizationDeniedError } from './errors.js'
@@ -44,12 +45,17 @@ describe('operation executor', () => {
       moduleCatalog: applicationModuleCatalog,
       outboxWriter: { append },
     })
-    const eventDefinition: EventDefinition = {
+    const eventDefinition = defineEvent({
       description: 'Test event.',
       id: 'test.event',
-      payloadSchema: {} as EventDefinition['payloadSchema'],
       schemaVersion: 1,
-    }
+      versions: [
+        {
+          payloadSchema: Type.Object({ input: Type.String() }),
+          schemaVersion: 1,
+        },
+      ],
+    })
 
     const result = await executor.execute(
       command,

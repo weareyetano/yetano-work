@@ -1,107 +1,262 @@
 import { randomUUID } from 'node:crypto'
 
 import { MikroORM } from '@mikro-orm/postgresql'
+import { createContainer } from 'awilix'
 import { Hono } from 'hono'
 import Type from 'typebox'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AppContainer, Cradle } from '../../container.js'
 import { createOrmOptions } from '../../database.js'
 import type { AppEnvironment } from '../../http-types.js'
 import type { Logger } from '../../logger.js'
 import { createModuleCatalog } from '../../modules/catalog.js'
-import { defineEvent, defineModule, type PublishedEventEnvelope } from '../../modules/module.js'
+import {
+  defineEvent,
+  defineModule,
+  defineSubscription,
+  type EventSubscriptionContext,
+  type PublishedEvent,
+} from '../../modules/module.js'
 import { createOutboxDispatcher } from './dispatcher.js'
 import { OutboxEventEntity } from './outbox.entity.js'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip
+const TestPayloadSchema = Type.Object({ value: Type.String() }, { additionalProperties: false })
 const testEvent = defineEvent({
   description: 'Event used to verify outbox delivery.',
   id: 'test.deliver',
-  payloadSchema: Type.Object({ value: Type.String() }, { additionalProperties: false }),
   schemaVersion: 1,
+  versions: [{ payloadSchema: TestPayloadSchema, schemaVersion: 1 }],
 })
 
+type TestEvent = PublishedEvent<typeof testEvent, readonly [1]>
+type TestHandler = (event: TestEvent, context: EventSubscriptionContext) => Promise<void>
+
 describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
-  let orm: Awaited<ReturnType<typeof MikroORM.init>>
+  let orm: MikroORM
+  let rootContainer: AppContainer
 
   beforeAll(async () => {
     orm = await MikroORM.init(createOrmOptions({ databaseUrl: databaseUrl as string }))
     await orm.migrator.up()
+    rootContainer = createContainer<Cradle>({ strict: true })
   })
 
   beforeEach(async () => {
-    await orm.em.getConnection().execute('truncate table platform_outbox_events')
+    await orm.em
+      .getConnection()
+      .execute('truncate table platform_event_inbox, platform_outbox_events')
   })
 
   afterAll(async () => {
+    await rootContainer?.dispose()
     await orm?.close(true)
   })
 
-  it('delivers a complete envelope and removes the claimed row', async () => {
-    const delivered: PublishedEventEnvelope[] = []
-    const eventId = await seedEvent(orm)
-    const dispatcher = createOutboxDispatcher({
-      logger,
-      moduleCatalog: catalogWithHandler(async (event) => {
-        delivered.push(event)
-      }),
-      orm,
-    })
-
-    await dispatcher.dispatchOnce()
-
-    expect(delivered).toEqual([
-      {
-        actorId: 'test-user',
-        actorType: 'user',
-        aggregateId: 'case-id',
-        aggregateVersion: 3,
-        correlationId: 'correlation-id',
-        eventId,
-        organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-        payload: { value: 'payload' },
-        schemaVersion: 1,
-        type: testEvent.id,
+  it('validates and delivers a typed event with a scoped execution context', async () => {
+    const delivered: Array<{ context: EventSubscriptionContext; event: TestEvent }> = []
+    let handledAt: Date | undefined
+    let processedAtDuringHandling: Date | string | null | undefined
+    const seeded = await seedEvent(orm)
+    const dispatcher = dispatcherWithHandlers([
+      async (event, context) => {
+        delivered.push({ context, event })
+        const [clock] = await context.entityManager.execute<
+          Array<{ handled_at: Date | string; processed_at: Date | string | null }>
+        >(
+          `select processed_at, clock_timestamp() as handled_at
+           from platform_event_inbox
+           where event_id = ?`,
+          [context.eventId],
+        )
+        handledAt = clock ? new Date(clock.handled_at) : undefined
+        processedAtDuringHandling = clock?.processed_at
       },
     ])
-    await expect(outboxRows(orm)).resolves.toEqual([])
-  })
-
-  it('records a retry and releases the lease after subscriber failure', async () => {
-    const eventId = await seedEvent(orm)
-    const dispatcher = createOutboxDispatcher({
-      logger,
-      moduleCatalog: catalogWithHandler(async () => {
-        throw new Error('subscriber failed')
-      }),
-      orm,
-    })
 
     await dispatcher.dispatchOnce()
 
+    expect(delivered).toHaveLength(1)
+    expect(delivered[0]?.event).toEqual({
+      aggregateId: 'case-id',
+      aggregateVersion: 3,
+      payload: { value: 'payload' },
+      schemaVersion: 1,
+      type: testEvent.id,
+    })
+    expect(delivered[0]?.context).toMatchObject({
+      actor: { id: 'test-user', type: 'user' },
+      correlationId: 'correlation-id',
+      eventId: seeded.id,
+      occurredAt: seeded.occurredAt,
+      organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
+    })
+    expect(delivered[0]?.context.entityManager).toBeDefined()
+    expect(delivered[0]?.context.logger).toBe(logger)
+    await expect(outboxRows(orm)).resolves.toEqual([])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      {
+        event_id: seeded.id,
+        subscription_id: 'consumer-0:test.deliver',
+      },
+    ])
+    const [marker] = await orm.em
+      .getConnection()
+      .execute<Array<{ processed_at: Date | string }>>(
+        'select processed_at from platform_event_inbox where event_id = ?',
+        [seeded.id],
+      )
+    expect(handledAt).toBeDefined()
+    expect(processedAtDuringHandling).toBeNull()
+    expect(marker?.processed_at).not.toBeNull()
+    expect(new Date(marker?.processed_at ?? 0).valueOf()).toBeGreaterThanOrEqual(
+      handledAt?.valueOf() ?? Number.POSITIVE_INFINITY,
+    )
+  })
+
+  it('rejects an invalid payload before invoking the subscriber', async () => {
+    const handle = vi.fn<TestHandler>()
+    const event = await seedEvent(orm, { payload: { unexpected: true } })
+    const dispatcher = dispatcherWithHandlers([handle])
+
+    await dispatcher.dispatchOnce()
+
+    expect(handle).not.toHaveBeenCalled()
+    await expect(inboxRows(orm)).resolves.toEqual([])
     await expect(outboxRows(orm)).resolves.toEqual([
       expect.objectContaining({
         attempts: 1,
-        failed: false,
-        id: eventId,
-        last_error: 'subscriber failed',
-        locked_by: null,
-        locked_until: null,
-        retry_scheduled: true,
+        id: event.id,
+        last_error: expect.stringContaining('Invalid test.deliver v1 payload'),
       }),
     ])
   })
 
-  it('marks the event as failed after the tenth delivery attempt', async () => {
-    const eventId = await seedEvent(orm, 9)
-    const dispatcher = createOutboxDispatcher({
-      logger,
-      moduleCatalog: catalogWithHandler(async () => {
-        throw new Error('terminal failure')
+  it('rejects a schema version not declared by the subscriber', async () => {
+    const handle = vi.fn<TestHandler>()
+    const event = await seedEvent(orm, { schemaVersion: 2 })
+    const dispatcher = dispatcherWithHandlers([handle])
+
+    await dispatcher.dispatchOnce()
+
+    expect(handle).not.toHaveBeenCalled()
+    await expect(outboxRows(orm)).resolves.toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        id: event.id,
+        last_error: expect.stringContaining(
+          'Subscription consumer-0:test.deliver does not support test.deliver schema version 2',
+        ),
       }),
-      orm,
+    ])
+  })
+
+  it('does not repeat a completed subscriber when a later subscriber is retried', async () => {
+    const first = vi.fn<TestHandler>(async () => {})
+    const second = vi
+      .fn<TestHandler>()
+      .mockRejectedValueOnce(new Error('later subscriber failed'))
+      .mockResolvedValueOnce()
+    const event = await seedEvent(orm)
+    const dispatcher = dispatcherWithHandlers([first, second])
+
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-0:test.deliver' },
+    ])
+
+    await makeReady(orm, event.id)
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(2)
+    await expect(outboxRows(orm)).resolves.toEqual([])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-0:test.deliver' },
+      { event_id: event.id, subscription_id: 'consumer-1:test.deliver' },
+    ])
+  })
+
+  it('continues to later subscribers when an earlier subscriber is retried', async () => {
+    const first = vi
+      .fn<TestHandler>()
+      .mockRejectedValueOnce(new Error('first subscriber failed'))
+      .mockResolvedValueOnce()
+    const second = vi.fn<TestHandler>(async () => {})
+    const event = await seedEvent(orm)
+    const dispatcher = dispatcherWithHandlers([first, second])
+
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+    await expect(outboxRows(orm)).resolves.toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        id: event.id,
+        last_error: expect.stringContaining(
+          'Subscription consumer-0:test.deliver failed: first subscriber failed',
+        ),
+      }),
+    ])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-1:test.deliver' },
+    ])
+
+    await makeReady(orm, event.id)
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(2)
+    expect(second).toHaveBeenCalledTimes(1)
+    await expect(outboxRows(orm)).resolves.toEqual([])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-0:test.deliver' },
+      { event_id: event.id, subscription_id: 'consumer-1:test.deliver' },
+    ])
+  })
+
+  it('delivers one aggregate strictly by aggregate version', async () => {
+    const deliveredVersions: number[] = []
+    const later = await seedEvent(orm, {
+      aggregateVersion: 2,
+      occurredAt: new Date('2026-08-23T10:00:00.000Z'),
     })
+    const earlier = await seedEvent(orm, {
+      aggregateVersion: 1,
+      occurredAt: new Date('2026-08-23T11:00:00.000Z'),
+    })
+    const dispatcher = dispatcherWithHandlers([
+      async (event) => {
+        deliveredVersions.push(event.aggregateVersion)
+      },
+    ])
+
+    await dispatcher.dispatchOnce()
+
+    expect(deliveredVersions).toEqual([1])
+    await expect(outboxRows(orm)).resolves.toEqual([expect.objectContaining({ id: later.id })])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: earlier.id, subscription_id: 'consumer-0:test.deliver' },
+    ])
+
+    await dispatcher.dispatchOnce()
+
+    expect(deliveredVersions).toEqual([1, 2])
+    await expect(outboxRows(orm)).resolves.toEqual([])
+  })
+
+  it('marks the event as failed after the tenth delivery attempt', async () => {
+    const event = await seedEvent(orm, { attempts: 9 })
+    const dispatcher = dispatcherWithHandlers([
+      async () => {
+        throw new Error('terminal failure')
+      },
+    ])
 
     await dispatcher.dispatchOnce()
 
@@ -109,45 +264,78 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
       expect.objectContaining({
         attempts: 10,
         failed: true,
-        id: eventId,
-        last_error: 'terminal failure',
+        id: event.id,
+        last_error: expect.stringContaining('terminal failure'),
         locked_by: null,
         locked_until: null,
       }),
     ])
   })
+
+  function dispatcherWithHandlers(handlers: readonly TestHandler[]) {
+    return createOutboxDispatcher({
+      logger,
+      moduleCatalog: catalogWithHandlers(handlers),
+      orm,
+      rootContainer,
+    })
+  }
 })
 
-function catalogWithHandler(handle: (event: PublishedEventEnvelope) => Promise<void>) {
+function catalogWithHandlers(handlers: readonly TestHandler[]) {
   return createModuleCatalog([
-    defineModule({
-      capabilities: [],
-      dependencies: [],
-      entities: [],
-      events: {
-        publishes: [testEvent],
-        subscribes: [{ eventId: testEvent.id, handle, id: 'test.deliver-handler' }],
-      },
-      extensions: { contributes: [], provides: [] },
-      id: 'test-events',
-      operations: [],
-      registrations: {},
-      routes: () => new Hono<AppEnvironment>(),
+    testModule('publisher', '/publisher', {
+      publishes: [testEvent],
+      subscribes: [],
     }),
+    ...handlers.map((handle, index) =>
+      testModule(`consumer-${index}`, `/consumer-${index}`, {
+        publishes: [],
+        subscribes: [defineSubscription({ event: testEvent, handle, supportedVersions: [1] })],
+      }),
+    ),
   ])
 }
 
-async function seedEvent(orm: Awaited<ReturnType<typeof MikroORM.init>>, attempts = 0) {
+function testModule(
+  id: string,
+  path: `/${string}`,
+  events: Parameters<typeof defineModule>[0]['events'],
+) {
+  return defineModule({
+    capabilities: [],
+    dependencies: id.startsWith('consumer-') ? ['publisher'] : [],
+    entities: [],
+    events,
+    extensions: { contributes: [], provides: [] },
+    http: { access: 'public', path },
+    id,
+    operations: [],
+    registrations: {},
+    routes: () => new Hono<AppEnvironment>(),
+  })
+}
+
+async function seedEvent(
+  orm: MikroORM,
+  overrides: {
+    aggregateVersion?: number
+    attempts?: number
+    occurredAt?: Date
+    payload?: Record<string, unknown>
+    schemaVersion?: number
+  } = {},
+) {
   const entityManager = orm.em.fork()
-  const occurredAt = new Date()
+  const occurredAt = overrides.occurredAt ?? new Date()
   const id = randomUUID()
   entityManager.persist(
     entityManager.create(OutboxEventEntity, {
       actorId: 'test-user',
       actorType: 'user',
       aggregateId: 'case-id',
-      aggregateVersion: 3,
-      attempts,
+      aggregateVersion: overrides.aggregateVersion ?? 3,
+      attempts: overrides.attempts ?? 0,
       correlationId: 'correlation-id',
       failedAt: null,
       id,
@@ -157,16 +345,35 @@ async function seedEvent(orm: Awaited<ReturnType<typeof MikroORM.init>>, attempt
       nextAttemptAt: occurredAt,
       occurredAt,
       organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-      payload: { value: 'payload' },
-      schemaVersion: 1,
+      payload: overrides.payload ?? { value: 'payload' },
+      schemaVersion: overrides.schemaVersion ?? 1,
       type: testEvent.id,
     }),
   )
   await entityManager.flush()
-  return id
+  return { id, occurredAt }
 }
 
-async function outboxRows(orm: Awaited<ReturnType<typeof MikroORM.init>>) {
+async function makeReady(orm: MikroORM, eventId: string) {
+  await orm.em
+    .getConnection()
+    .execute('update platform_outbox_events set next_attempt_at = now() where id = ?', [eventId])
+}
+
+async function inboxRows(orm: MikroORM) {
+  return orm.em.getConnection().execute<
+    Array<{
+      event_id: string
+      subscription_id: string
+    }>
+  >(
+    `select event_id, subscription_id
+     from platform_event_inbox
+     order by subscription_id, event_id`,
+  )
+}
+
+async function outboxRows(orm: MikroORM) {
   return orm.em.getConnection().execute<
     Array<{
       attempts: number

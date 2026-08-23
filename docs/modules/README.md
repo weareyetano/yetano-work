@@ -6,6 +6,7 @@ The catalog is derived from the compile-time module descriptors used by the API 
 
 ## health
 
+- HTTP: public at `/health`
 - Dependencies: None
 - Entities: None
 - Container registrations: `healthService`
@@ -20,9 +21,10 @@ The catalog is derived from the compile-time module descriptors used by the API 
 
 ## cases
 
+- HTTP: protected at `/cases`
 - Dependencies: None
 - Entities: `Case`, `CaseStatusChange`
-- Container registrations: `casesService`
+- Container registrations: `casesReadPort`, `casesService`
 - Published events: `case.created`, `case.updated`, `case.transitioned`
 - Event subscriptions: None
 - Extension points provided: None

@@ -24,7 +24,9 @@ describeWithDatabase('API with PostgreSQL', () => {
   beforeEach(async () => {
     await orm.em
       .getConnection()
-      .execute('truncate table case_status_changes, cases, platform_outbox_events restart identity')
+      .execute(
+        'truncate table case_status_changes, cases, platform_event_inbox, platform_outbox_events restart identity',
+      )
   })
 
   afterAll(async () => {
@@ -220,6 +222,28 @@ describeWithDatabase('API with PostgreSQL', () => {
       { count: 1, type: 'case.transitioned' },
       { count: 1, type: 'case.updated' },
     ])
+    const [transitionedEvent] = await orm.em
+      .getConnection()
+      .execute<
+        Array<{ occurred_at: string; payload: Record<string, unknown>; schema_version: number }>
+      >(
+        `select occurred_at::text as occurred_at, payload, schema_version
+         from platform_outbox_events
+         where type = 'case.transitioned'`,
+      )
+    expect(new Date(transitionedEvent?.occurred_at ?? '').toISOString()).toBe(stored.changedAt)
+    expect(transitionedEvent).toMatchObject({
+      payload: {
+        caseId: created.id,
+        caseVersion: stored.caseVersion,
+        fromStatus: stored.fromStatus,
+        note: stored.note,
+        statusChangeId: stored.id,
+        toStatus: stored.toStatus,
+        transitionId: stored.transitionId,
+      },
+      schema_version: 3,
+    })
   })
 
   it('keeps concurrent lifecycle transitions idempotent', async () => {
@@ -327,10 +351,15 @@ describeWithDatabase('API with PostgreSQL', () => {
     })
     const openResponse = await app.request('/api/v1/cases?statusGroup=open')
     const postponedListResponse = await app.request('/api/v1/cases?status=postponed')
+    const postponedOpenResponse = await app.request(
+      '/api/v1/cases?status=postponed&statusGroup=open',
+    )
     const open = (await openResponse.json()) as { items: Case[] }
     const postponedList = (await postponedListResponse.json()) as { items: Case[] }
+    const postponedOpen = (await postponedOpenResponse.json()) as { items: Case[] }
     expect(open.items.map((item) => item.id)).not.toContain(created.id)
     expect(postponedList.items.map((item) => item.id)).toEqual([created.id])
+    expect(postponedOpen.items).toEqual([])
 
     const restoreResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
       body: JSON.stringify({
@@ -376,7 +405,7 @@ describeWithDatabase('API with PostgreSQL', () => {
       `select schema_version from platform_outbox_events
          where type = 'case.transitioned' order by aggregate_version`,
     )
-    expect(eventVersions.map((event) => event.schema_version)).toEqual([2, 2, 2, 2])
+    expect(eventVersions.map((event) => event.schema_version)).toEqual([3, 3, 3, 3])
   })
 
   it('paginates case lists and applies status and customer filters', async () => {
