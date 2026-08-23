@@ -225,14 +225,14 @@ describeWithDatabase('API with PostgreSQL', () => {
     const [transitionedEvent] = await orm.em
       .getConnection()
       .execute<
-        Array<{ occurred_at: Date; payload: Record<string, unknown>; schema_version: number }>
+        Array<{ occurred_at: string; payload: Record<string, unknown>; schema_version: number }>
       >(
-        `select occurred_at, payload, schema_version
+        `select occurred_at::text as occurred_at, payload, schema_version
          from platform_outbox_events
          where type = 'case.transitioned'`,
       )
-    expect(transitionedEvent).toEqual({
-      occurred_at: new Date(stored.changedAt),
+    expect(new Date(transitionedEvent?.occurred_at ?? '').toISOString()).toBe(stored.changedAt)
+    expect(transitionedEvent).toMatchObject({
       payload: {
         caseId: created.id,
         caseVersion: stored.caseVersion,

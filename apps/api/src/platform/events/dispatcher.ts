@@ -22,7 +22,7 @@ interface ClaimedEventRow {
   aggregate_version: number
   correlation_id: string
   id: string
-  occurred_at: Date
+  occurred_at: Date | string
   organization_id: string
   payload: Record<string, unknown>
   schema_version: number
@@ -192,7 +192,7 @@ async function deliverToSubscription(
 
   const entityManager = orm.em.fork()
   await entityManager.transactional(async (transaction) => {
-    const inserted = await transaction.getConnection().execute<Array<{ id: string }>>(
+    const inserted = await transaction.execute<Array<{ id: string }>>(
       `insert into platform_event_inbox (
          id, aggregate_id, aggregate_version, event_id, event_type, organization_id, processed_at,
          schema_version, subscription_id
@@ -238,13 +238,19 @@ async function deliverToSubscription(
         entityManager: scope.resolve('entityManager'),
         eventId: row.id,
         logger: scope.resolve('logger'),
-        occurredAt: row.occurred_at,
+        occurredAt: parseOccurredAt(row.occurred_at),
         organizationId: row.organization_id as OrganizationId,
       })
     } finally {
       await scope.dispose()
     }
   })
+}
+
+function parseOccurredAt(value: Date | string) {
+  const occurredAt = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(occurredAt.valueOf())) throw new Error(`Invalid event occurrence time: ${value}`)
+  return occurredAt
 }
 
 async function recordFailure(
