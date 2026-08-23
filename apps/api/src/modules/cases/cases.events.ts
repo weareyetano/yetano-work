@@ -59,7 +59,6 @@ const CaseTransitionedPayloadV3Schema = Type.Object(
     caseVersion: Type.Integer({ minimum: 1 }),
     fromStatus: CaseStatusSchema,
     note: Type.Union([Type.String({ maxLength: 2_000, minLength: 1 }), Type.Null()]),
-    occurredAt: Type.String({ format: 'date-time' }),
     statusChangeId: Type.String({ format: 'uuid' }),
     toStatus: CaseStatusSchema,
     transitionId: Type.String({ format: 'uuid' }),

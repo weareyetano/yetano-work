@@ -57,10 +57,22 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
 
   it('validates and delivers a typed event with a scoped execution context', async () => {
     const delivered: Array<{ context: EventSubscriptionContext; event: TestEvent }> = []
+    let handledAt: Date | undefined
+    let processedAtDuringHandling: Date | string | null | undefined
     const seeded = await seedEvent(orm)
     const dispatcher = dispatcherWithHandlers([
       async (event, context) => {
         delivered.push({ context, event })
+        const [clock] = await context.entityManager.execute<
+          Array<{ handled_at: Date | string; processed_at: Date | string | null }>
+        >(
+          `select processed_at, clock_timestamp() as handled_at
+           from platform_event_inbox
+           where event_id = ?`,
+          [context.eventId],
+        )
+        handledAt = clock ? new Date(clock.handled_at) : undefined
+        processedAtDuringHandling = clock?.processed_at
       },
     ])
 
@@ -90,6 +102,18 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
         subscription_id: 'consumer-0:test.deliver',
       },
     ])
+    const [marker] = await orm.em
+      .getConnection()
+      .execute<Array<{ processed_at: Date | string }>>(
+        'select processed_at from platform_event_inbox where event_id = ?',
+        [seeded.id],
+      )
+    expect(handledAt).toBeDefined()
+    expect(processedAtDuringHandling).toBeNull()
+    expect(marker?.processed_at).not.toBeNull()
+    expect(new Date(marker?.processed_at ?? 0).valueOf()).toBeGreaterThanOrEqual(
+      handledAt?.valueOf() ?? Number.POSITIVE_INFINITY,
+    )
   })
 
   it('rejects an invalid payload before invoking the subscriber', async () => {

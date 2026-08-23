@@ -238,7 +238,6 @@ describeWithDatabase('API with PostgreSQL', () => {
         caseVersion: stored.caseVersion,
         fromStatus: stored.fromStatus,
         note: stored.note,
-        occurredAt: stored.changedAt,
         statusChangeId: stored.id,
         toStatus: stored.toStatus,
         transitionId: stored.transitionId,

@@ -140,9 +140,10 @@ requires close, and terminal-to-working movement requires reopen. Mutating capab
 as an inherited requirement. It publishes versioned `case.created`, `case.updated`, and
 `case.transitioned` events through the transactional outbox. The current `case.transitioned`
 contract is version 3 and includes the immutable status-change and transition identifiers, case
-version, source and target statuses, normalized note, and occurrence time. This is sufficient for
-another module to project a case timeline without reading Cases persistence. Named event contracts
-and the organization-scoped `CasesReadPort` are exported from the Cases module entrypoint; the broad
+version, source and target statuses, and normalized note. The canonical occurrence time comes from
+the event envelope exposed to subscribers as `context.occurredAt`. This is sufficient for another
+module to project a case timeline without reading Cases persistence. Named event contracts and the
+organization-scoped `CasesReadPort` are exported from the Cases module entrypoint; the broad
 application service is private.
 
 ## Edge cases and failure behavior

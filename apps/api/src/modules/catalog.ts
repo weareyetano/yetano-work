@@ -7,6 +7,7 @@ import {
 
 export interface ModuleCatalog {
   capabilities: ReadonlyMap<string, CapabilityDefinition>
+  events: ReadonlyMap<string, EventDefinition>
   modules: readonly ModuleDefinition[]
   requiredCapabilities(capabilityId: string): readonly string[]
 }
@@ -114,6 +115,9 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
 
   return {
     capabilities,
+    events: new Map(
+      [...events].map(([eventId, registration]) => [eventId, registration.definition]),
+    ),
     modules,
     requiredCapabilities(capabilityId) {
       const resolved = new Set<string>()

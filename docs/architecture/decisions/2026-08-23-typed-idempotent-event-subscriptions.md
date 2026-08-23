@@ -26,20 +26,25 @@ module catalog rejects unknown contracts, missing or duplicate versions, omissio
 version, undeclared publisher dependencies, and duplicate subscriptions. A stable subscription
 identity is derived as `<moduleId>:<eventId>`.
 
-Before calling a handler, the dispatcher selects the declared schema version and validates the
-payload at runtime. It creates a child dependency-injection scope for the delivery and supplies a
-controlled context containing the transaction-scoped `EntityManager`, child logger, organization,
-actor, correlation identifier, event identifier, and occurrence time.
+The catalog exposes its event registry to infrastructure. Before persisting an event, the outbox
+writer requires the exact registered contract object and validates the payload against its current
+schema. An invalid producer event aborts the originating command transaction instead of entering
+the outbox. Before calling a handler, the dispatcher selects the declared schema version and
+validates the payload again to protect against malformed persisted data. It creates a child
+dependency-injection scope for the delivery and supplies a controlled context containing the
+transaction-scoped `EntityManager`, child logger, organization, actor, correlation identifier,
+event identifier, and occurrence time. Envelope `occurredAt` is the canonical occurrence time and
+is not duplicated in event payloads.
 
-Each subscription runs in its own database transaction. That transaction first inserts
-`(subscriptionId, eventId)` into `platform_event_inbox`; a conflict means the subscription already
-completed and is skipped. The handler and inbox marker commit or roll back together. The outbox row
-is deleted only after every declared subscription has a durable marker. A failed subscription does
-not short-circuit the remaining subscriptions in the same delivery attempt. The dispatcher tries
-every subscription without a durable marker, collects their failures, and retains the outbox row
-when any remain. On retry, only subscriptions without inbox markers run again. Inbox records have
-no automatic cleanup until a retention policy preserves deduplication across the complete
-redelivery horizon.
+Each subscription runs in its own database transaction. That transaction first reserves
+`(subscriptionId, eventId)` in `platform_event_inbox`; a conflict means the subscription already
+completed and is skipped. After the handler finishes, the dispatcher stamps `processedAt`, then the
+handler effects and inbox marker commit or roll back together. The outbox row is deleted only after
+every declared subscription has a durable marker. A failed subscription does not short-circuit the
+remaining subscriptions in the same delivery attempt. The dispatcher tries every subscription
+without a durable marker, collects their failures, and retains the outbox row when any remain. On
+retry, only subscriptions without inbox markers run again. Inbox records have no automatic cleanup
+until a retention policy preserves deduplication across the complete redelivery horizon.
 
 Delivery is ordered strictly within `(organizationId, aggregateId)` by `aggregateVersion`, then
 `occurredAt` and `eventId`. Only the earliest retained event for an aggregate may be claimed. A
@@ -49,8 +54,8 @@ resolve the earlier row; the dispatcher does not silently build a projection wit
 Named event contracts and purpose-specific collaboration ports are exported from module
 entrypoints. Broad application services remain private. The Cases read port initially exposes only
 an organization-scoped lookup, while `case.transitioned` version 3 carries the status-history
-identifier, normalized note, and occurrence time needed to build a timeline projection without
-reading Cases persistence.
+identifier and normalized note needed to build a timeline projection without reading Cases
+persistence; its occurrence time comes from the canonical event envelope.
 
 ## Rationale
 

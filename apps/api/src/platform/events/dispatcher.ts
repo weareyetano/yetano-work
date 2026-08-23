@@ -210,7 +210,7 @@ async function deliverToSubscription(
       `insert into platform_event_inbox (
          id, aggregate_id, aggregate_version, event_id, event_type, organization_id, processed_at,
          schema_version, subscription_id
-       ) values (?, ?, ?, ?, ?, ?, now(), ?, ?)
+       ) values (?, ?, ?, ?, ?, ?, null, ?, ?)
        on conflict (subscription_id, event_id) do nothing
        returning id`,
       [
@@ -224,7 +224,8 @@ async function deliverToSubscription(
         registered.id,
       ],
     )
-    if (inserted.length === 0) return
+    const inboxMarker = inserted[0]
+    if (!inboxMarker) return
 
     const eventLogger = logger.child({
       correlationId: row.correlation_id,
@@ -258,6 +259,10 @@ async function deliverToSubscription(
     } finally {
       await scope.dispose()
     }
+    await transaction.execute(
+      'update platform_event_inbox set processed_at = clock_timestamp() where id = ?',
+      [inboxMarker.id],
+    )
   })
 }
 

@@ -12,6 +12,7 @@ describe('module catalog', () => {
       ['/health', 'public'],
       ['/cases', 'protected'],
     ])
+    expect(applicationModuleCatalog.events.get('case.transitioned')).toBe(caseTransitionedEvent)
     expect(applicationModuleCatalog.requiredCapabilities('cases.close')).toEqual([
       'cases.close',
       'cases.read',

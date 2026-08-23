@@ -276,7 +276,6 @@ export function createCasesService({
                 caseVersion: record.version,
                 fromStatus: input.request.fromStatus,
                 note: change.note ?? null,
-                occurredAt: change.changedAt.toISOString(),
                 statusChangeId: change.id,
                 toStatus: input.request.toStatus,
                 transitionId: input.request.transitionId,
