@@ -39,7 +39,6 @@ export interface Cradle {
   orm: MikroORM
   outboxDispatcher: OutboxDispatcher
   outboxWriter: OutboxWriter
-  rootContainer: AppContainer
 }
 
 export type AppContainer = AwilixContainer<Cradle>
@@ -81,9 +80,11 @@ export function createRootContainer({
       organizationResolver ?? createSingleOrganizationResolver({ config }),
     ),
     orm: asValue(orm),
-    outboxDispatcher: asFunction(createOutboxDispatcher).singleton(),
+    outboxDispatcher: asFunction(
+      ({ logger, moduleCatalog, orm }: Pick<Cradle, 'logger' | 'moduleCatalog' | 'orm'>) =>
+        createOutboxDispatcher({ logger, moduleCatalog, orm, rootContainer: container }),
+    ).singleton(),
     outboxWriter: asFunction(createOutboxWriter).singleton(),
-    rootContainer: asValue(container),
   })
 
   for (const module of applicationModules) container.register(module.registrations)

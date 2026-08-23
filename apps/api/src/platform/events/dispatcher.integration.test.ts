@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import { MikroORM } from '@mikro-orm/postgresql'
-import { createContainer } from 'awilix'
+import { type EntityManager, MikroORM } from '@mikro-orm/postgresql'
+import { asFunction, createContainer } from 'awilix'
 import { Hono } from 'hono'
 import Type from 'typebox'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,7 +32,11 @@ const testEvent = defineEvent({
 })
 
 type TestEvent = PublishedEvent<typeof testEvent, readonly [1]>
-type TestHandler = (event: TestEvent, context: EventSubscriptionContext) => Promise<void>
+type TestHandler = (
+  event: TestEvent,
+  context: EventSubscriptionContext,
+  dependencies: { entityManager: EntityManager; logger: Logger },
+) => Promise<void>
 
 describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
   let orm: MikroORM
@@ -57,13 +61,15 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
 
   it('validates and delivers a typed event with a scoped execution context', async () => {
     const delivered: Array<{ context: EventSubscriptionContext; event: TestEvent }> = []
+    let injectedLogger: Logger | undefined
     let handledAt: Date | undefined
     let processedAtDuringHandling: Date | string | null | undefined
     const seeded = await seedEvent(orm)
     const dispatcher = dispatcherWithHandlers([
-      async (event, context) => {
+      async (event, context, { entityManager, logger: scopedLogger }) => {
         delivered.push({ context, event })
-        const [clock] = await context.entityManager.execute<
+        injectedLogger = scopedLogger
+        const [clock] = await entityManager.execute<
           Array<{ handled_at: Date | string; processed_at: Date | string | null }>
         >(
           `select processed_at, clock_timestamp() as handled_at
@@ -93,8 +99,9 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
       occurredAt: seeded.occurredAt,
       organizationId: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
     })
-    expect(delivered[0]?.context.entityManager).toBeDefined()
-    expect(delivered[0]?.context.logger).toBe(logger)
+    expect(delivered[0]?.context).not.toHaveProperty('entityManager')
+    expect(delivered[0]?.context).not.toHaveProperty('logger')
+    expect(injectedLogger).toBe(logger)
     await expect(outboxRows(orm)).resolves.toEqual([])
     await expect(inboxRows(orm)).resolves.toEqual([
       {
@@ -273,9 +280,11 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
   })
 
   function dispatcherWithHandlers(handlers: readonly TestHandler[]) {
+    const moduleCatalog = catalogWithHandlers(handlers)
+    for (const module of moduleCatalog.modules) rootContainer.register(module.registrations)
     return createOutboxDispatcher({
       logger,
-      moduleCatalog: catalogWithHandlers(handlers),
+      moduleCatalog,
       orm,
       rootContainer,
     })
@@ -288,12 +297,30 @@ function catalogWithHandlers(handlers: readonly TestHandler[]) {
       publishes: [testEvent],
       subscribes: [],
     }),
-    ...handlers.map((handle, index) =>
-      testModule(`consumer-${index}`, `/consumer-${index}`, {
-        publishes: [],
-        subscribes: [defineSubscription({ event: testEvent, handle, supportedVersions: [1] })],
-      }),
-    ),
+    ...handlers.map((handle, index) => {
+      const handlerRegistration = `testDeliveryHandler${index}`
+      return testModule(
+        `consumer-${index}`,
+        `/consumer-${index}`,
+        {
+          publishes: [],
+          subscribes: [
+            defineSubscription({ event: testEvent, handlerRegistration, supportedVersions: [1] }),
+          ],
+        },
+        {
+          [handlerRegistration]: asFunction(
+            ({
+              entityManager,
+              logger: scopedLogger,
+            }: Pick<Cradle, 'entityManager' | 'logger'>) => ({
+              handle: (event: TestEvent, context: EventSubscriptionContext) =>
+                handle(event, context, { entityManager, logger: scopedLogger }),
+            }),
+          ).scoped(),
+        },
+      )
+    }),
   ])
 }
 
@@ -301,6 +328,7 @@ function testModule(
   id: string,
   path: `/${string}`,
   events: Parameters<typeof defineModule>[0]['events'],
+  registrations: Parameters<typeof defineModule>[0]['registrations'] = {},
 ) {
   return defineModule({
     capabilities: [],
@@ -311,7 +339,7 @@ function testModule(
     http: { access: 'public', path },
     id,
     operations: [],
-    registrations: {},
+    registrations,
     routes: () => new Hono<AppEnvironment>(),
   })
 }

@@ -30,11 +30,14 @@ The catalog exposes its event registry to infrastructure. Before persisting an e
 writer requires the exact registered contract object and validates the payload against its current
 schema. An invalid producer event aborts the originating command transaction instead of entering
 the outbox. Before calling a handler, the dispatcher selects the declared schema version and
-validates the payload again to protect against malformed persisted data. It creates a child
-dependency-injection scope for the delivery and supplies a controlled context containing the
-transaction-scoped `EntityManager`, child logger, organization, actor, correlation identifier,
-event identifier, and occurrence time. Envelope `occurredAt` is the canonical occurrence time and
-is not duplicated in event payloads.
+validates the payload again to protect against malformed persisted data. Each subscription
+declares a scoped handler registration owned by its module. The dispatcher creates a child
+dependency-injection scope for the delivery, registers the transaction-scoped `EntityManager` and
+child logger, then resolves the handler from that scope. The handler can receive transaction-bound
+repositories, module services, and public dependency ports through constructor injection without
+access to the root container. Its controlled invocation context contains only organization, actor,
+correlation identifier, event identifier, and occurrence time. Envelope `occurredAt` is the
+canonical occurrence time and is not duplicated in event payloads.
 
 Each subscription runs in its own database transaction. That transaction first reserves
 `(subscriptionId, eventId)` in `platform_event_inbox`; a conflict means the subscription already

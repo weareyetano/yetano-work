@@ -1,3 +1,5 @@
+import { Lifetime } from 'awilix'
+
 import {
   type CapabilityDefinition,
   type EventDefinition,
@@ -74,6 +76,18 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
       }
     }
     for (const subscription of module.events.subscribes) {
+      const subscriptionId = eventSubscriptionId(module.id, subscription.event.id)
+      const handlerRegistration = module.registrations[subscription.handlerRegistration]
+      if (!handlerRegistration) {
+        throw new Error(
+          `Subscription ${subscriptionId} handler registration ${subscription.handlerRegistration} must belong to module ${module.id}`,
+        )
+      }
+      if (handlerRegistration.lifetime !== Lifetime.SCOPED) {
+        throw new Error(
+          `Subscription ${subscriptionId} handler registration ${subscription.handlerRegistration} must be scoped`,
+        )
+      }
       const published = events.get(subscription.event.id)
       if (!published) {
         throw new Error(`Module ${module.id} subscribes to unknown event ${subscription.event.id}`)
@@ -89,7 +103,6 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
           `Module ${module.id} must depend on ${published.moduleId} to subscribe to ${event.id}`,
         )
       }
-      const subscriptionId = eventSubscriptionId(module.id, event.id)
       assertUnique(subscriptions, subscriptionId, 'event subscription')
       if (subscription.supportedVersions.length === 0) {
         throw new Error(`Subscription ${subscriptionId} must support at least one schema version`)
