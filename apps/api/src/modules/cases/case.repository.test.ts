@@ -36,4 +36,31 @@ describe('case repository list ordering', () => {
       },
     )
   })
+
+  it('intersects explicit statuses with a status group', async () => {
+    const find = vi.fn().mockResolvedValue([])
+    const repository = createCaseRepository({ find } as unknown as EntityManager)
+    const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb' as OrganizationId
+
+    await repository.list(organizationId, {
+      limit: 25,
+      status: ['new', 'postponed'],
+      statusGroup: 'open',
+    })
+
+    expect(find).toHaveBeenCalledWith(
+      CaseEntity,
+      {
+        $and: [
+          { status: { $in: ['new', 'postponed'] } },
+          { status: { $in: ['new', 'waiting', 'working'] } },
+        ],
+        organizationId,
+      },
+      {
+        limit: 26,
+        orderBy: [{ updatedAt: 'DESC' }, { id: 'DESC' }],
+      },
+    )
+  })
 })

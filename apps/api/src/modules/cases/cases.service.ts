@@ -37,10 +37,17 @@ import {
   transitionCaseOperation,
   updateCaseOperation,
 } from './cases.operations.js'
+import {
+  assertCaseListQuery,
+  CaseValidationError,
+  normalizeCaseDescription,
+  normalizeCaseTitle,
+  normalizeCaseTransition,
+} from './cases.policy.js'
 
 export class CaseNotFoundError extends Error {}
 
-export class CaseValidationError extends Error {}
+export { CaseValidationError } from './cases.policy.js'
 
 export class CaseVersionConflictError extends Error {
   constructor(readonly currentVersion: number) {
@@ -83,10 +90,15 @@ export function createCasesService({
 }): CasesService {
   return {
     create(request, executionContext) {
+      const normalizedRequest: CreateCaseRequest = {
+        ...request,
+        description: normalizeCaseDescription(request.description),
+        title: normalizeCaseTitle(request.title),
+      }
       return operationExecutor.execute(
         createCaseOperation,
         executionContext,
-        request,
+        normalizedRequest,
         async (input, context) => {
           const now = new Date()
           const caseId = randomUUID() as CaseId
@@ -94,12 +106,12 @@ export function createCasesService({
             closedAt: null,
             createdAt: now,
             customerId: input.customerId ?? null,
-            description: normalizeDescription(input.description),
+            description: input.description ?? null,
             id: caseId,
             organizationId: context.executionContext.organizationId,
             status: 'new',
             statusNote: null,
-            title: normalizeTitle(input.title),
+            title: input.title,
             updatedAt: now,
             version: 1,
           })
@@ -173,16 +185,18 @@ export function createCasesService({
       )
     },
     list(request, executionContext) {
+      assertCaseListQuery(request)
+      const normalizedRequest: ListCasesQuery = {
+        ...request,
+        ...(request.search !== undefined ? { search: request.search.trim() } : {}),
+      }
       return operationExecutor.execute(
         listCasesOperation,
         executionContext,
-        request,
+        normalizedRequest,
         async (input, context) => {
-          if (input.status && input.statusGroup) {
-            throw new CaseValidationError('status and statusGroup cannot be combined.')
-          }
           const limit = input.limit ?? 25
-          const search = input.search?.trim()
+          const search = input.search
           const repository = createCaseRepository(context.entityManager)
           const result = await repository.list(context.executionContext.organizationId, {
             ...(input.cursor ? { cursor: decodeCaseCursor(input.cursor) } : {}),
@@ -201,7 +215,7 @@ export function createCasesService({
       )
     },
     async transition(caseId, request, executionContext) {
-      const normalizedRequest = normalizeTransitionRequest(request)
+      const normalizedRequest = normalizeCaseTransition(request)
       const operation = transitionOperation(normalizedRequest)
       try {
         return await operationExecutor.execute(
@@ -288,12 +302,19 @@ export function createCasesService({
       }
     },
     update(caseId, request, executionContext) {
+      const normalizedRequest: UpdateCaseRequest = {
+        ...request,
+        ...('description' in request
+          ? { description: normalizeCaseDescription(request.description) }
+          : {}),
+        ...('title' in request ? { title: normalizeCaseTitle(request.title as string) } : {}),
+      }
       return executeWithOptimisticConflict(
         () =>
           operationExecutor.execute(
             updateCaseOperation,
             executionContext,
-            { caseId, request },
+            { caseId, request: normalizedRequest },
             async (input, context) => {
               const repository = createCaseRepository(context.entityManager)
               const record = await requireCase(
@@ -305,14 +326,14 @@ export function createCasesService({
               const changedFields: Array<'customerId' | 'description' | 'title'> = []
 
               if ('title' in input.request) {
-                const title = normalizeTitle(input.request.title as string)
+                const title = input.request.title as string
                 if (record.title !== title) {
                   record.title = title
                   changedFields.push('title')
                 }
               }
               if ('description' in input.request) {
-                const description = normalizeDescription(input.request.description)
+                const description = input.request.description ?? null
                 if (record.description !== description) {
                   record.description = description
                   changedFields.push('description')
@@ -345,16 +366,6 @@ function transitionOperation(request: ChangeCaseStatusRequest): TransitionOperat
   if (isTerminalStatus(request.toStatus)) return closeCaseOperation
   if (isTerminalStatus(request.fromStatus)) return reopenCaseOperation
   return transitionCaseOperation
-}
-
-function normalizeTransitionRequest(request: ChangeCaseStatusRequest): ChangeCaseStatusRequest {
-  const note = normalizeStatusNote(transitionNote(request))
-  if ((request.toStatus === 'waiting' || request.toStatus === 'canceled') && !note) {
-    throw new CaseValidationError('A note is required when waiting or canceling a case.')
-  }
-  if (!('note' in request)) return request
-  const { note: _note, ...command } = request
-  return (note ? { ...command, note } : command) as ChangeCaseStatusRequest
 }
 
 function transitionNote(request: ChangeCaseStatusRequest) {
@@ -439,24 +450,6 @@ async function readCurrentVersion(
   )
   if (!record) throw new CaseNotFoundError('Case not found.')
   return record.version
-}
-
-function normalizeTitle(value: string) {
-  const title = value.trim()
-  if (!title) throw new CaseValidationError('Title cannot be blank.')
-  return title
-}
-
-function normalizeDescription(value: string | null | undefined) {
-  if (value == null) return null
-  const description = value.trim()
-  return description || null
-}
-
-function normalizeStatusNote(value: string | undefined) {
-  if (value == null) return null
-  const note = value.trim()
-  return note || null
 }
 
 function isTerminalStatus(status: CaseStatus): status is 'canceled' | 'resolved' {

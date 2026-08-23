@@ -92,6 +92,17 @@ function useDebouncedSearch(value: string) {
 
 export type CaseSelectionNavigationMode = 'push' | 'replace'
 
+interface CaseDraftController {
+  caseId: string
+  isDirty: boolean
+  resetDraft(): void
+}
+
+interface PendingDiscardAction {
+  cancel?(): void
+  proceed(): void
+}
+
 export function CasesPage({
   createRequested = false,
   onCreateModeChange = ignoreCreateModeChange,
@@ -109,7 +120,12 @@ export function CasesPage({
   const debouncedSearch = useDebouncedSearch(search.trim())
   const [isCreating, setIsCreating] = useState(createRequested)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
+  const [activeCaseMutation, setActiveCaseMutation] = useState<'transition' | 'update' | null>(null)
   const selectedIdRef = useRef<string | null>(null)
+  const draftControllerRef = useRef<CaseDraftController | null>(null)
+  const pendingDiscardActionRef = useRef<PendingDiscardAction | null>(null)
+  const mutationLockRef = useRef(false)
   const previousRequestedIdRef = useRef(requestedId)
   const previousCreateRequestedRef = useRef(createRequested)
   const previousSelectedIdRef = useRef<string | null>(null)
@@ -154,7 +170,16 @@ export function CasesPage({
     queryKey: caseQueryKeys.detail(requestedId ?? ''),
     retry: false,
   })
-  const selectCase = useCallback(
+  const requestDraftDiscard = useCallback((proceed: () => void, cancel?: () => void) => {
+    if (!draftControllerRef.current?.isDirty) {
+      proceed()
+      return
+    }
+    if (pendingDiscardActionRef.current) return
+    pendingDiscardActionRef.current = { ...(cancel ? { cancel } : {}), proceed }
+    setDiscardPromptOpen(true)
+  }, [])
+  const commitCaseSelection = useCallback(
     (caseId: string | null, navigationMode: CaseSelectionNavigationMode = 'replace') => {
       if (selectedIdRef.current === caseId && (caseId !== null || requestedId === null)) return
       selectedIdRef.current = caseId
@@ -166,6 +191,17 @@ export function CasesPage({
       onSelectedIdChange(caseId, navigationMode)
     },
     [onSelectedIdChange, requestedId],
+  )
+  const selectCase = useCallback(
+    (
+      caseId: string | null,
+      navigationMode: CaseSelectionNavigationMode = 'replace',
+      cancel?: () => void,
+    ) => {
+      if (selectedIdRef.current === caseId && (caseId !== null || requestedId === null)) return
+      requestDraftDiscard(() => commitCaseSelection(caseId, navigationMode), cancel)
+    },
+    [commitCaseSelection, requestDraftDiscard, requestedId],
   )
   const rememberMobileListPosition = useCallback(
     (caseId: string) => {
@@ -184,7 +220,7 @@ export function CasesPage({
       setIsCreating(false)
       previousSelectedIdRef.current = null
       pendingDetailFocusIdRef.current = created.id
-      selectCase(created.id, 'replace')
+      commitCaseSelection(created.id, 'replace')
       await refresh()
     },
   })
@@ -201,9 +237,14 @@ export function CasesPage({
     const previousRequestedId = previousRequestedIdRef.current
     previousRequestedIdRef.current = requestedId
     if (isDesktop || !previousRequestedId || requestedId) return
-    selectedIdRef.current = null
-    setSelectedId(null)
-  }, [isDesktop, requestedId])
+    requestDraftDiscard(
+      () => {
+        selectedIdRef.current = null
+        setSelectedId(null)
+      },
+      () => onSelectedIdChange(previousRequestedId, 'replace'),
+    )
+  }, [isDesktop, onSelectedIdChange, requestDraftDiscard, requestedId])
 
   useLayoutEffect(() => {
     const wasCreateRequested = previousCreateRequestedRef.current
@@ -211,23 +252,30 @@ export function CasesPage({
     previousCreateRequestedRef.current = createRequested
 
     if (createRequested) {
-      if (selectedIdRef.current) {
-        previousSelectedIdRef.current = selectedIdRef.current
-      }
-      selectedIdRef.current = null
-      setSelectedId(null)
-      setIsCreating(true)
+      requestDraftDiscard(
+        () => {
+          if (selectedIdRef.current) {
+            previousSelectedIdRef.current = selectedIdRef.current
+          }
+          selectedIdRef.current = null
+          setSelectedId(null)
+          setIsCreating(true)
+        },
+        () => onCreateModeChange(false, 'replace'),
+      )
       return
     }
 
     if (wasCreateRequested) setIsCreating(false)
-  }, [createRequested])
+  }, [createRequested, onCreateModeChange, requestDraftDiscard])
 
   useEffect(() => {
     if (createRequested) return
     if (requestedId) {
       if (requestedFromList || requestedCase.data?.id === requestedId) {
-        selectCase(requestedId)
+        selectCase(requestedId, 'replace', () =>
+          onSelectedIdChange(selectedIdRef.current, 'replace'),
+        )
         return
       }
       if (requestedCase.isPending) return
@@ -247,6 +295,7 @@ export function CasesPage({
     requestedFromList,
     requestedId,
     selectCase,
+    onSelectedIdChange,
   ])
 
   const selected =
@@ -276,18 +325,46 @@ export function CasesPage({
     },
   })
 
-  const openCreate = () => {
-    createMutation.reset()
-    previousSelectedIdRef.current = selectedIdRef.current
-    selectedIdRef.current = null
-    setSelectedId(null)
-    setIsCreating(true)
-    pendingCreateFocusRef.current = true
-    if (!isDesktop) {
-      listScrollPositionRef.current = window.scrollY
-      returnFocusToAddRef.current = true
+  const runUpdate = async (current: CaseItem, input: CaseFormValue) => {
+    if (mutationLockRef.current) throw new Error('Inna operacja na sprawie jest już w toku.')
+    mutationLockRef.current = true
+    setActiveCaseMutation('update')
+    try {
+      return await updateMutation.mutateAsync({ current, input })
+    } finally {
+      mutationLockRef.current = false
+      setActiveCaseMutation(null)
     }
-    onCreateModeChange(true, 'push')
+  }
+
+  const runTransition = async (current: CaseItem, input: CaseTransitionIntent): Promise<void> => {
+    if (mutationLockRef.current) return
+    mutationLockRef.current = true
+    setActiveCaseMutation('transition')
+    try {
+      await transitionMutation.mutateAsync({ current, input })
+    } catch {
+      // The mutation exposes the error in the visible notice.
+    } finally {
+      mutationLockRef.current = false
+      setActiveCaseMutation(null)
+    }
+  }
+
+  const openCreate = () => {
+    requestDraftDiscard(() => {
+      createMutation.reset()
+      previousSelectedIdRef.current = selectedIdRef.current
+      selectedIdRef.current = null
+      setSelectedId(null)
+      setIsCreating(true)
+      pendingCreateFocusRef.current = true
+      if (!isDesktop) {
+        listScrollPositionRef.current = window.scrollY
+        returnFocusToAddRef.current = true
+      }
+      onCreateModeChange(true, 'push')
+    })
   }
 
   const cancelCreate = () => {
@@ -300,18 +377,22 @@ export function CasesPage({
     setIsCreating(false)
     createMutation.reset()
 
-    if (previousSelectedId) selectCase(previousSelectedId, 'replace')
+    if (previousSelectedId) commitCaseSelection(previousSelectedId, 'replace')
     else onCreateModeChange(false, 'replace')
 
     if (isDesktop) pendingDesktopAddFocusRef.current = true
   }
 
   const openCase = (caseId: string) => {
-    setIsCreating(false)
-    previousSelectedIdRef.current = null
-    createMutation.reset()
-    rememberMobileListPosition(caseId)
-    selectCase(caseId, isDesktop ? 'replace' : 'push')
+    requestDraftDiscard(() => {
+      setIsCreating(false)
+      previousSelectedIdRef.current = null
+      createMutation.reset()
+      updateMutation.reset()
+      transitionMutation.reset()
+      rememberMobileListPosition(caseId)
+      commitCaseSelection(caseId, isDesktop ? 'replace' : 'push')
+    })
   }
 
   useEffect(() => {
@@ -380,6 +461,9 @@ export function CasesPage({
     }
   }, [mobileDetailOpen, requestedCase.isError, selected?.id])
 
+  const caseMutationBusy =
+    activeCaseMutation !== null || updateMutation.isPending || transitionMutation.isPending
+
   return (
     <main className="flex min-h-0 flex-col pt-2 pb-24 min-[721px]:h-[calc(100dvh-4rem)] min-[721px]:overflow-hidden min-[721px]:pb-4">
       <section
@@ -426,8 +510,10 @@ export function CasesPage({
                   className="min-w-36"
                   selectedKey={view}
                   onSelectionChange={(key) => {
-                    setView(key as CaseListView)
-                    if (!isCreating) selectCase(null)
+                    requestDraftDiscard(() => {
+                      setView(key as CaseListView)
+                      if (!isCreating) commitCaseSelection(null)
+                    })
                   }}
                 >
                   <SelectTrigger className="h-10">
@@ -544,7 +630,11 @@ export function CasesPage({
                   ref={mobileBackButtonRef}
                   aria-label="Wróć do listy spraw"
                   className="size-11"
-                  onPress={() => (isCreating ? cancelCreate() : selectCase(null, 'replace'))}
+                  onPress={() =>
+                    isCreating
+                      ? cancelCreate()
+                      : requestDraftDiscard(() => commitCaseSelection(null, 'replace'))
+                  }
                   size="icon-lg"
                   type="button"
                   variant="ghost"
@@ -563,21 +653,31 @@ export function CasesPage({
               />
             ) : selected ? (
               <CaseDetail
+                key={selected.id}
                 caseItem={selected}
                 headingLevel={isDesktop ? 2 : 1}
                 isDesktop={isDesktop}
                 titleRef={detailTitleInputRef}
-                transitionBusy={transitionMutation.isPending}
+                mutationBusy={caseMutationBusy}
                 transitionError={transitionMutation.error}
-                updateBusy={updateMutation.isPending}
                 updateError={updateMutation.error}
+                onDraftControllerChange={(controller) => {
+                  draftControllerRef.current = controller
+                }}
+                onResetUpdateError={() => updateMutation.reset()}
                 onRetryTransition={() => {
                   if (transitionMutation.variables) {
-                    transitionMutation.mutate(transitionMutation.variables)
+                    requestDraftDiscard(() => {
+                      void runTransition(
+                        transitionMutation.variables.current,
+                        transitionMutation.variables.input,
+                      )
+                    })
                   }
                 }}
-                onTransition={(input) => transitionMutation.mutate({ current: selected, input })}
-                onUpdate={(input) => updateMutation.mutateAsync({ current: selected, input })}
+                onRequestDraftDiscard={requestDraftDiscard}
+                onTransition={(input) => void runTransition(selected, input)}
+                onUpdate={(current, input) => runUpdate(current, input)}
               />
             ) : requestedId && requestedCase.isError ? (
               <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
@@ -596,6 +696,23 @@ export function CasesPage({
           </CardContent>
         </Card>
       </section>
+      <UnsavedChangesDialog
+        isOpen={discardPromptOpen}
+        onCancel={() => {
+          pendingDiscardActionRef.current?.cancel?.()
+          pendingDiscardActionRef.current = null
+          setDiscardPromptOpen(false)
+        }}
+        onDiscard={() => {
+          const action = pendingDiscardActionRef.current
+          draftControllerRef.current?.resetDraft()
+          draftControllerRef.current = null
+          pendingDiscardActionRef.current = null
+          setDiscardPromptOpen(false)
+          updateMutation.reset()
+          action?.proceed()
+        }}
+      />
     </main>
   )
 }
@@ -604,30 +721,59 @@ function CaseDetail({
   caseItem,
   headingLevel,
   isDesktop,
+  mutationBusy,
+  onDraftControllerChange,
   onRetryTransition,
+  onRequestDraftDiscard,
+  onResetUpdateError,
   onTransition,
   onUpdate,
   titleRef,
-  transitionBusy,
   transitionError,
-  updateBusy,
   updateError,
 }: {
   caseItem: CaseItem
   headingLevel: 1 | 2
   isDesktop: boolean
+  mutationBusy: boolean
+  onDraftControllerChange(controller: CaseDraftController): void
   onRetryTransition(): void
+  onRequestDraftDiscard(action: () => void): void
+  onResetUpdateError(): void
   onTransition(input: CaseTransitionIntent): void
-  onUpdate(input: CaseFormValue): Promise<unknown>
+  onUpdate(current: CaseItem, input: CaseFormValue): Promise<CaseItem>
   titleRef: Ref<HTMLInputElement>
-  transitionBusy: boolean
   transitionError: Error | null
-  updateBusy: boolean
   updateError: Error | null
 }) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const [notedStatus, setNotedStatus] = useState<'canceled' | 'waiting' | null>(null)
+  const [draftState, setDraftState] = useState<CaseDraftState>(() => createCaseDraft(caseItem))
   const compactStatusTriggerRef = useRef<HTMLButtonElement>(null)
+  const isDirty = !caseFormValuesEqual(draftState.draft, draftState.serverValue)
+  const resetDraft = useCallback((serverCase: CaseItem) => {
+    setDraftState(createCaseDraft(serverCase))
+  }, [])
+  const discardDraft = useCallback(() => resetDraft(caseItem), [caseItem, resetDraft])
+
+  useEffect(() => {
+    setDraftState((current) => {
+      if (current.serverVersion === caseItem.version) return current
+      if (!caseFormValuesEqual(current.draft, current.serverValue)) return current
+      return createCaseDraft(caseItem)
+    })
+  }, [caseItem])
+
+  useEffect(() => {
+    onDraftControllerChange({ caseId: caseItem.id, isDirty, resetDraft: discardDraft })
+  }, [caseItem.id, discardDraft, isDirty, onDraftControllerChange])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [isDirty])
 
   const transition = (toStatus: CaseTransitionIntent['toStatus'], note?: string) => {
     onTransition({
@@ -637,34 +783,58 @@ function CaseDetail({
     } as CaseTransitionIntent)
   }
 
+  const update = async (input: CaseFormValue) => {
+    const updated = await onUpdate({ ...caseItem, version: draftState.serverVersion }, input)
+    resetDraft(updated)
+    return updated
+  }
+
+  const updateDraft = (draft: CaseFormValue) => {
+    setDraftState((current) => ({ ...current, draft }))
+  }
+
+  const updateConflict = isCaseVersionConflict(updateError)
+
   return (
     <article aria-labelledby="selected-case-title">
       <Heading className="sr-only" id="selected-case-title">
         {caseItem.title}
       </Heading>
       {transitionError ? <ErrorNotice error={transitionError} retry={onRetryTransition} /> : null}
+      {updateConflict ? (
+        <CaseConflictNotice
+          draft={draftState.draft}
+          serverCase={caseItem}
+          serverVersion={draftState.serverVersion}
+          onLoadServerVersion={() => {
+            resetDraft(caseItem)
+            onResetUpdateError()
+          }}
+        />
+      ) : null}
       <CaseForm
-        key={`${caseItem.id}:${caseItem.version}`}
-        busy={updateBusy}
-        error={updateError}
+        busy={mutationBusy}
+        error={updateConflict ? null : updateError}
         footerActions={
           <CaseStatusActions
-            busy={transitionBusy}
+            busy={mutationBusy}
             caseItem={caseItem}
             compactTriggerRef={compactStatusTriggerRef}
             isDesktop={isDesktop}
-            onNotedTransition={setNotedStatus}
-            onTransition={transition}
+            onNotedTransition={(status) => onRequestDraftDiscard(() => setNotedStatus(status))}
+            onTransition={(status) => onRequestDraftDiscard(() => transition(status))}
           />
         }
-        initialValue={caseItem}
-        onSubmit={onUpdate}
+        isDirty={isDirty}
+        value={draftState.draft}
+        onChange={updateDraft}
+        onSubmit={update}
         submitLabel="Zapisz"
         titleRef={titleRef}
       />
       <CaseStatusHistory caseId={caseItem.id} />
       <StatusNoteDialog
-        busy={transitionBusy}
+        busy={mutationBusy}
         status={notedStatus}
         onClose={() => {
           setNotedStatus(null)
@@ -865,6 +1035,34 @@ function StatusNoteDialog({
   )
 }
 
+function UnsavedChangesDialog({
+  isOpen,
+  onCancel,
+  onDiscard,
+}: {
+  isOpen: boolean
+  onCancel(): void
+  onDiscard(): void
+}) {
+  return (
+    <Dialog isDismissable isOpen={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogTitle>Niezapisane zmiany</DialogTitle>
+      <DialogDescription>
+        Masz niezapisane zmiany tytułu lub opisu. Możesz zostać przy edycji albo świadomie je
+        odrzucić.
+      </DialogDescription>
+      <DialogFooter>
+        <Button autoFocus onPress={onCancel} type="button" variant="outline">
+          Zostań przy edycji
+        </Button>
+        <Button onPress={onDiscard} type="button" variant="destructive">
+          Odrzuć zmiany
+        </Button>
+      </DialogFooter>
+    </Dialog>
+  )
+}
+
 function CaseStatusHistory({ caseId }: { caseId: string }) {
   const history = useInfiniteQuery<
     CaseStatusHistoryPage,
@@ -937,6 +1135,75 @@ interface CaseFormValue {
   title: string
 }
 
+interface CaseDraftState {
+  draft: CaseFormValue
+  serverValue: CaseFormValue
+  serverVersion: number
+}
+
+function createCaseDraft(serverCase: CaseItem): CaseDraftState {
+  const serverValue = caseFormValue(serverCase)
+  return { draft: serverValue, serverValue, serverVersion: serverCase.version }
+}
+
+function caseFormValue(caseItem: CaseItem): CaseFormValue {
+  return {
+    customerId: caseItem.customerId,
+    description: caseItem.description,
+    title: caseItem.title,
+  }
+}
+
+function caseFormValuesEqual(left: CaseFormValue, right: CaseFormValue) {
+  return (
+    left.customerId === right.customerId &&
+    left.description === right.description &&
+    left.title === right.title
+  )
+}
+
+function CaseConflictNotice({
+  draft,
+  onLoadServerVersion,
+  serverCase,
+  serverVersion,
+}: {
+  draft: CaseFormValue
+  onLoadServerVersion(): void
+  serverCase: CaseItem
+  serverVersion: number
+}) {
+  const serverIsNewer = serverCase.version > serverVersion
+  return (
+    <Alert className="my-3.5" variant="destructive">
+      <RiErrorWarningLine aria-hidden="true" />
+      <AlertDescription className="grid gap-2 text-destructive">
+        <strong>Sprawa została zmieniona w innym miejscu. Lokalny szkic został zachowany.</strong>
+        <span>
+          Wersja serwera {serverCase.version}: {caseDraftSummary(caseFormValue(serverCase))}
+        </span>
+        <span>
+          Lokalny szkic dla wersji {serverVersion}: {caseDraftSummary(draft)}
+        </span>
+        <Button
+          className="w-fit"
+          isDisabled={!serverIsNewer}
+          onPress={onLoadServerVersion}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {serverIsNewer ? 'Załaduj wersję z serwera' : 'Pobieranie wersji serwera…'}
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+function caseDraftSummary(value: CaseFormValue) {
+  return `${value.title} — ${value.description || 'bez opisu'}`
+}
+
 function CaseCreatePanel({
   busy,
   error,
@@ -950,6 +1217,9 @@ function CaseCreatePanel({
   onSubmit(value: CaseFormValue): Promise<unknown>
   titleRef: Ref<HTMLInputElement>
 }) {
+  const initialValue = { customerId: null, description: null, title: '' }
+  const [value, setValue] = useState<CaseFormValue>(initialValue)
+
   return (
     <article aria-label="Nowa sprawa">
       <CaseForm
@@ -957,8 +1227,10 @@ function CaseCreatePanel({
         busy={busy}
         busyLabel="Tworzenie…"
         error={error}
-        initialValue={{ customerId: null, description: null, title: '' }}
+        isDirty={!caseFormValuesEqual(value, initialValue)}
+        value={value}
         onCancel={onCancel}
+        onChange={setValue}
         onSubmit={onSubmit}
         submitLabel="Utwórz sprawę"
         titleRef={titleRef}
@@ -973,35 +1245,37 @@ function CaseForm({
   busyLabel = 'Zapisywanie…',
   error,
   footerActions,
-  initialValue,
+  isDirty,
   onCancel,
+  onChange,
   onSubmit,
   submitLabel,
   titleRef,
+  value,
 }: {
   ariaLabel?: string
   busy: boolean
   busyLabel?: string
   error: Error | null
   footerActions?: ReactNode
-  initialValue: CaseFormValue
+  isDirty: boolean
   onCancel?(): void
+  onChange(value: CaseFormValue): void
   onSubmit(value: CaseFormValue): Promise<unknown>
   submitLabel: string
   titleRef?: Ref<HTMLInputElement>
+  value: CaseFormValue
 }) {
   const [submitted, setSubmitted] = useState(false)
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(false)
-    const form = event.currentTarget
-    const data = new FormData(form)
     try {
       await onSubmit({
-        customerId: initialValue.customerId,
-        description: optionalText(data.get('description')),
-        title: String(data.get('title') ?? '').trim(),
+        customerId: value.customerId,
+        description: optionalText(value.description),
+        title: value.title.trim(),
       })
       setSubmitted(true)
     } catch {
@@ -1022,21 +1296,31 @@ function CaseForm({
           <Input
             aria-label="Tytuł"
             ref={titleRef}
-            defaultValue={initialValue.title}
             id="case-title"
             maxLength={200}
             name="title"
             required
+            disabled={busy}
+            value={value.title}
+            onChange={(event) => {
+              setSubmitted(false)
+              onChange({ ...value, title: event.target.value })
+            }}
           />
         </Field>
         <Field>
           <FieldLabel htmlFor="case-description">Opis</FieldLabel>
           <Textarea
             className="min-h-24 resize-y"
-            defaultValue={initialValue.description ?? ''}
             id="case-description"
             maxLength={10_000}
             name="description"
+            disabled={busy}
+            value={value.description ?? ''}
+            onChange={(event) => {
+              setSubmitted(false)
+              onChange({ ...value, description: event.target.value })
+            }}
           />
         </Field>
         <div
@@ -1059,6 +1343,11 @@ function CaseForm({
             </Button>
           ) : null}
           {footerActions}
+          {isDirty && !busy ? (
+            <span className="col-span-full text-sm text-muted-foreground" role="status">
+              Niezapisane zmiany.
+            </span>
+          ) : null}
           {submitted && !error ? (
             <span className="col-span-full text-sm font-medium text-muted-foreground" role="status">
               Zapisano.

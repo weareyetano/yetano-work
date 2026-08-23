@@ -15,6 +15,7 @@ export const casesModule = defineModule({
   entities: [CaseEntity, CaseStatusChangeEntity],
   events: { publishes: casesEvents, subscribes: [] },
   extensions: { contributes: [], provides: [] },
+  http: { access: 'protected', path: '/cases' },
   id: 'cases',
   operations: casesOperations,
   registrations: {

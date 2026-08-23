@@ -1,3 +1,4 @@
+import { CaseStatusSchema } from '@yetano/contracts'
 import Type from 'typebox'
 
 import { defineEvent } from '../module.js'
@@ -26,22 +27,8 @@ const CaseTransitionedPayloadSchema = Type.Object(
   {
     caseId: Type.String({ format: 'uuid' }),
     caseVersion: Type.Integer({ minimum: 1 }),
-    fromStatus: Type.Union([
-      Type.Literal('canceled'),
-      Type.Literal('new'),
-      Type.Literal('postponed'),
-      Type.Literal('resolved'),
-      Type.Literal('waiting'),
-      Type.Literal('working'),
-    ]),
-    toStatus: Type.Union([
-      Type.Literal('canceled'),
-      Type.Literal('new'),
-      Type.Literal('postponed'),
-      Type.Literal('resolved'),
-      Type.Literal('waiting'),
-      Type.Literal('working'),
-    ]),
+    fromStatus: CaseStatusSchema,
+    toStatus: CaseStatusSchema,
     transitionId: Type.String({ format: 'uuid' }),
   },
   { additionalProperties: false },
