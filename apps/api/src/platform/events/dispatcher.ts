@@ -80,8 +80,22 @@ export function createOutboxDispatcher({
 
     for (const row of rows) {
       try {
+        const failures: Error[] = []
         for (const subscription of subscriptions.get(row.type) ?? []) {
-          await deliverToSubscription(row, subscription, { logger, orm, rootContainer })
+          try {
+            await deliverToSubscription(row, subscription, { logger, orm, rootContainer })
+          } catch (error) {
+            const cause = error instanceof Error ? error : new Error(String(error))
+            failures.push(
+              new Error(`Subscription ${subscription.id} failed: ${cause.message}`, { cause }),
+            )
+          }
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(
+            failures,
+            `Event ${row.id} was not fully delivered: ${failures.map(({ message }) => message).join('; ')}`,
+          )
         }
         await entityManager
           .getConnection()

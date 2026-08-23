@@ -32,9 +32,12 @@ actor, correlation identifier, event identifier, and occurrence time.
 Each subscription runs in its own database transaction. That transaction first inserts
 `(subscriptionId, eventId)` into `platform_event_inbox`; a conflict means the subscription already
 completed and is skipped. The handler and inbox marker commit or roll back together. The outbox row
-is deleted only after every declared subscription has a durable marker. Inbox records have no
-automatic cleanup until a retention policy preserves deduplication across the complete redelivery
-horizon.
+is deleted only after every declared subscription has a durable marker. A failed subscription does
+not short-circuit the remaining subscriptions in the same delivery attempt. The dispatcher tries
+every subscription without a durable marker, collects their failures, and retains the outbox row
+when any remain. On retry, only subscriptions without inbox markers run again. Inbox records have
+no automatic cleanup until a retention policy preserves deduplication across the complete
+redelivery horizon.
 
 Delivery is ordered strictly within `(organizationId, aggregateId)` by `aggregateVersion`, then
 `occurredAt` and `eventId`. Only the earliest retained event for an aggregate may be claimed. A
@@ -51,9 +54,10 @@ reading Cases persistence.
 
 Versioned schemas make compatibility reviewable and turn malformed persisted data into a
 dispatcher failure before consumer state changes. A per-subscription inbox avoids repeating
-completed handlers while keeping independent module projections isolated. Sharing the inbox
-transaction's entity manager with the handler makes projection writes and deduplication atomic in
-PostgreSQL, the system's existing operational dependency.
+completed handlers, while collecting failures instead of short-circuiting gives every independent
+module a delivery attempt. Sharing the inbox transaction's entity manager with the handler makes
+projection writes and deduplication atomic in PostgreSQL, the system's existing operational
+dependency.
 
 Strict aggregate ordering favors a visible blocked projection over a silently incomplete one.
 Derived subscription identities remain stable across handler refactors and avoid another manually

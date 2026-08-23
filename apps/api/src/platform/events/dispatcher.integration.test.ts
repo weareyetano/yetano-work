@@ -122,8 +122,9 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
       expect.objectContaining({
         attempts: 1,
         id: event.id,
-        last_error:
+        last_error: expect.stringContaining(
           'Subscription consumer-0:test.deliver does not support test.deliver schema version 2',
+        ),
       }),
     ])
   })
@@ -150,6 +151,44 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
 
     expect(first).toHaveBeenCalledTimes(1)
     expect(second).toHaveBeenCalledTimes(2)
+    await expect(outboxRows(orm)).resolves.toEqual([])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-0:test.deliver' },
+      { event_id: event.id, subscription_id: 'consumer-1:test.deliver' },
+    ])
+  })
+
+  it('continues to later subscribers when an earlier subscriber is retried', async () => {
+    const first = vi
+      .fn<TestHandler>()
+      .mockRejectedValueOnce(new Error('first subscriber failed'))
+      .mockResolvedValueOnce()
+    const second = vi.fn<TestHandler>(async () => {})
+    const event = await seedEvent(orm)
+    const dispatcher = dispatcherWithHandlers([first, second])
+
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+    await expect(outboxRows(orm)).resolves.toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        id: event.id,
+        last_error: expect.stringContaining(
+          'Subscription consumer-0:test.deliver failed: first subscriber failed',
+        ),
+      }),
+    ])
+    await expect(inboxRows(orm)).resolves.toEqual([
+      { event_id: event.id, subscription_id: 'consumer-1:test.deliver' },
+    ])
+
+    await makeReady(orm, event.id)
+    await dispatcher.dispatchOnce()
+
+    expect(first).toHaveBeenCalledTimes(2)
+    expect(second).toHaveBeenCalledTimes(1)
     await expect(outboxRows(orm)).resolves.toEqual([])
     await expect(inboxRows(orm)).resolves.toEqual([
       { event_id: event.id, subscription_id: 'consumer-0:test.deliver' },
@@ -202,7 +241,7 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
         attempts: 10,
         failed: true,
         id: event.id,
-        last_error: 'terminal failure',
+        last_error: expect.stringContaining('terminal failure'),
         locked_by: null,
         locked_until: null,
       }),
