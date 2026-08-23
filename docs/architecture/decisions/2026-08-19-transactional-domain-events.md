@@ -29,6 +29,13 @@ module subscribers, and deletes successfully delivered rows. Failures are retrie
 exponential backoff and retained after the retry limit for diagnosis. Delivery is at least once, so
 subscribers must be idempotent.
 
+The outbox is a delivery queue, not an event store. An event with no declared subscribers is
+considered successfully dispatched and is deleted. Adding a subscription does not replay events
+that the dispatcher has already removed. A module that needs a historical projection owns an
+explicit backfill from the authoritative domain history and must define an idempotent cutover to
+live event delivery. The source and mechanism for that backfill are decided with the consuming
+module rather than added to the generic outbox contract.
+
 Case lifecycle events are emitted only for committed state changes. Their retry identity is defined
 by [client-generated lifecycle command IDs](2026-08-21-idempotent-case-lifecycle-transitions.md),
 which supersede the earlier close/reopen retry rule while preserving the outbox guarantees here.
@@ -50,6 +57,8 @@ event consumers discoverable and avoid process-global hooks.
 
 - Event delivery can occur more than once.
 - Subscribers cannot assume immediate delivery in the originating request.
+- New subscriptions receive only events still eligible for delivery in the outbox. Historical
+  projections require an explicit module-owned backfill and are not reconstructed from the outbox.
 - Operational monitoring must include failed and repeatedly retried outbox rows.
 - A separate dispatcher process or broker can be introduced later without changing domain event
   production semantics.

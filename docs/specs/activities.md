@@ -8,6 +8,11 @@
 This document is a deliberate skeleton. It does not define implementation-ready activity behavior
 yet.
 
+Before Activities can be accepted for implementation, it must decide whether historical case
+changes are in scope. If they are, the accepted specification must choose a module-owned backfill
+source and mechanism plus an idempotent cutover to live events. A current-state case read cannot
+reconstruct the status history.
+
 ## Summary
 
 This specification will define what an activity represents and how it records or schedules work in
@@ -53,9 +58,13 @@ Acceptance criteria will be added after the activity model and retention behavio
 - Are activities mutable, append-only, or selectively editable?
 - Which actor and timestamp information must be retained?
 - Should system-generated changes and user-authored notes share the same timeline?
+- If Activities projects historical case changes, will its module-owned backfill read the
+  authoritative case status history through a narrow module port or build the initial projection in
+  a migration, and how will it cut over idempotently to live events without gaps or duplicates?
 
 ## Related decisions and specifications
 
 - [Cases](cases.md)
 - [Tasks](tasks.md)
 - [Public module API](../architecture/decisions/2026-08-19-public-module-api.md)
+- [Transactional domain events](../architecture/decisions/2026-08-19-transactional-domain-events.md)
