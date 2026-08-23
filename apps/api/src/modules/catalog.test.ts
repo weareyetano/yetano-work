@@ -1,3 +1,4 @@
+import { asFunction } from 'awilix'
 import { describe, expect, it } from 'vitest'
 import { casesModule, caseTransitionedEvent } from './cases/index.js'
 import { createModuleCatalog } from './catalog.js'
@@ -122,7 +123,7 @@ describe('module catalog', () => {
         subscriberModule(
           defineSubscription({
             event: caseTransitionedEvent,
-            handle: async () => {},
+            handlerRegistration: 'caseTransitionedActivityProjector',
             supportedVersions: [3],
           }),
         ),
@@ -133,7 +134,7 @@ describe('module catalog', () => {
   it('fails fast when a subscriber declares an unknown schema version', () => {
     const subscription = defineSubscription({
       event: caseTransitionedEvent,
-      handle: async () => {},
+      handlerRegistration: 'caseTransitionedActivityProjector',
       supportedVersions: [3],
     })
 
@@ -154,7 +155,7 @@ describe('module catalog', () => {
         subscriberModule(
           defineSubscription({
             event: caseTransitionedEvent,
-            handle: async () => {},
+            handlerRegistration: 'caseTransitionedActivityProjector',
             supportedVersions: [2],
           }),
         ),
@@ -167,13 +168,49 @@ describe('module catalog', () => {
   it('requires the subscribing module to declare its publisher dependency', () => {
     const subscription = defineSubscription({
       event: caseTransitionedEvent,
-      handle: async () => {},
+      handlerRegistration: 'caseTransitionedActivityProjector',
       supportedVersions: [3],
     })
 
     expect(() =>
       createModuleCatalog([casesModule, { ...subscriberModule(subscription), dependencies: [] }]),
     ).toThrow('Module activities must depend on cases to subscribe to case.transitioned')
+  })
+
+  it('requires the handler registration to belong to the subscribing module', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handlerRegistration: 'caseTransitionedActivityProjector',
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([casesModule, { ...subscriberModule(subscription), registrations: {} }]),
+    ).toThrow(
+      'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must belong to module activities',
+    )
+  })
+
+  it('requires the subscription handler registration to be scoped', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handlerRegistration: 'caseTransitionedActivityProjector',
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        {
+          ...subscriberModule(subscription),
+          registrations: {
+            caseTransitionedActivityProjector: asFunction(() => ({ handle: async () => {} })),
+          },
+        },
+      ]),
+    ).toThrow(
+      'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must be scoped',
+    )
   })
 })
 
@@ -188,6 +225,8 @@ function subscriberModule(
     events: { publishes: [], subscribes: [subscription] },
     http: { access: 'public' as const, path: '/activities' as const },
     id: 'activities',
-    registrations: {},
+    registrations: {
+      [subscription.handlerRegistration]: asFunction(() => ({ handle: async () => {} })).scoped(),
+    },
   }
 }

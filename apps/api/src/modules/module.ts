@@ -1,12 +1,10 @@
 import type { EntitySchema } from '@mikro-orm/core'
-import type { EntityManager } from '@mikro-orm/postgresql'
 import type { OrganizationId } from '@yetano/contracts'
 import type { Resolver } from 'awilix'
 import type { Hono } from 'hono'
 import type { Static, TSchema } from 'typebox'
 
 import type { AppEnvironment } from '../http-types.js'
-import type { Logger } from '../logger.js'
 import type { Actor } from '../platform/execution/context.js'
 import type { OperationDefinition } from '../platform/execution/operation.js'
 
@@ -79,11 +77,20 @@ export type PublishedEvent<
 export interface EventSubscriptionContext {
   actor: Actor
   correlationId: string
-  entityManager: EntityManager
   eventId: string
-  logger: Logger
   occurredAt: Date
   organizationId: OrganizationId
+}
+
+export interface EventSubscriptionHandler<
+  Definition extends EventDefinition = EventDefinition,
+  SupportedVersions extends
+    readonly VersionNumberOf<Definition>[] = readonly VersionNumberOf<Definition>[],
+> {
+  handle(
+    event: PublishedEvent<Definition, SupportedVersions>,
+    context: EventSubscriptionContext,
+  ): Promise<void>
 }
 
 export interface EventSubscription<
@@ -92,10 +99,7 @@ export interface EventSubscription<
     readonly VersionNumberOf<Definition>[] = readonly VersionNumberOf<Definition>[],
 > {
   event: Definition
-  handle(
-    event: PublishedEvent<Definition, SupportedVersions>,
-    context: EventSubscriptionContext,
-  ): Promise<void>
+  handlerRegistration: string
   supportedVersions: SupportedVersions
 }
 

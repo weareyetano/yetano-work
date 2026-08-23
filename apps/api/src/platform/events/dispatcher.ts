@@ -10,7 +10,7 @@ import type { Logger } from '../../logger.js'
 import type { ModuleCatalog } from '../../modules/catalog.js'
 import {
   type EventDefinition,
-  type EventSubscription,
+  type EventSubscriptionHandler,
   eventSubscriptionId,
   type PublishedEvent,
 } from '../../modules/module.js'
@@ -31,8 +31,8 @@ interface ClaimedEventRow {
 
 interface RegisteredSubscription {
   definition: EventDefinition
+  handlerRegistration: string
   id: string
-  subscription: EventSubscription
   validators: ReadonlyMap<number, ReturnType<typeof Compile>>
 }
 
@@ -135,8 +135,8 @@ function collectSubscriptions(moduleCatalog: ModuleCatalog) {
       const registered = subscriptions.get(subscription.event.id) ?? []
       registered.push({
         definition: subscription.event,
+        handlerRegistration: subscription.handlerRegistration,
         id: eventSubscriptionId(module.id, subscription.event.id),
-        subscription,
         validators: new Map(
           subscription.event.versions
             .filter((version) =>
@@ -247,12 +247,11 @@ async function deliverToSubscription(
         schemaVersion: row.schema_version,
         type: registered.definition.id,
       }
-      await registered.subscription.handle(event, {
+      const handler = scope.resolve<EventSubscriptionHandler>(registered.handlerRegistration)
+      await handler.handle(event, {
         actor: { id: row.actor_id, type: row.actor_type },
         correlationId: row.correlation_id,
-        entityManager: scope.resolve('entityManager'),
         eventId: row.id,
-        logger: scope.resolve('logger'),
         occurredAt: parseOccurredAt(row.occurred_at),
         organizationId: row.organization_id as OrganizationId,
       })
