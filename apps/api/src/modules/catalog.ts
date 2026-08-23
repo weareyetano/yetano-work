@@ -102,6 +102,11 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
           )
         }
       }
+      if (!subscription.supportedVersions.includes(event.schemaVersion as never)) {
+        throw new Error(
+          `Subscription ${subscriptionId} must support current ${event.id} schema version ${event.schemaVersion}`,
+        )
+      }
     }
   }
 

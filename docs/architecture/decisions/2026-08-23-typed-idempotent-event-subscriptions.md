@@ -20,9 +20,11 @@ module can maintain a projection safely.
 
 Every published event is a named contract that declares its current schema version and the TypeBox
 payload schema for every retained version. Modules subscribe with `defineSubscription`, importing
-the publisher's contract object and explicitly listing supported versions. The module catalog
-rejects unknown contracts, missing or duplicate versions, undeclared publisher dependencies, and
-duplicate subscriptions. A stable subscription identity is derived as `<moduleId>:<eventId>`.
+the publisher's contract object and explicitly listing supported versions. A subscription may keep
+support for retained historical versions, but it must support the publisher's current version. The
+module catalog rejects unknown contracts, missing or duplicate versions, omission of the current
+version, undeclared publisher dependencies, and duplicate subscriptions. A stable subscription
+identity is derived as `<moduleId>:<eventId>`.
 
 Before calling a handler, the dispatcher selects the declared schema version and validates the
 payload at runtime. It creates a child dependency-injection scope for the delivery and supplies a

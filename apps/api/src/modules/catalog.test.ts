@@ -146,6 +146,23 @@ describe('module catalog', () => {
     )
   })
 
+  it('fails fast when a subscriber omits the current schema version', () => {
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        subscriberModule(
+          defineSubscription({
+            event: caseTransitionedEvent,
+            handle: async () => {},
+            supportedVersions: [2],
+          }),
+        ),
+      ]),
+    ).toThrow(
+      'Subscription activities:case.transitioned must support current case.transitioned schema version 3',
+    )
+  })
+
   it('requires the subscribing module to declare its publisher dependency', () => {
     const subscription = defineSubscription({
       event: caseTransitionedEvent,
