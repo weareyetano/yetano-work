@@ -6,6 +6,7 @@ import { CaseStatusChangeEntity } from './case-status-change.entity.js'
 import { casesCapabilities } from './cases.capabilities.js'
 import { casesEvents } from './cases.events.js'
 import { casesOperations } from './cases.operations.js'
+import { createCasesReadPort } from './cases.read-port.js'
 import { createCasesRoutes } from './cases.routes.js'
 import { createCasesService } from './cases.service.js'
 
@@ -19,6 +20,7 @@ export const casesModule = defineModule({
   id: 'cases',
   operations: casesOperations,
   registrations: {
+    casesReadPort: asFunction(createCasesReadPort).scoped(),
     casesService: asFunction(createCasesService).scoped(),
   },
   routes: createCasesRoutes,

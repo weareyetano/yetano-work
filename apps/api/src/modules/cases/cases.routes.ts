@@ -36,6 +36,7 @@ import type { AppEnvironment } from '../../http-types.js'
 import { problem } from '../../problem.js'
 import {
   CaseNotFoundError,
+  type CasesService,
   CaseTransitionIdConflictError,
   CaseValidationError,
   CaseVersionConflictError,
@@ -77,10 +78,10 @@ export function createCasesRoutes() {
       const request = await readJson(context, createCaseValidator)
       if (!request) return invalidRequest(context)
       return runCaseAction(context, async () => {
-        const value = await context
-          .get('scope')
-          .resolve('casesService')
-          .create(request as CreateCaseRequest, context.get('executionContext'))
+        const value = await resolveCasesService(context).create(
+          request as CreateCaseRequest,
+          context.get('executionContext'),
+        )
         context.header('Location', `/api/v1/cases/${value.id}`)
         return context.json(value, 201)
       })
@@ -118,10 +119,10 @@ export function createCasesRoutes() {
       if (!query || !listCasesValidator.Check(query)) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .list(query as ListCasesQuery, context.get('executionContext')),
+          await resolveCasesService(context).list(
+            query as ListCasesQuery,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -151,10 +152,11 @@ export function createCasesRoutes() {
       if (!caseId || !query || !statusHistoryValidator.Check(query)) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .history(caseId, query as CaseStatusHistoryQuery, context.get('executionContext')),
+          await resolveCasesService(context).history(
+            caseId,
+            query as CaseStatusHistoryQuery,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -179,10 +181,7 @@ export function createCasesRoutes() {
       if (!caseId) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .get(caseId, context.get('executionContext')),
+          await resolveCasesService(context).get(caseId, context.get('executionContext')),
           200,
         ),
       )
@@ -208,10 +207,11 @@ export function createCasesRoutes() {
       if (!caseId || !request) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .update(caseId, request as UpdateCaseRequest, context.get('executionContext')),
+          await resolveCasesService(context).update(
+            caseId,
+            request as UpdateCaseRequest,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -237,14 +237,11 @@ export function createCasesRoutes() {
       if (!caseId || !request) return invalidRequest(context)
       return runCaseAction(context, async () =>
         context.json(
-          await context
-            .get('scope')
-            .resolve('casesService')
-            .transition(
-              caseId,
-              request as ChangeCaseStatusRequest,
-              context.get('executionContext'),
-            ),
+          await resolveCasesService(context).transition(
+            caseId,
+            request as ChangeCaseStatusRequest,
+            context.get('executionContext'),
+          ),
           200,
         ),
       )
@@ -252,6 +249,10 @@ export function createCasesRoutes() {
   )
 
   return routes
+}
+
+function resolveCasesService(context: Context<AppEnvironment>) {
+  return context.get('scope').resolve('casesService') as CasesService
 }
 
 async function runCaseAction<ResponseType extends Response>(

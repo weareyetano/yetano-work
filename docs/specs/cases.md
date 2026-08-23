@@ -138,7 +138,12 @@ The module declares read, create, update, transition, close, and reopen capabili
 active statuses plus postponing or restoring requires transition, nonterminal-to-terminal movement
 requires close, and terminal-to-working movement requires reopen. Mutating capabilities include read
 as an inherited requirement. It publishes versioned `case.created`, `case.updated`, and
-`case.transitioned` events through the transactional outbox.
+`case.transitioned` events through the transactional outbox. The current `case.transitioned`
+contract is version 3 and includes the immutable status-change and transition identifiers, case
+version, source and target statuses, normalized note, and occurrence time. This is sufficient for
+another module to project a case timeline without reading Cases persistence. Named event contracts
+and the organization-scoped `CasesReadPort` are exported from the Cases module entrypoint; the broad
+application service is private.
 
 ## Edge cases and failure behavior
 
@@ -147,7 +152,11 @@ as an inherited requirement. It publishes versioned `case.created`, `case.update
 - A case outside the active organization is indistinguishable from a missing case and returns 404.
 - Stale state-changing mutations return a 409 `case_version_conflict` with the current known
   version.
-- Event delivery is at least once; subscribers must be idempotent.
+- Event delivery is at least once. Database projection writes use a per-subscription inbox and the
+  supplied transaction-scoped entity manager; external side effects still require an idempotency
+  key.
+- Events for one organization-scoped aggregate are delivered in aggregate-version order. A failed
+  earlier event blocks later versions until it is resolved.
 - Production startup fails until explicit production identity and capability resolvers are wired.
 
 ## Acceptance criteria

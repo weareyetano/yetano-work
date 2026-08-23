@@ -22,7 +22,12 @@ describeWithDatabase('database migrations', () => {
     await orm.migrator.down({ to: 0 })
 
     try {
-      await expect(tableNames(orm)).resolves.toEqual({ cases: null, history: null, outbox: null })
+      await expect(tableNames(orm)).resolves.toEqual({
+        cases: null,
+        history: null,
+        inbox: null,
+        outbox: null,
+      })
     } finally {
       await orm.migrator.up()
     }
@@ -30,6 +35,7 @@ describeWithDatabase('database migrations', () => {
     await expect(tableNames(orm)).resolves.toEqual({
       cases: 'cases',
       history: 'case_status_changes',
+      inbox: 'platform_event_inbox',
       outbox: 'platform_outbox_events',
     })
   })
@@ -72,7 +78,7 @@ describeWithDatabase('database migrations', () => {
       expect(outboxCount).toBe(0)
     } finally {
       await connection.execute(
-        'truncate table case_status_changes, cases, platform_outbox_events restart identity',
+        'truncate table case_status_changes, cases, platform_event_inbox, platform_outbox_events restart identity',
       )
     }
   })
@@ -103,13 +109,19 @@ describeWithDatabase('database migrations', () => {
 })
 
 async function tableNames(orm: Awaited<ReturnType<typeof MikroORM.init>>) {
-  const [row] = await orm.em
-    .getConnection()
-    .execute<Array<{ cases: string | null; history: string | null; outbox: string | null }>>(
-      `select
+  const [row] = await orm.em.getConnection().execute<
+    Array<{
+      cases: string | null
+      history: string | null
+      inbox: string | null
+      outbox: string | null
+    }>
+  >(
+    `select
        to_regclass('public.cases')::text as cases,
        to_regclass('public.case_status_changes')::text as history,
+       to_regclass('public.platform_event_inbox')::text as inbox,
        to_regclass('public.platform_outbox_events')::text as outbox`,
-    )
+  )
   return row
 }

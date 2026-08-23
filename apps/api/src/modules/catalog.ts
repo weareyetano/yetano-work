@@ -1,4 +1,9 @@
-import type { CapabilityDefinition, ModuleDefinition } from './module.js'
+import {
+  type CapabilityDefinition,
+  type EventDefinition,
+  eventSubscriptionId,
+  type ModuleDefinition,
+} from './module.js'
 
 export interface ModuleCatalog {
   capabilities: ReadonlyMap<string, CapabilityDefinition>
@@ -6,14 +11,20 @@ export interface ModuleCatalog {
   requiredCapabilities(capabilityId: string): readonly string[]
 }
 
+interface PublishedEventRegistration {
+  definition: EventDefinition
+  moduleId: string
+}
+
 export function createModuleCatalog(modules: readonly ModuleDefinition[]): ModuleCatalog {
   const moduleIds = new Set<string>()
   const capabilities = new Map<string, CapabilityDefinition>()
-  const events = new Set<string>()
+  const events = new Map<string, PublishedEventRegistration>()
   const operations = new Set<string>()
   const extensionPoints = new Set<string>()
   const httpPaths = new Map<string, string>()
   const registrations = new Set<string>()
+  const subscriptions = new Set<string>()
 
   for (const module of modules) {
     assertUnique(moduleIds, module.id, 'module')
@@ -21,7 +32,10 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
     for (const capability of module.capabilities) {
       assertUnique(capabilities, capability.id, 'capability', capability)
     }
-    for (const event of module.events.publishes) assertUnique(events, event.id, 'event')
+    for (const event of module.events.publishes) {
+      assertUnique(events, event.id, 'event', { definition: event, moduleId: module.id })
+      assertEventDefinition(event)
+    }
     for (const operation of module.operations) assertUnique(operations, operation.id, 'operation')
     for (const registration of Object.keys(module.registrations)) {
       assertUnique(registrations, registration, 'container registration')
@@ -59,10 +73,34 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
       }
     }
     for (const subscription of module.events.subscribes) {
-      if (!events.has(subscription.eventId)) {
+      const published = events.get(subscription.event.id)
+      if (!published) {
+        throw new Error(`Module ${module.id} subscribes to unknown event ${subscription.event.id}`)
+      }
+      const event = published.definition
+      if (event !== subscription.event) {
         throw new Error(
-          `Subscription ${subscription.id} references unknown event ${subscription.eventId}`,
+          `Module ${module.id} must subscribe through the published ${subscription.event.id} contract`,
         )
+      }
+      if (published.moduleId !== module.id && !module.dependencies.includes(published.moduleId)) {
+        throw new Error(
+          `Module ${module.id} must depend on ${published.moduleId} to subscribe to ${event.id}`,
+        )
+      }
+      const subscriptionId = eventSubscriptionId(module.id, event.id)
+      assertUnique(subscriptions, subscriptionId, 'event subscription')
+      if (subscription.supportedVersions.length === 0) {
+        throw new Error(`Subscription ${subscriptionId} must support at least one schema version`)
+      }
+      const supportedVersions = new Set<number>()
+      for (const version of subscription.supportedVersions) {
+        assertUnique(supportedVersions, version, `schema version in subscription ${subscriptionId}`)
+        if (!event.versions.some((definition) => definition.schemaVersion === version)) {
+          throw new Error(
+            `Subscription ${subscriptionId} references unknown ${event.id} schema version ${version}`,
+          )
+        }
       }
     }
   }
@@ -84,6 +122,23 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
       visit(capabilityId)
       return [...resolved]
     },
+  }
+}
+
+function assertEventDefinition(event: EventDefinition) {
+  if (event.versions.length === 0)
+    throw new Error(`Event ${event.id} must declare a schema version`)
+  const versions = new Set<number>()
+  for (const version of event.versions) {
+    if (!Number.isSafeInteger(version.schemaVersion) || version.schemaVersion < 1) {
+      throw new Error(`Event ${event.id} schema versions must be positive integers`)
+    }
+    assertUnique(versions, version.schemaVersion, `schema version in event ${event.id}`)
+  }
+  if (!versions.has(event.schemaVersion)) {
+    throw new Error(
+      `Event ${event.id} current schema version ${event.schemaVersion} is not declared`,
+    )
   }
 }
 
@@ -133,9 +188,9 @@ function assertHttpDefinition(module: ModuleDefinition, paths: Map<string, strin
   }
 }
 
-function assertUnique(
-  collection: Set<string> | Map<string, unknown>,
-  id: string,
+function assertUnique<Id>(
+  collection: Set<Id> | Map<Id, unknown>,
+  id: Id,
   kind: string,
   value: unknown = true,
 ) {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { EntityManager } from '@mikro-orm/postgresql'
 
-import type { EventDefinition } from '../../modules/module.js'
+import type { CurrentEventPayload, EventDefinition } from '../../modules/module.js'
 import type { ExecutionContext } from '../execution/context.js'
 import { OutboxEventEntity } from './outbox.entity.js'
 
@@ -10,7 +10,8 @@ export interface PendingDomainEvent<Definition extends EventDefinition = EventDe
   aggregateId: string
   aggregateVersion: number
   definition: Definition
-  payload: Definition extends EventDefinition<infer Payload> ? Payload : never
+  occurredAt?: Date
+  payload: CurrentEventPayload<Definition>
 }
 
 export interface OutboxWriter {
@@ -24,8 +25,9 @@ export interface OutboxWriter {
 export function createOutboxWriter(): OutboxWriter {
   return {
     async append(entityManager, context, events) {
-      const occurredAt = new Date()
+      const appendedAt = new Date()
       for (const event of events) {
+        const occurredAt = event.occurredAt ?? appendedAt
         entityManager.persist(
           entityManager.create(OutboxEventEntity, {
             actorId: context.actor.id,

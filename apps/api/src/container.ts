@@ -3,7 +3,7 @@ import { type AwilixContainer, asFunction, asValue, createContainer, InjectionMo
 
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
-import type { CasesService } from './modules/cases/index.js'
+import type { CasesReadPort } from './modules/cases/index.js'
 import type { ModuleCatalog } from './modules/catalog.js'
 import type { HealthService } from './modules/health/index.js'
 import { applicationModuleCatalog, applicationModules } from './modules/index.js'
@@ -26,7 +26,8 @@ import {
 export interface Cradle {
   actorResolver: ActorResolver
   capabilityResolver: CapabilityResolver
-  casesService: CasesService
+  casesReadPort: CasesReadPort
+  casesService: unknown
   config: AppConfig
   entityManager: EntityManager
   executionContextFactory: ExecutionContextFactory
@@ -38,6 +39,7 @@ export interface Cradle {
   orm: MikroORM
   outboxDispatcher: OutboxDispatcher
   outboxWriter: OutboxWriter
+  rootContainer: AppContainer
 }
 
 export type AppContainer = AwilixContainer<Cradle>
@@ -81,6 +83,7 @@ export function createRootContainer({
     orm: asValue(orm),
     outboxDispatcher: asFunction(createOutboxDispatcher).singleton(),
     outboxWriter: asFunction(createOutboxWriter).singleton(),
+    rootContainer: asValue(container),
   })
 
   for (const module of applicationModules) container.register(module.registrations)

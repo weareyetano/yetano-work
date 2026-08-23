@@ -1,7 +1,13 @@
 import { defineEntity, type InferEntity, p } from '@mikro-orm/core'
 
 export const OutboxEventEntity = defineEntity({
-  indexes: [{ name: 'platform_outbox_ready_idx', properties: ['nextAttemptAt', 'occurredAt'] }],
+  indexes: [
+    { name: 'platform_outbox_ready_idx', properties: ['nextAttemptAt', 'occurredAt'] },
+    {
+      name: 'platform_outbox_aggregate_order_idx',
+      properties: ['organizationId', 'aggregateId', 'aggregateVersion', 'occurredAt', 'id'],
+    },
+  ],
   name: 'OutboxEvent',
   properties: {
     actorId: p.string().fieldName('actor_id'),

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { casesModule } from './cases/index.js'
+import { casesModule, caseTransitionedEvent } from './cases/index.js'
 import { createModuleCatalog } from './catalog.js'
 import { healthModule } from './health/index.js'
 import { applicationModuleCatalog, applicationModules } from './index.js'
+import { defineSubscription } from './module.js'
 
 describe('module catalog', () => {
   it('exposes the explicit application modules and inherited capability requirements', () => {
@@ -68,7 +69,7 @@ describe('module catalog', () => {
           routes: casesModule.routes,
         },
       ]),
-    ).toThrow('Duplicate container registration id: casesService')
+    ).toThrow('Duplicate container registration id: casesReadPort')
   })
 
   it('fails fast when a public module declares protected application behavior', () => {
@@ -112,4 +113,63 @@ describe('module catalog', () => {
       ]),
     ).toThrow('Module case-admin HTTP path /cases/admin overlaps module cases path /cases')
   })
+
+  it('accepts a subscriber that imports a named event contract and declares its versions', () => {
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        subscriberModule(
+          defineSubscription({
+            event: caseTransitionedEvent,
+            handle: async () => {},
+            supportedVersions: [3],
+          }),
+        ),
+      ]),
+    ).not.toThrow()
+  })
+
+  it('fails fast when a subscriber declares an unknown schema version', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handle: async () => {},
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        subscriberModule({ ...subscription, supportedVersions: [4] }),
+      ]),
+    ).toThrow(
+      'Subscription activities:case.transitioned references unknown case.transitioned schema version 4',
+    )
+  })
+
+  it('requires the subscribing module to declare its publisher dependency', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handle: async () => {},
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([casesModule, { ...subscriberModule(subscription), dependencies: [] }]),
+    ).toThrow('Module activities must depend on cases to subscribe to case.transitioned')
+  })
 })
+
+function subscriberModule(
+  subscription:
+    | (typeof casesModule.events.subscribes)[number]
+    | ReturnType<typeof defineSubscription>,
+) {
+  return {
+    ...healthModule,
+    dependencies: ['cases'],
+    events: { publishes: [], subscribes: [subscription] },
+    http: { access: 'public' as const, path: '/activities' as const },
+    id: 'activities',
+    registrations: {},
+  }
+}

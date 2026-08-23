@@ -91,6 +91,18 @@ describe('module HTTP access composition', () => {
   })
 })
 
+describe('runtime event wiring', () => {
+  it('resolves the singleton dispatcher with access to delivery scopes', () => {
+    const container = createTestContainer()
+
+    expect(container.resolve('outboxDispatcher')).toMatchObject({
+      dispatchOnce: expect.any(Function),
+      start: expect.any(Function),
+      stop: expect.any(Function),
+    })
+  })
+})
+
 const testModules = [
   defineModule({
     capabilities: [],
@@ -130,6 +142,13 @@ const testModules = [
 const testModuleCatalog = createModuleCatalog(testModules)
 
 function createTestApp(actorResolver?: ActorResolver) {
+  return createApp({
+    container: createTestContainer(actorResolver),
+    moduleCatalog: testModuleCatalog,
+  })
+}
+
+function createTestContainer(actorResolver?: ActorResolver) {
   const config: AppConfig = {
     appVersion: 'test',
     databaseUrl: 'postgresql://unused',
@@ -147,7 +166,7 @@ function createTestApp(actorResolver?: ActorResolver) {
     logger,
     orm,
   })
-  return createApp({ container, moduleCatalog: testModuleCatalog })
+  return container
 }
 
 const logger: Logger = {

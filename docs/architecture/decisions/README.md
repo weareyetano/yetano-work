@@ -35,3 +35,4 @@ product behavior.
 | 2026-08-20 | [Use shadcn/ui with React Aria for the web UI](2026-08-20-shadcn-react-aria-ui.md) | Accepted |
 | 2026-08-21 | [Identify case lifecycle transitions with client-generated command IDs](2026-08-21-idempotent-case-lifecycle-transitions.md) | Accepted |
 | 2026-08-22 | [Declare HTTP access in module descriptors](2026-08-22-declarative-module-http-access.md) | Accepted |
+| 2026-08-23 | [Process module events through typed idempotent subscriptions](2026-08-23-typed-idempotent-event-subscriptions.md) | Accepted |
