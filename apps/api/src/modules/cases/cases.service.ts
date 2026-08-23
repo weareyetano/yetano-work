@@ -270,10 +270,13 @@ export function createCasesService({
               aggregateId: record.id,
               aggregateVersion: record.version,
               definition: caseTransitionedEvent,
+              occurredAt: change.changedAt,
               payload: {
                 caseId: record.id,
                 caseVersion: record.version,
                 fromStatus: input.request.fromStatus,
+                note: change.note ?? null,
+                statusChangeId: change.id,
                 toStatus: input.request.toStatus,
                 transitionId: input.request.transitionId,
               },
@@ -456,7 +459,7 @@ function isTerminalStatus(status: CaseStatus): status is 'canceled' | 'resolved'
   return status === 'canceled' || status === 'resolved'
 }
 
-function toCase(record: CaseRecord): Case {
+export function toCase(record: CaseRecord): Case {
   return {
     closedAt: record.closedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),

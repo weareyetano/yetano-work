@@ -5,6 +5,7 @@ import { defineConfig } from '@mikro-orm/postgresql'
 
 import type { AppConfig } from './config.js'
 import { applicationModules } from './modules/index.js'
+import { InboxEventEntity } from './platform/events/inbox.entity.js'
 import { OutboxEventEntity } from './platform/events/outbox.entity.js'
 
 export function createOrmOptions(config: Pick<AppConfig, 'databaseUrl'>) {
@@ -13,7 +14,11 @@ export function createOrmOptions(config: Pick<AppConfig, 'databaseUrl'>) {
     discovery: {
       warnWhenNoEntities: false,
     },
-    entities: [OutboxEventEntity, ...applicationModules.flatMap((module) => [...module.entities])],
+    entities: [
+      InboxEventEntity,
+      OutboxEventEntity,
+      ...applicationModules.flatMap((module) => [...module.entities]),
+    ],
     extensions: [Migrator],
     migrations: {
       glob: 'Migration*.{js,ts}',

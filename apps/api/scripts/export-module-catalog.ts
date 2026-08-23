@@ -22,7 +22,7 @@ for (const module of applicationModules as readonly ModuleDefinition[]) {
   lines.push(`- Container registrations: ${format(Object.keys(module.registrations))}`)
   lines.push(`- Published events: ${format(module.events.publishes.map((event) => event.id))}`)
   lines.push(
-    `- Event subscriptions: ${format(module.events.subscribes.map((subscription) => subscription.eventId))}`,
+    `- Event subscriptions: ${format(module.events.subscribes.map((subscription) => subscription.event.id))}`,
   )
   lines.push(`- Extension points provided: ${format(module.extensions.provides)}`)
   lines.push(`- Extension points used: ${format(module.extensions.contributes)}`, '')
