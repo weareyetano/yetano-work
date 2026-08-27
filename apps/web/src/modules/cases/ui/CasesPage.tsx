@@ -1,41 +1,29 @@
 import { RiArrowLeftLine } from '@remixicon/react'
-import {
-  type InfiniteData,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type InfiniteData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '#components/ui/button'
 import { Card, CardContent } from '#components/ui/card'
 
 import {
-  type CaseItem,
   type CaseListPage,
   type CaseListView,
-  type CaseTransitionIntent,
   caseQueryKeys,
-  createCaseItem,
   fetchCase,
   fetchCases,
-  isCaseVersionConflict,
-  transitionCaseItem,
-  updateCaseItem,
 } from '../cases.api'
 import { CaseCreatePanel } from './CaseCreatePanel'
 import { CaseDetailPanel } from './CaseDetailPanel'
 import { CaseListPanel } from './CaseListPanel'
 import {
   CaseEmptyState,
-  type CaseFormValue,
   caseListEmptyState,
   caseListViewForStatus,
   ErrorNotice,
   LoadingStatus,
 } from './case-workspace.shared'
 import { CaseDraftGuardDialog, useCaseDraftGuard } from './useCaseDraftGuard'
+import { useCaseMutations } from './useCaseMutations'
 import {
   type CaseSelectionNavigationMode,
   useCaseWorkspaceNavigation,
@@ -74,12 +62,9 @@ export function CasesPage({
   onSelectedIdChange?(caseId: string | null, navigationMode: CaseSelectionNavigationMode): void
   requestedId?: string | null
 } = {}) {
-  const queryClient = useQueryClient()
   const [view, setView] = useState<CaseListView>('open')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedSearch(search.trim())
-  const [activeCaseMutation, setActiveCaseMutation] = useState<'transition' | 'update' | null>(null)
-  const mutationLockRef = useRef(false)
   const {
     cancelDiscard,
     discardDraft,
@@ -125,69 +110,15 @@ export function CasesPage({
     requestedId,
     view,
   })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: caseQueryKeys.all })
-
-  const createMutation = useMutation({
-    mutationFn: createCaseItem,
-    onSuccess: async (created) => {
+  const mutations = useCaseMutations({
+    onCreated: (caseId) => {
       setView('open')
-      navigation.finishCreate(created.id)
-      await refresh()
+      navigation.finishCreate(caseId)
+    },
+    onTransitioned: (status) => {
+      setView(caseListViewForStatus(status))
     },
   })
-  const updateMutation = useMutation({
-    mutationFn: ({ current, input }: { current: CaseItem; input: CaseFormValue }) =>
-      updateCaseItem(current, input),
-    onError: async (error) => {
-      if (isCaseVersionConflict(error)) await refresh()
-    },
-    onSuccess: refresh,
-  })
-
-  const transitionMutation = useMutation({
-    mutationFn: ({ current, input }: { current: CaseItem; input: CaseTransitionIntent }) =>
-      transitionCaseItem(current, input),
-    onError: async (error) => {
-      if (isCaseVersionConflict(error)) await refresh()
-    },
-    onSuccess: async (change) => {
-      setView(caseListViewForStatus(change.toStatus))
-      await refresh()
-    },
-  })
-
-  const runUpdate = async (current: CaseItem, input: CaseFormValue) => {
-    if (mutationLockRef.current) throw new Error('Inna operacja na sprawie jest już w toku.')
-    mutationLockRef.current = true
-    setActiveCaseMutation('update')
-    try {
-      return await updateMutation.mutateAsync({ current, input })
-    } finally {
-      mutationLockRef.current = false
-      setActiveCaseMutation(null)
-    }
-  }
-
-  const runTransition = async (current: CaseItem, input: CaseTransitionIntent): Promise<void> => {
-    if (mutationLockRef.current) return
-    mutationLockRef.current = true
-    setActiveCaseMutation('transition')
-    try {
-      await transitionMutation.mutateAsync({ current, input })
-    } catch {
-      // The mutation exposes the error in the visible notice.
-    } finally {
-      mutationLockRef.current = false
-      setActiveCaseMutation(null)
-    }
-  }
-
-  const resetCreateMutation = () => createMutation.reset()
-  const resetAllMutations = () => {
-    createMutation.reset()
-    updateMutation.reset()
-    transitionMutation.reset()
-  }
   const {
     addButtonRef,
     caseButtonRefs,
@@ -204,9 +135,6 @@ export function CasesPage({
     selectedId,
     workspaceRef,
   } = navigation
-  const caseMutationBusy =
-    activeCaseMutation !== null || updateMutation.isPending || transitionMutation.isPending
-
   return (
     <main className="flex min-h-0 flex-col pt-2 pb-24 min-[721px]:h-[calc(100dvh-4rem)] min-[721px]:overflow-hidden min-[721px]:pb-4">
       <section
@@ -226,8 +154,8 @@ export function CasesPage({
           search={search}
           selectedId={selectedId}
           view={view}
-          onOpenCase={(caseId) => navigation.openCase(caseId, resetAllMutations)}
-          onOpenCreate={() => navigation.openCreate(resetCreateMutation)}
+          onOpenCase={(caseId) => navigation.openCase(caseId, mutations.resetAll)}
+          onOpenCreate={() => navigation.openCreate(mutations.resetCreate)}
           onSearchChange={setSearch}
           onViewChange={(nextView) => {
             requestDraftDiscard(() => {
@@ -255,7 +183,7 @@ export function CasesPage({
                   className="size-11"
                   onPress={() =>
                     isCreating
-                      ? navigation.cancelCreate(resetCreateMutation)
+                      ? navigation.cancelCreate(mutations.resetCreate)
                       : navigation.closeMobileDetail()
                   }
                   size="icon-lg"
@@ -268,12 +196,12 @@ export function CasesPage({
             ) : null}
             {isCreating ? (
               <CaseCreatePanel
-                busy={createMutation.isPending}
-                error={createMutation.error}
+                busy={mutations.createPending}
+                error={mutations.createError}
                 titleRef={createTitleRef}
-                onCancel={() => navigation.cancelCreate(resetCreateMutation)}
+                onCancel={() => navigation.cancelCreate(mutations.resetCreate)}
                 registerDraftController={registerDraftController}
-                onSubmit={(input) => createMutation.mutateAsync(input)}
+                onSubmit={mutations.create}
               />
             ) : selected ? (
               <CaseDetailPanel
@@ -282,24 +210,17 @@ export function CasesPage({
                 headingLevel={isDesktop ? 2 : 1}
                 isDesktop={isDesktop}
                 titleRef={detailTitleInputRef}
-                mutationBusy={caseMutationBusy}
-                transitionError={transitionMutation.error}
-                updateError={updateMutation.error}
+                mutationBusy={mutations.mutationBusy}
+                transitionError={mutations.transitionError}
+                updateError={mutations.updateError}
                 registerDraftController={registerDraftController}
-                onResetUpdateError={() => updateMutation.reset()}
+                onResetUpdateError={mutations.resetUpdate}
                 onRetryTransition={() => {
-                  if (transitionMutation.variables) {
-                    requestDraftDiscard(() => {
-                      void runTransition(
-                        transitionMutation.variables.current,
-                        transitionMutation.variables.input,
-                      )
-                    })
-                  }
+                  requestDraftDiscard(() => void mutations.retryTransition())
                 }}
                 onRequestDraftDiscard={requestDraftDiscard}
-                onTransition={(input) => void runTransition(selected, input)}
-                onUpdate={(current, input) => runUpdate(current, input)}
+                onTransition={(input) => void mutations.runTransition(selected, input)}
+                onUpdate={mutations.runUpdate}
               />
             ) : requestedId && requestedCase.isError ? (
               <ErrorNotice error={requestedCase.error} retry={() => requestedCase.refetch()} />
@@ -321,7 +242,7 @@ export function CasesPage({
       <CaseDraftGuardDialog
         isOpen={discardPromptOpen}
         onCancel={cancelDiscard}
-        onDiscard={() => discardDraft(() => updateMutation.reset())}
+        onDiscard={() => discardDraft(mutations.resetUpdate)}
       />
     </main>
   )
