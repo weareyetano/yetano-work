@@ -27,7 +27,7 @@ jobs:
           - 5432:5432
     env:
       DATABASE_URL: postgresql://yetano:yetano@localhost:5432/yetano_work
-      TEST_DATABASE_URL: postgresql://yetano:yetano@localhost:5432/yetano_work
+      TEST_DATABASE_URL: postgresql://yetano:yetano@localhost:5432/yetano_work_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -38,4 +38,8 @@ jobs:
           cache: pnpm
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      - name: Create test database
+        env:
+          PGPASSWORD: yetano
+        run: createdb --host localhost --port 5432 --username yetano yetano_work_test
       - run: pnpm verify:full
