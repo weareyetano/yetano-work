@@ -73,8 +73,11 @@ panel used for case details, with a required title and optional description. The
 is assigned implicitly and is not shown as a separate creation control.
 
 Creation is represented by `mode=new` in the workspace URL, remains open across a reload, and can be
-canceled through in-app or browser back navigation. A successful creation replaces that transient
-URL state with the created case and exposes its normal lifecycle actions and status history.
+canceled through in-app or browser back navigation. Title and description entered during creation
+form a local draft; leaving a dirty creation form requires users to keep editing or explicitly
+discard the draft, and reloading the page triggers the browser's unsaved-changes warning. A
+successful creation replaces that transient URL state with the created case and exposes its normal
+lifecycle actions and status history.
 
 The detail panel uses the editable title field as its only visible title and omits a separate current
 status badge. On wide screens, its Save action is followed by every lifecycle transition currently

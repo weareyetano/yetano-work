@@ -92,8 +92,8 @@ function useDebouncedSearch(value: string) {
 
 export type CaseSelectionNavigationMode = 'push' | 'replace'
 
-interface CaseDraftController {
-  caseId: string
+interface DraftController {
+  key: string
   isDirty: boolean
   resetDraft(): void
 }
@@ -123,7 +123,7 @@ export function CasesPage({
   const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
   const [activeCaseMutation, setActiveCaseMutation] = useState<'transition' | 'update' | null>(null)
   const selectedIdRef = useRef<string | null>(null)
-  const draftControllerRef = useRef<CaseDraftController | null>(null)
+  const draftControllerRef = useRef<DraftController | null>(null)
   const pendingDiscardActionRef = useRef<PendingDiscardAction | null>(null)
   const mutationLockRef = useRef(false)
   const previousRequestedIdRef = useRef(requestedId)
@@ -178,6 +178,14 @@ export function CasesPage({
     if (pendingDiscardActionRef.current) return
     pendingDiscardActionRef.current = { ...(cancel ? { cancel } : {}), proceed }
     setDiscardPromptOpen(true)
+  }, [])
+  const registerDraftController = useCallback((controller: DraftController) => {
+    draftControllerRef.current = controller
+    return () => {
+      if (draftControllerRef.current?.key === controller.key) {
+        draftControllerRef.current = null
+      }
+    }
   }, [])
   const commitCaseSelection = useCallback(
     (caseId: string | null, navigationMode: CaseSelectionNavigationMode = 'replace') => {
@@ -252,6 +260,7 @@ export function CasesPage({
     previousCreateRequestedRef.current = createRequested
 
     if (createRequested) {
+      if (isCreating) return
       requestDraftDiscard(
         () => {
           if (selectedIdRef.current) {
@@ -266,11 +275,16 @@ export function CasesPage({
       return
     }
 
-    if (wasCreateRequested) setIsCreating(false)
-  }, [createRequested, onCreateModeChange, requestDraftDiscard])
+    if (wasCreateRequested && isCreating) {
+      requestDraftDiscard(
+        () => setIsCreating(false),
+        () => onCreateModeChange(true, 'replace'),
+      )
+    }
+  }, [createRequested, isCreating, onCreateModeChange, requestDraftDiscard])
 
   useEffect(() => {
-    if (createRequested) return
+    if (createRequested || isCreating) return
     if (requestedId) {
       if (requestedFromList || requestedCase.data?.id === requestedId) {
         selectCase(requestedId, 'replace', () =>
@@ -289,6 +303,7 @@ export function CasesPage({
     cases.isSuccess,
     createRequested,
     isDesktop,
+    isCreating,
     items,
     requestedCase.data,
     requestedCase.isPending,
@@ -367,7 +382,7 @@ export function CasesPage({
     })
   }
 
-  const cancelCreate = () => {
+  const commitCancelCreate = () => {
     const previousSelectedId =
       previousSelectedIdRef.current ??
       (isDesktop
@@ -382,6 +397,7 @@ export function CasesPage({
 
     if (isDesktop) pendingDesktopAddFocusRef.current = true
   }
+  const cancelCreate = () => requestDraftDiscard(commitCancelCreate)
 
   const openCase = (caseId: string) => {
     requestDraftDiscard(() => {
@@ -649,6 +665,7 @@ export function CasesPage({
                 error={createMutation.error}
                 titleRef={createTitleRef}
                 onCancel={cancelCreate}
+                registerDraftController={registerDraftController}
                 onSubmit={(input) => createMutation.mutateAsync(input)}
               />
             ) : selected ? (
@@ -661,9 +678,7 @@ export function CasesPage({
                 mutationBusy={caseMutationBusy}
                 transitionError={transitionMutation.error}
                 updateError={updateMutation.error}
-                onDraftControllerChange={(controller) => {
-                  draftControllerRef.current = controller
-                }}
+                registerDraftController={registerDraftController}
                 onResetUpdateError={() => updateMutation.reset()}
                 onRetryTransition={() => {
                   if (transitionMutation.variables) {
@@ -722,7 +737,7 @@ function CaseDetail({
   headingLevel,
   isDesktop,
   mutationBusy,
-  onDraftControllerChange,
+  registerDraftController,
   onRetryTransition,
   onRequestDraftDiscard,
   onResetUpdateError,
@@ -736,7 +751,7 @@ function CaseDetail({
   headingLevel: 1 | 2
   isDesktop: boolean
   mutationBusy: boolean
-  onDraftControllerChange(controller: CaseDraftController): void
+  registerDraftController(controller: DraftController): () => void
   onRetryTransition(): void
   onRequestDraftDiscard(action: () => void): void
   onResetUpdateError(): void
@@ -765,15 +780,10 @@ function CaseDetail({
   }, [caseItem])
 
   useEffect(() => {
-    onDraftControllerChange({ caseId: caseItem.id, isDirty, resetDraft: discardDraft })
-  }, [caseItem.id, discardDraft, isDirty, onDraftControllerChange])
+    return registerDraftController({ key: caseItem.id, isDirty, resetDraft: discardDraft })
+  }, [caseItem.id, discardDraft, isDirty, registerDraftController])
 
-  useEffect(() => {
-    if (!isDirty) return
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [isDirty])
+  useWarnBeforeUnload(isDirty)
 
   const transition = (toStatus: CaseTransitionIntent['toStatus'], note?: string) => {
     onTransition({
@@ -1141,6 +1151,21 @@ interface CaseFormValue {
   title: string
 }
 
+const EMPTY_CASE_FORM_VALUE: CaseFormValue = {
+  customerId: null,
+  description: null,
+  title: '',
+}
+
+function useWarnBeforeUnload(isDirty: boolean) {
+  useEffect(() => {
+    if (!isDirty) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [isDirty])
+}
+
 interface CaseDraftState {
   draft: CaseFormValue
   serverValue: CaseFormValue
@@ -1214,17 +1239,26 @@ function CaseCreatePanel({
   busy,
   error,
   onCancel,
+  registerDraftController,
   onSubmit,
   titleRef,
 }: {
   busy: boolean
   error: Error | null
   onCancel(): void
+  registerDraftController(controller: DraftController): () => void
   onSubmit(value: CaseFormValue): Promise<unknown>
   titleRef: Ref<HTMLInputElement>
 }) {
-  const initialValue = { customerId: null, description: null, title: '' }
-  const [value, setValue] = useState<CaseFormValue>(initialValue)
+  const [value, setValue] = useState<CaseFormValue>(EMPTY_CASE_FORM_VALUE)
+  const isDirty = !caseFormValuesEqual(value, EMPTY_CASE_FORM_VALUE)
+  const resetDraft = useCallback(() => setValue(EMPTY_CASE_FORM_VALUE), [])
+
+  useEffect(() => {
+    return registerDraftController({ key: 'new', isDirty, resetDraft })
+  }, [isDirty, registerDraftController, resetDraft])
+
+  useWarnBeforeUnload(isDirty)
 
   return (
     <article aria-label="Nowa sprawa">
@@ -1233,7 +1267,7 @@ function CaseCreatePanel({
         busy={busy}
         busyLabel="Tworzenie…"
         error={error}
-        isDirty={!caseFormValuesEqual(value, initialValue)}
+        isDirty={isDirty}
         value={value}
         onCancel={onCancel}
         onChange={setValue}
