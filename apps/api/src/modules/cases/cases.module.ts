@@ -1,14 +1,11 @@
-import { asFunction } from 'awilix'
-
 import { defineModule } from '../module.js'
 import { CaseEntity } from './case.entity.js'
 import { CaseStatusChangeEntity } from './case-status-change.entity.js'
 import { casesCapabilities } from './cases.capabilities.js'
 import { casesEvents } from './cases.events.js'
 import { casesOperations } from './cases.operations.js'
-import { createCasesReadPort } from './cases.read-port.js'
+import { casesRegistrations } from './cases.registrations.js'
 import { createCasesRoutes } from './cases.routes.js'
-import { createCasesService } from './cases.service.js'
 
 export const casesModule = defineModule({
   capabilities: casesCapabilities,
@@ -19,9 +16,6 @@ export const casesModule = defineModule({
   http: { access: 'protected', path: '/cases' },
   id: 'cases',
   operations: casesOperations,
-  registrations: {
-    casesReadPort: asFunction(createCasesReadPort).scoped(),
-    casesService: asFunction(createCasesService).scoped(),
-  },
+  registrations: casesRegistrations,
   routes: createCasesRoutes,
 })

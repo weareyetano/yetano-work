@@ -31,7 +31,10 @@ describe('module import boundaries', () => {
     const apiModules = await discoverModules(join(apiSource, 'modules'), 'api')
     const webModules = await discoverModules(join(webSource, 'modules'), 'web')
     const dependencies = new Map(
-      applicationModules.map((module) => [module.id, module.dependencies] as const),
+      applicationModules.map(
+        (module) =>
+          [module.id, module.dependencies.map((dependency) => dependency.moduleId)] as const,
+      ),
     )
     const boundaries = [
       ...apiModules.map((module) => ({

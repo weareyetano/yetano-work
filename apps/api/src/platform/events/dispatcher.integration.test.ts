@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { type EntityManager, MikroORM } from '@mikro-orm/postgresql'
-import { asFunction, createContainer } from 'awilix'
+import { createContainer } from 'awilix'
 import { Hono } from 'hono'
 import Type from 'typebox'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +12,12 @@ import type { AppEnvironment } from '../../http-types.js'
 import type { Logger } from '../../logger.js'
 import { createModuleCatalog } from '../../modules/catalog.js'
 import {
+  createModuleRegistrationBuilder,
   defineEvent,
   defineModule,
   defineSubscription,
   type EventSubscriptionContext,
+  moduleRegistrations,
   type PublishedEvent,
 } from '../../modules/module.js'
 import { createOutboxDispatcher } from './dispatcher.js'
@@ -24,6 +26,7 @@ import { OutboxEventEntity } from './outbox.entity.js'
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip
 const TestPayloadSchema = Type.Object({ value: Type.String() }, { additionalProperties: false })
+const registerTest = createModuleRegistrationBuilder<Cradle>()
 const testEvent = defineEvent({
   description: 'Event used to verify outbox delivery.',
   id: 'test.deliver',
@@ -283,7 +286,7 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
 
   function dispatcherWithHandlers(handlers: readonly TestHandler[]) {
     const moduleCatalog = catalogWithHandlers(handlers)
-    for (const module of moduleCatalog.modules) rootContainer.register(module.registrations)
+    for (const module of moduleCatalog.modules) rootContainer.register(moduleRegistrations(module))
     return createOutboxDispatcher({
       logger,
       moduleCatalog,
@@ -311,15 +314,16 @@ function catalogWithHandlers(handlers: readonly TestHandler[]) {
           ],
         },
         {
-          [handlerRegistration]: asFunction(
-            ({
-              entityManager,
-              logger: scopedLogger,
-            }: Pick<Cradle, 'entityManager' | 'logger'>) => ({
-              handle: (event: TestEvent, context: EventSubscriptionContext) =>
-                handle(event, context, { entityManager, logger: scopedLogger }),
-            }),
-          ).scoped(),
+          private: {
+            [handlerRegistration]: registerTest.scoped(
+              ['entityManager', 'logger'],
+              ({ entityManager, logger: scopedLogger }) => ({
+                handle: (event: TestEvent, context: EventSubscriptionContext) =>
+                  handle(event, context, { entityManager, logger: scopedLogger }),
+              }),
+            ),
+          },
+          public: {},
         },
       )
     }),
@@ -330,11 +334,14 @@ function testModule(
   id: string,
   path: `/${string}`,
   events: Parameters<typeof defineModule>[0]['events'],
-  registrations: Parameters<typeof defineModule>[0]['registrations'] = {},
+  registrations: Parameters<typeof defineModule>[0]['registrations'] = {
+    private: {},
+    public: {},
+  },
 ) {
   return defineModule({
     capabilities: [],
-    dependencies: id.startsWith('consumer-') ? ['publisher'] : [],
+    dependencies: id.startsWith('consumer-') ? [{ moduleId: 'publisher', ports: [] }] : [],
     entities: [],
     events,
     extensions: { contributes: [], provides: [] },

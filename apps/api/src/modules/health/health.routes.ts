@@ -4,6 +4,7 @@ import { describeRoute } from 'hono-openapi'
 
 import type { AppEnvironment } from '../../http-types.js'
 import { problem } from '../../problem.js'
+import { resolveHealthRegistration } from './health.registrations.js'
 
 export function createHealthRoutes() {
   return new Hono<AppEnvironment>().get(
@@ -33,7 +34,10 @@ export function createHealthRoutes() {
     }),
     async (context) => {
       try {
-        const response = await context.get('scope').resolve('healthService').check()
+        const response = await resolveHealthRegistration(
+          context.get('scope'),
+          'healthService',
+        ).check()
         return context.json(response, 200)
       } catch {
         return problem(context, 503, 'Service Unavailable', 'Database is not ready.')

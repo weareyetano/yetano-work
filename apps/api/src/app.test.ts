@@ -148,7 +148,7 @@ const testModules = [
     http: { access: 'public', path: '/public-test' },
     id: 'public-test',
     operations: [],
-    registrations: {},
+    registrations: { private: {}, public: {} },
     routes: () =>
       new Hono<AppEnvironment>().get('', (context) =>
         context.json({ access: 'public' as const }, 200),
@@ -163,7 +163,7 @@ const testModules = [
     http: { access: 'protected', path: '/tasks-test' },
     id: 'tasks-test',
     operations: [],
-    registrations: {},
+    registrations: { private: {}, public: {} },
     routes: () =>
       new Hono<AppEnvironment>()
         .get('', (context) =>

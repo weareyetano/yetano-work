@@ -1,9 +1,7 @@
-import { asFunction } from 'awilix'
-
 import { defineOperation } from '../../platform/execution/operation.js'
 import { defineModule } from '../module.js'
+import { healthRegistrations } from './health.registrations.js'
 import { createHealthRoutes } from './health.routes.js'
-import { createHealthService } from './health.service.js'
 
 const getHealthOperation = defineOperation<undefined, unknown>({
   capability: null,
@@ -20,8 +18,6 @@ export const healthModule = defineModule({
   http: { access: 'public', path: '/health' },
   id: 'health',
   operations: [getHealthOperation],
-  registrations: {
-    healthService: asFunction(createHealthService).scoped(),
-  },
+  registrations: healthRegistrations,
   routes: createHealthRoutes,
 })

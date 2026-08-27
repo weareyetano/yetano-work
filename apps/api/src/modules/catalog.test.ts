@@ -1,10 +1,13 @@
-import { asFunction } from 'awilix'
 import { describe, expect, it } from 'vitest'
+import type { Cradle } from '../container.js'
 import { casesModule, caseTransitionedEvent } from './cases/index.js'
 import { createModuleCatalog } from './catalog.js'
 import { healthModule } from './health/index.js'
 import { applicationModuleCatalog, applicationModules } from './index.js'
-import { defineSubscription } from './module.js'
+import { createModuleRegistrationBuilder, defineSubscription } from './module.js'
+
+const registerTest = createModuleRegistrationBuilder<Cradle>()
+const emptyRegistrations = { private: {}, public: {} }
 
 describe('module catalog', () => {
   it('exposes the explicit application modules and inherited capability requirements', () => {
@@ -110,7 +113,7 @@ describe('module catalog', () => {
           http: { access: 'protected', path: '/cases/admin' },
           id: 'case-admin',
           operations: [],
-          registrations: {},
+          registrations: emptyRegistrations,
         },
       ]),
     ).toThrow('Module case-admin HTTP path /cases/admin overlaps module cases path /cases')
@@ -185,7 +188,10 @@ describe('module catalog', () => {
     })
 
     expect(() =>
-      createModuleCatalog([casesModule, { ...subscriberModule(subscription), registrations: {} }]),
+      createModuleCatalog([
+        casesModule,
+        { ...subscriberModule(subscription), registrations: emptyRegistrations },
+      ]),
     ).toThrow(
       'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must belong to module activities',
     )
@@ -204,12 +210,59 @@ describe('module catalog', () => {
         {
           ...subscriberModule(subscription),
           registrations: {
-            caseTransitionedActivityProjector: asFunction(() => ({ handle: async () => {} })),
+            private: {
+              caseTransitionedActivityProjector: registerTest.transient([], () => ({
+                handle: async () => {},
+              })),
+            },
+            public: {},
           },
         },
       ]),
     ).toThrow(
       'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must be scoped',
+    )
+  })
+
+  it('accepts a declared public port consumed by a module registration', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handlerRegistration: 'caseTransitionedActivityProjector',
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        subscriberModule(subscription, { consumeCasesReadPort: true }),
+      ]),
+    ).not.toThrow()
+  })
+
+  it('rejects private ports and undeclared public port injection', () => {
+    const subscription = defineSubscription({
+      event: caseTransitionedEvent,
+      handlerRegistration: 'caseTransitionedActivityProjector',
+      supportedVersions: [3],
+    })
+
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        {
+          ...subscriberModule(subscription),
+          dependencies: [{ moduleId: 'cases', ports: ['casesService'] }],
+        },
+      ]),
+    ).toThrow('Module activities imports unknown or private port casesService from cases')
+
+    expect(() =>
+      createModuleCatalog([
+        casesModule,
+        subscriberModule(subscription, { injectCasesReadPortWithoutDeclaration: true }),
+      ]),
+    ).toThrow(
+      'Module activities registration caseTransitionedActivityProjector injects undeclared port casesReadPort',
     )
   })
 })
@@ -218,15 +271,31 @@ function subscriberModule(
   subscription:
     | (typeof casesModule.events.subscribes)[number]
     | ReturnType<typeof defineSubscription>,
+  {
+    consumeCasesReadPort = false,
+    injectCasesReadPortWithoutDeclaration = false,
+  }: {
+    consumeCasesReadPort?: boolean
+    injectCasesReadPortWithoutDeclaration?: boolean
+  } = {},
 ) {
+  const injectCasesReadPort = consumeCasesReadPort || injectCasesReadPortWithoutDeclaration
   return {
     ...healthModule,
-    dependencies: ['cases'],
+    dependencies: [{ moduleId: 'cases', ports: consumeCasesReadPort ? ['casesReadPort'] : [] }],
     events: { publishes: [], subscribes: [subscription] },
     http: { access: 'public' as const, path: '/activities' as const },
     id: 'activities',
     registrations: {
-      [subscription.handlerRegistration]: asFunction(() => ({ handle: async () => {} })).scoped(),
+      private: {
+        [subscription.handlerRegistration]: injectCasesReadPort
+          ? registerTest.scoped(['casesReadPort'], ({ casesReadPort }) => ({
+              casesReadPort,
+              handle: async () => {},
+            }))
+          : registerTest.scoped([], () => ({ handle: async () => {} })),
+      },
+      public: {},
     },
   }
 }
