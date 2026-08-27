@@ -42,4 +42,6 @@ jobs:
         env:
           PGPASSWORD: yetano
         run: createdb --host localhost --port 5432 --username yetano yetano_work_test
+      - name: Migrate runtime database
+        run: pnpm db:migrate
       - run: pnpm verify:full
