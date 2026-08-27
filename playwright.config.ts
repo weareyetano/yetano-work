@@ -1,7 +1,15 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://yetano:yetano@localhost:5432/yetano_work'
+import { E2E_PORT, prepareE2EServerEnvironment } from './scripts/e2e-server-environment.mjs'
+
+try {
+  process.loadEnvFile('.env')
+} catch (error) {
+  if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+}
+
+const serverEnvironment = prepareE2EServerEnvironment(process.env)
+const serverUrl = `http://127.0.0.1:${E2E_PORT}`
 
 export default defineConfig({
   expect: { timeout: 10_000 },
@@ -9,19 +17,15 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   testDir: './tests/e2e',
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: serverUrl,
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm start',
-    env: {
-      DATABASE_URL: databaseUrl,
-      NODE_ENV: 'test',
-      ORGANIZATION_ID: 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb',
-    },
-    reuseExistingServer: !process.env.CI,
+    command: 'pnpm start:e2e',
+    env: serverEnvironment,
+    reuseExistingServer: false,
     timeout: 120_000,
-    url: 'http://127.0.0.1:3000/health/live',
+    url: `${serverUrl}/health/live`,
   },
   projects: [
     {

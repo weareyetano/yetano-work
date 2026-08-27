@@ -69,7 +69,9 @@ pnpm verify:full
 unit, integration, generated API, generated module catalog, build, and end-to-end gates as CI. The
 full gate loads the workspace `.env`, requires a dedicated test database, and refuses to run when
 `TEST_DATABASE_URL` points to the same database as `DATABASE_URL`, so a skipped or destructive
-integration suite cannot look green or touch development data.
+integration suite cannot look green or touch development data. Playwright also requires that
+dedicated database, resets and migrates it before every end-to-end run, and starts its own API on
+port 3100 instead of reusing the development server.
 
 ## AI-assisted development
 
