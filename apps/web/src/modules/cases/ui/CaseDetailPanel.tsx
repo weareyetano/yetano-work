@@ -9,9 +9,9 @@ import {
   type CaseFormValue,
   caseFormValue,
   caseFormValuesEqual,
-  type DraftController,
   ErrorNotice,
 } from './case-workspace.shared'
+import type { DraftController } from './useCaseDraftGuard'
 
 interface CaseDraftState {
   draft: CaseFormValue
@@ -69,8 +69,6 @@ export function CaseDetailPanel({
   useEffect(() => {
     return registerDraftController({ key: caseItem.id, isDirty, resetDraft: discardDraft })
   }, [caseItem.id, discardDraft, isDirty, registerDraftController])
-
-  useWarnBeforeUnload(isDirty)
 
   const transition = (toStatus: CaseTransitionIntent['toStatus'], note?: string) => {
     onTransition({
@@ -153,13 +151,4 @@ export function CaseDetailPanel({
 function createCaseDraft(serverCase: CaseItem): CaseDraftState {
   const serverValue = caseFormValue(serverCase)
   return { draft: serverValue, serverValue, serverVersion: serverCase.version }
-}
-
-function useWarnBeforeUnload(isDirty: boolean) {
-  useEffect(() => {
-    if (!isDirty) return
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [isDirty])
 }

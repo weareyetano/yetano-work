@@ -6,12 +6,10 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '#components/ui/button'
 import { Card, CardContent } from '#components/ui/card'
-import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '#components/ui/dialog'
-import { useMediaQuery } from '#hooks/use-media-query'
 
 import {
   type CaseItem,
@@ -34,13 +32,15 @@ import {
   type CaseFormValue,
   caseListEmptyState,
   caseListViewForStatus,
-  type DraftController,
   ErrorNotice,
   LoadingStatus,
 } from './case-workspace.shared'
+import { CaseDraftGuardDialog, useCaseDraftGuard } from './useCaseDraftGuard'
+import {
+  type CaseSelectionNavigationMode,
+  useCaseWorkspaceNavigation,
+} from './useCaseWorkspaceNavigation'
 
-const LAST_VIEWED_CASE_KEY = 'yetano:last-viewed-case-id'
-const DESKTOP_VIEW_QUERY = '(min-width: 721px)'
 const SEARCH_DEBOUNCE_MS = 300
 
 function ignoreSelectionChange() {}
@@ -61,12 +61,7 @@ function useDebouncedSearch(value: string) {
   return debouncedValue
 }
 
-export type CaseSelectionNavigationMode = 'push' | 'replace'
-
-interface PendingDiscardAction {
-  cancel?(): void
-  proceed(): void
-}
+export type { CaseSelectionNavigationMode } from './useCaseWorkspaceNavigation'
 
 export function CasesPage({
   createRequested = false,
@@ -83,35 +78,15 @@ export function CasesPage({
   const [view, setView] = useState<CaseListView>('open')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedSearch(search.trim())
-  const [isCreating, setIsCreating] = useState(createRequested)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
   const [activeCaseMutation, setActiveCaseMutation] = useState<'transition' | 'update' | null>(null)
-  const selectedIdRef = useRef<string | null>(null)
-  const draftControllerRef = useRef<DraftController | null>(null)
-  const pendingDiscardActionRef = useRef<PendingDiscardAction | null>(null)
   const mutationLockRef = useRef(false)
-  const previousRequestedIdRef = useRef(requestedId)
-  const previousCreateRequestedRef = useRef(createRequested)
-  const previousSelectedIdRef = useRef<string | null>(null)
-  const lastViewedIdRef = useRef(readLastViewedCaseId())
-  const workspaceRef = useRef<HTMLElement>(null)
-  const listViewportRef = useRef<HTMLDivElement>(null)
-  const detailViewportRef = useRef<HTMLDivElement>(null)
-  const listTitleRef = useRef<HTMLHeadingElement>(null)
-  const detailTitleInputRef = useRef<HTMLInputElement>(null)
-  const createTitleRef = useRef<HTMLInputElement>(null)
-  const addButtonRef = useRef<HTMLButtonElement>(null)
-  const mobileBackButtonRef = useRef<HTMLButtonElement>(null)
-  const caseButtonRefs = useRef(new Map<string, HTMLButtonElement>())
-  const listScrollPositionRef = useRef(0)
-  const returnFocusCaseIdRef = useRef<string | null>(null)
-  const returnFocusToAddRef = useRef(false)
-  const pendingDetailFocusIdRef = useRef<string | null>(null)
-  const pendingCreateFocusRef = useRef(false)
-  const pendingDesktopAddFocusRef = useRef(false)
-  const wasMobileDetailOpenRef = useRef(false)
-  const isDesktop = useMediaQuery(DESKTOP_VIEW_QUERY, true)
+  const {
+    cancelDiscard,
+    discardDraft,
+    discardPromptOpen,
+    registerDraftController,
+    requestDraftDiscard,
+  } = useCaseDraftGuard()
   const cases = useInfiniteQuery<
     CaseListPage,
     Error,
@@ -135,65 +110,28 @@ export function CasesPage({
     queryKey: caseQueryKeys.detail(requestedId ?? ''),
     retry: false,
   })
-  const requestDraftDiscard = useCallback((proceed: () => void, cancel?: () => void) => {
-    if (!draftControllerRef.current?.isDirty) {
-      proceed()
-      return
-    }
-    if (pendingDiscardActionRef.current) return
-    pendingDiscardActionRef.current = { ...(cancel ? { cancel } : {}), proceed }
-    setDiscardPromptOpen(true)
-  }, [])
-  const registerDraftController = useCallback((controller: DraftController) => {
-    draftControllerRef.current = controller
-    return () => {
-      if (draftControllerRef.current?.key === controller.key) {
-        draftControllerRef.current = null
-      }
-    }
-  }, [])
-  const commitCaseSelection = useCallback(
-    (caseId: string | null, navigationMode: CaseSelectionNavigationMode = 'replace') => {
-      if (selectedIdRef.current === caseId && (caseId !== null || requestedId === null)) return
-      selectedIdRef.current = caseId
-      setSelectedId(caseId)
-      if (caseId) {
-        lastViewedIdRef.current = caseId
-        storeLastViewedCaseId(caseId)
-      }
-      onSelectedIdChange(caseId, navigationMode)
-    },
-    [onSelectedIdChange, requestedId],
-  )
-  const selectCase = useCallback(
-    (
-      caseId: string | null,
-      navigationMode: CaseSelectionNavigationMode = 'replace',
-      cancel?: () => void,
-    ) => {
-      if (selectedIdRef.current === caseId && (caseId !== null || requestedId === null)) return
-      requestDraftDiscard(() => commitCaseSelection(caseId, navigationMode), cancel)
-    },
-    [commitCaseSelection, requestDraftDiscard, requestedId],
-  )
-  const rememberMobileListPosition = useCallback(
-    (caseId: string) => {
-      if (isDesktop) return
-      listScrollPositionRef.current = window.scrollY
-      returnFocusCaseIdRef.current = caseId
-    },
-    [isDesktop],
-  )
+  const navigation = useCaseWorkspaceNavigation({
+    casesIsSuccess: cases.isSuccess,
+    createRequested,
+    debouncedSearch,
+    items,
+    onCreateModeChange,
+    onSelectedIdChange,
+    requestDraftDiscard,
+    requestedCase: requestedCase.data,
+    requestedCaseIsError: requestedCase.isError,
+    requestedCaseIsPending: requestedCase.isPending,
+    requestedFromList,
+    requestedId,
+    view,
+  })
   const refresh = () => queryClient.invalidateQueries({ queryKey: caseQueryKeys.all })
 
   const createMutation = useMutation({
     mutationFn: createCaseItem,
     onSuccess: async (created) => {
       setView('open')
-      setIsCreating(false)
-      previousSelectedIdRef.current = null
-      pendingDetailFocusIdRef.current = created.id
-      commitCaseSelection(created.id, 'replace')
+      navigation.finishCreate(created.id)
       await refresh()
     },
   })
@@ -205,93 +143,6 @@ export function CasesPage({
     },
     onSuccess: refresh,
   })
-
-  useLayoutEffect(() => {
-    const previousRequestedId = previousRequestedIdRef.current
-    previousRequestedIdRef.current = requestedId
-    if (isDesktop || !previousRequestedId || requestedId) return
-    requestDraftDiscard(
-      () => {
-        selectedIdRef.current = null
-        setSelectedId(null)
-      },
-      () => onSelectedIdChange(previousRequestedId, 'replace'),
-    )
-  }, [isDesktop, onSelectedIdChange, requestDraftDiscard, requestedId])
-
-  useLayoutEffect(() => {
-    const wasCreateRequested = previousCreateRequestedRef.current
-    if (wasCreateRequested === createRequested) return
-    previousCreateRequestedRef.current = createRequested
-
-    if (createRequested) {
-      if (isCreating) return
-      requestDraftDiscard(
-        () => {
-          if (selectedIdRef.current) {
-            previousSelectedIdRef.current = selectedIdRef.current
-          }
-          selectedIdRef.current = null
-          setSelectedId(null)
-          setIsCreating(true)
-        },
-        () => onCreateModeChange(false, 'replace'),
-      )
-      return
-    }
-
-    if (wasCreateRequested && isCreating) {
-      requestDraftDiscard(
-        () => setIsCreating(false),
-        () => onCreateModeChange(true, 'replace'),
-      )
-    }
-  }, [createRequested, isCreating, onCreateModeChange, requestDraftDiscard])
-
-  useEffect(() => {
-    if (createRequested || isCreating) return
-    if (requestedId) {
-      if (requestedFromList || requestedCase.data?.id === requestedId) {
-        selectCase(requestedId, 'replace', () =>
-          onSelectedIdChange(selectedIdRef.current, 'replace'),
-        )
-        return
-      }
-      if (requestedCase.isPending) return
-    }
-
-    if (!isDesktop || !cases.isSuccess) return
-
-    const lastViewed = items.find((item) => item.id === lastViewedIdRef.current)
-    selectCase(lastViewed?.id ?? items[0]?.id ?? null)
-  }, [
-    cases.isSuccess,
-    createRequested,
-    isDesktop,
-    isCreating,
-    items,
-    requestedCase.data,
-    requestedCase.isPending,
-    requestedFromList,
-    requestedId,
-    selectCase,
-    onSelectedIdChange,
-  ])
-
-  const selected =
-    items.find((item) => item.id === selectedId) ??
-    (requestedCase.data?.id === selectedId ? requestedCase.data : null)
-  const mobileDetailOpen = !isDesktop && Boolean(isCreating || selectedId || requestedId)
-
-  useLayoutEffect(() => {
-    if (!isDesktop || !listViewportRef.current) return
-    listViewportRef.current.scrollTop = 0
-  }, [debouncedSearch, isDesktop, view])
-
-  useLayoutEffect(() => {
-    if (!isDesktop || !detailViewportRef.current) return
-    detailViewportRef.current.scrollTop = 0
-  }, [isCreating, isDesktop, selected?.id])
 
   const transitionMutation = useMutation({
     mutationFn: ({ current, input }: { current: CaseItem; input: CaseTransitionIntent }) =>
@@ -331,117 +182,28 @@ export function CasesPage({
     }
   }
 
-  const openCreate = () => {
-    requestDraftDiscard(() => {
-      createMutation.reset()
-      previousSelectedIdRef.current = selectedIdRef.current
-      selectedIdRef.current = null
-      setSelectedId(null)
-      setIsCreating(true)
-      pendingCreateFocusRef.current = true
-      if (!isDesktop) {
-        listScrollPositionRef.current = window.scrollY
-        returnFocusToAddRef.current = true
-      }
-      onCreateModeChange(true, 'push')
-    })
-  }
-
-  const commitCancelCreate = () => {
-    const previousSelectedId =
-      previousSelectedIdRef.current ??
-      (isDesktop
-        ? (items.find((item) => item.id === lastViewedIdRef.current)?.id ?? items[0]?.id ?? null)
-        : null)
-    previousSelectedIdRef.current = null
-    setIsCreating(false)
+  const resetCreateMutation = () => createMutation.reset()
+  const resetAllMutations = () => {
     createMutation.reset()
-
-    if (previousSelectedId) commitCaseSelection(previousSelectedId, 'replace')
-    else onCreateModeChange(false, 'replace')
-
-    if (isDesktop) pendingDesktopAddFocusRef.current = true
+    updateMutation.reset()
+    transitionMutation.reset()
   }
-  const cancelCreate = () => requestDraftDiscard(commitCancelCreate)
-
-  const openCase = (caseId: string) => {
-    requestDraftDiscard(() => {
-      setIsCreating(false)
-      previousSelectedIdRef.current = null
-      createMutation.reset()
-      updateMutation.reset()
-      transitionMutation.reset()
-      rememberMobileListPosition(caseId)
-      commitCaseSelection(caseId, isDesktop ? 'replace' : 'push')
-    })
-  }
-
-  useEffect(() => {
-    let restoreFrame: number | null = null
-    let settledRestoreFrame: number | null = null
-
-    if (isDesktop) {
-      wasMobileDetailOpenRef.current = false
-      return
-    }
-
-    const wasOpen = wasMobileDetailOpenRef.current
-    if (mobileDetailOpen && !wasOpen) {
-      pendingDetailFocusIdRef.current = isCreating ? null : (selectedId ?? requestedId)
-      const workspace = workspaceRef.current
-      if (workspace && typeof workspace.scrollIntoView === 'function') {
-        workspace.scrollIntoView({ block: 'start' })
-      }
-    } else if (!mobileDetailOpen && wasOpen) {
-      const returnTarget = returnFocusToAddRef.current
-        ? addButtonRef.current
-        : returnFocusCaseIdRef.current
-          ? caseButtonRefs.current.get(returnFocusCaseIdRef.current)
-          : null
-      const scrollPosition = listScrollPositionRef.current
-      restoreFrame = window.requestAnimationFrame(() => {
-        settledRestoreFrame = window.requestAnimationFrame(() => {
-          ;(returnTarget ?? listTitleRef.current)?.focus({ preventScroll: true })
-          window.scrollTo({ behavior: 'auto', top: scrollPosition })
-        })
-      })
-      returnFocusCaseIdRef.current = null
-      returnFocusToAddRef.current = false
-      pendingDetailFocusIdRef.current = null
-    }
-    wasMobileDetailOpenRef.current = mobileDetailOpen
-
-    return () => {
-      if (restoreFrame !== null) window.cancelAnimationFrame(restoreFrame)
-      if (settledRestoreFrame !== null) window.cancelAnimationFrame(settledRestoreFrame)
-    }
-  }, [isCreating, isDesktop, mobileDetailOpen, requestedId, selectedId])
-
-  useEffect(() => {
-    if (!isCreating || !pendingCreateFocusRef.current) return
-    createTitleRef.current?.focus({ preventScroll: true })
-    pendingCreateFocusRef.current = false
-  }, [isCreating])
-
-  useEffect(() => {
-    if (isCreating || !isDesktop || !pendingDesktopAddFocusRef.current) return
-    addButtonRef.current?.focus({ preventScroll: true })
-    pendingDesktopAddFocusRef.current = false
-  }, [isCreating, isDesktop])
-
-  useEffect(() => {
-    if (!mobileDetailOpen || pendingDetailFocusIdRef.current === null) return
-    if (selected?.id === pendingDetailFocusIdRef.current) {
-      detailTitleInputRef.current?.focus({ preventScroll: true })
-      pendingDetailFocusIdRef.current = null
-      return
-    }
-    if (requestedCase.isError) {
-      mobileBackButtonRef.current?.focus({ preventScroll: true })
-      pendingDetailFocusIdRef.current = null
-    }
-  }, [mobileDetailOpen, requestedCase.isError, selected?.id])
-
+  const {
+    addButtonRef,
+    caseButtonRefs,
+    createTitleRef,
+    detailTitleInputRef,
+    detailViewportRef,
+    isCreating,
+    isDesktop,
+    listTitleRef,
+    listViewportRef,
+    mobileBackButtonRef,
+    mobileDetailOpen,
+    selected,
+    selectedId,
+    workspaceRef,
+  } = navigation
   const caseMutationBusy =
     activeCaseMutation !== null || updateMutation.isPending || transitionMutation.isPending
 
@@ -464,13 +226,13 @@ export function CasesPage({
           search={search}
           selectedId={selectedId}
           view={view}
-          onOpenCase={openCase}
-          onOpenCreate={openCreate}
+          onOpenCase={(caseId) => navigation.openCase(caseId, resetAllMutations)}
+          onOpenCreate={() => navigation.openCreate(resetCreateMutation)}
           onSearchChange={setSearch}
           onViewChange={(nextView) => {
             requestDraftDiscard(() => {
               setView(nextView)
-              if (!isCreating) commitCaseSelection(null)
+              if (!isCreating) navigation.commitCaseSelection(null)
             })
           }}
         />
@@ -493,8 +255,8 @@ export function CasesPage({
                   className="size-11"
                   onPress={() =>
                     isCreating
-                      ? cancelCreate()
-                      : requestDraftDiscard(() => commitCaseSelection(null, 'replace'))
+                      ? navigation.cancelCreate(resetCreateMutation)
+                      : navigation.closeMobileDetail()
                   }
                   size="icon-lg"
                   type="button"
@@ -509,7 +271,7 @@ export function CasesPage({
                 busy={createMutation.isPending}
                 error={createMutation.error}
                 titleRef={createTitleRef}
-                onCancel={cancelCreate}
+                onCancel={() => navigation.cancelCreate(resetCreateMutation)}
                 registerDraftController={registerDraftController}
                 onSubmit={(input) => createMutation.mutateAsync(input)}
               />
@@ -556,67 +318,11 @@ export function CasesPage({
           </CardContent>
         </Card>
       </section>
-      <UnsavedChangesDialog
+      <CaseDraftGuardDialog
         isOpen={discardPromptOpen}
-        onCancel={() => {
-          pendingDiscardActionRef.current?.cancel?.()
-          pendingDiscardActionRef.current = null
-          setDiscardPromptOpen(false)
-        }}
-        onDiscard={() => {
-          const action = pendingDiscardActionRef.current
-          draftControllerRef.current?.resetDraft()
-          draftControllerRef.current = null
-          pendingDiscardActionRef.current = null
-          setDiscardPromptOpen(false)
-          updateMutation.reset()
-          action?.proceed()
-        }}
+        onCancel={cancelDiscard}
+        onDiscard={() => discardDraft(() => updateMutation.reset())}
       />
     </main>
   )
-}
-
-function UnsavedChangesDialog({
-  isOpen,
-  onCancel,
-  onDiscard,
-}: {
-  isOpen: boolean
-  onCancel(): void
-  onDiscard(): void
-}) {
-  return (
-    <Dialog isDismissable isOpen={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogTitle>Niezapisane zmiany</DialogTitle>
-      <DialogDescription>
-        Masz niezapisane zmiany tytułu lub opisu. Możesz zostać przy edycji albo świadomie je
-        odrzucić.
-      </DialogDescription>
-      <DialogFooter>
-        <Button autoFocus onPress={onCancel} type="button" variant="outline">
-          Zostań przy edycji
-        </Button>
-        <Button onPress={onDiscard} type="button" variant="destructive">
-          Odrzuć zmiany
-        </Button>
-      </DialogFooter>
-    </Dialog>
-  )
-}
-
-function readLastViewedCaseId() {
-  try {
-    return window.localStorage.getItem(LAST_VIEWED_CASE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function storeLastViewedCaseId(caseId: string) {
-  try {
-    window.localStorage.setItem(LAST_VIEWED_CASE_KEY, caseId)
-  } catch {
-    // Selection still works when storage is unavailable.
-  }
 }

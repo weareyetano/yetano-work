@@ -1,6 +1,10 @@
-import { screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
 import type userEvent from '@testing-library/user-event'
+import { type ComponentType, createElement } from 'react'
 import { vi } from 'vitest'
+
+import { CasesPage } from './CasesPage'
 
 export const caseItem = {
   closedAt: null,
@@ -80,5 +84,21 @@ export function mockDesktopViewport(matches: boolean) {
       media: '(min-width: 721px)',
       removeEventListener: vi.fn(),
     }),
+  )
+}
+
+export function renderCasesPage(props: Parameters<typeof CasesPage>[0] = {}) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(
+        CasesPage as ComponentType<NonNullable<Parameters<typeof CasesPage>[0]>>,
+        props as NonNullable<Parameters<typeof CasesPage>[0]>,
+      ),
+    ),
   )
 }

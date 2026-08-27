@@ -4,9 +4,9 @@ import { CaseForm } from './CaseForm'
 import {
   type CaseFormValue,
   caseFormValuesEqual,
-  type DraftController,
   EMPTY_CASE_FORM_VALUE,
 } from './case-workspace.shared'
+import type { DraftController } from './useCaseDraftGuard'
 
 export function CaseCreatePanel({
   busy,
@@ -31,8 +31,6 @@ export function CaseCreatePanel({
     return registerDraftController({ key: 'new', isDirty, resetDraft })
   }, [isDirty, registerDraftController, resetDraft])
 
-  useWarnBeforeUnload(isDirty)
-
   return (
     <article aria-label="Nowa sprawa">
       <CaseForm
@@ -50,13 +48,4 @@ export function CaseCreatePanel({
       />
     </article>
   )
-}
-
-function useWarnBeforeUnload(isDirty: boolean) {
-  useEffect(() => {
-    if (!isDirty) return
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [isDirty])
 }

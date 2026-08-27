@@ -8,12 +8,6 @@ import { cn } from '#lib/utils'
 
 import { type CaseItem, type CaseListView, isCaseVersionConflict } from '../cases.api'
 
-export interface DraftController {
-  key: string
-  isDirty: boolean
-  resetDraft(): void
-}
-
 export interface CaseFormValue {
   customerId: string | null
   description: string | null
