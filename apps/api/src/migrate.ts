@@ -1,6 +1,6 @@
 import { createRuntime } from './runtime.js'
 
-const runtime = await createRuntime()
+const runtime = await createRuntime({ migrationSnapshot: false })
 
 try {
   const migrations = await runtime.orm.migrator.up()

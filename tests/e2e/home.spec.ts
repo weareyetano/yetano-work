@@ -10,6 +10,26 @@ test('redirects the former home page to cases', async ({ page }) => {
   await expect(page.getByText('Sprawy bez utraconego kontekstu.')).toHaveCount(0)
 })
 
+test('derives the active module from the current route', async ({ page }) => {
+  await page.route('**/api/v1/cases**', (route) =>
+    route.fulfill({
+      body: JSON.stringify({ items: [], nextCursor: null }),
+      contentType: 'application/json',
+      status: 200,
+    }),
+  )
+  await page.setViewportSize({ height: 900, width: 1440 })
+  await page.goto('/settings')
+
+  const cases = page.getByRole('link', { name: 'Sprawy' })
+  await expect(cases).not.toHaveAttribute('aria-current')
+
+  await cases.click()
+
+  await expect(page).toHaveURL(/\/cases$/)
+  await expect(cases).toHaveAttribute('aria-current', 'page')
+})
+
 test('centers module navigation and keeps placeholder modules on the cases route', async ({
   page,
 }) => {

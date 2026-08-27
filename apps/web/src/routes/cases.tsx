@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
 
-import { type CaseSelectionNavigationMode, CasesPage } from '../modules/cases/ui/CasesPage'
+import { type CaseSelectionNavigationMode, CasesPage } from '#modules/cases'
 
 export const Route = createFileRoute('/cases')({
   component: CasesRoute,

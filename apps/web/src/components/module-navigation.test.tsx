@@ -4,10 +4,25 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ModuleNavigation, type ModuleNavigationItem } from './module-navigation'
+import type { WebModuleDefinition } from '#modules'
+
+import { ModuleNavigation } from './module-navigation'
+
+const routerMocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  pathname: '/cases',
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => routerMocks.navigate,
+  useRouterState: ({ select }: { select(state: { location: { pathname: string } }): string }) =>
+    select({ location: { pathname: routerMocks.pathname } }),
+}))
 
 afterEach(() => {
   cleanup()
+  routerMocks.navigate.mockReset()
+  routerMocks.pathname = '/cases'
   vi.unstubAllGlobals()
 })
 
@@ -19,6 +34,9 @@ describe('ModuleNavigation', () => {
     expect(screen.getByRole('navigation', { name: 'Moduły' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Sprawy' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Sprawy' })).toHaveAttribute('href', '/cases')
+
+    await user.click(screen.getByRole('link', { name: 'Sprawy' }))
+    expect(routerMocks.navigate).toHaveBeenCalledWith({ href: '/cases' })
 
     const tasks = screen.getByRole('button', { name: 'Zadania' })
     await user.click(tasks)
@@ -52,13 +70,14 @@ describe('ModuleNavigation', () => {
   it('keeps eight modules in a compact menu without shrinking their labels', async () => {
     mockWideNavigation(false)
     const user = userEvent.setup()
-    const items: readonly ModuleNavigationItem[] = [
-      { href: '/cases', id: 'cases', isCurrent: true, label: 'Sprawy' },
+    const items = [
+      { availability: 'available', id: 'cases', label: 'Sprawy', path: '/cases' },
       ...Array.from({ length: 7 }, (_, index) => ({
+        availability: 'planned' as const,
         id: `placeholder-${index + 1}`,
         label: `Moduł ${index + 2}`,
       })),
-    ]
+    ] as const satisfies readonly WebModuleDefinition[]
     render(<ModuleNavigation items={items} />)
 
     const trigger = screen.getByRole('button', {
@@ -84,6 +103,21 @@ describe('ModuleNavigation', () => {
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('does not mark a module as current outside module routes', async () => {
+    routerMocks.pathname = '/settings'
+    render(<ModuleNavigation />)
+
+    expect(screen.getByRole('link', { name: 'Sprawy' })).not.toHaveAttribute('aria-current')
+
+    cleanup()
+    mockWideNavigation(false)
+    render(<ModuleNavigation />)
+
+    expect(
+      screen.getByRole('button', { name: 'Wybierz moduł, brak aktywnego modułu' }),
+    ).toHaveTextContent('Wybierz moduł')
   })
 })
 

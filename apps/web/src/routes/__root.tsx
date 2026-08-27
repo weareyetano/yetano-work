@@ -17,6 +17,7 @@ import {
   normalizeBrandSettings,
   readBrandSettingsFromStorage,
 } from '#lib/app-brand'
+import { defaultWebModule } from '#modules'
 
 type AppBrandSettings = ReturnType<typeof normalizeBrandSettings>
 
@@ -50,7 +51,7 @@ function RootLayout() {
       <header className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-4 max-[720px]:grid-cols-1 max-[720px]:gap-2 max-[720px]:py-3">
         <a
           className="font-heading text-base font-semibold text-foreground no-underline"
-          href="/cases"
+          href={defaultWebModule.path}
           aria-label={appName}
         >
           <span className="inline-flex items-center gap-2">

@@ -4,6 +4,10 @@ These instructions extend the repository root `AGENTS.md` for `apps/web`.
 
 - Consume backend operations through `@yetano/api-client`; do not recreate request or response
   types in the web app.
+- Import module-owned symbols from outside their module through `#modules/<module-id>`, which maps to
+  the module's public `index.ts`; keep deep relative imports inside the owning module.
+- Declare navigable module metadata in the compile-time web module registry. Keep file-based route
+  sources authoritative for TanStack Router and do not build routes from the registry.
 - Use TanStack Query for server state and keep query keys stable and feature-owned.
 - Treat `src/routeTree.gen.ts` as generated output. Change route source files, not the generated tree.
 - Every data-driven screen must deliberately handle loading, error, empty, and success states.

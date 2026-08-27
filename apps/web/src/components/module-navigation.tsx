@@ -1,4 +1,5 @@
 import { RiArrowDownSLine } from '@remixicon/react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import type * as React from 'react'
 import { useRef, useState } from 'react'
 
@@ -7,34 +8,24 @@ import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '#component
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from '#components/ui/dropdown-menu'
 import { useMediaQuery } from '#hooks/use-media-query'
 import { cn } from '#lib/utils'
+import { isWebModuleActive, type WebModuleDefinition, webModules } from '#modules'
 
 const WIDE_MODULE_NAVIGATION_QUERY = '(min-width: 1280px)'
 
-type ModuleNavigationItem = {
-  href?: string
-  id: string
-  isCurrent?: boolean
-  label: string
-}
-
-const defaultItems = [
-  { href: '/cases', id: 'cases', isCurrent: true, label: 'Sprawy' },
-  { id: 'tasks', label: 'Zadania' },
-  { id: 'messages', label: 'Wiadomości' },
-] satisfies readonly ModuleNavigationItem[]
-
 function ModuleNavigation({
   className,
-  items = defaultItems,
+  items = webModules,
   ...props
-}: React.ComponentProps<'nav'> & { items?: readonly ModuleNavigationItem[] }) {
+}: React.ComponentProps<'nav'> & { items?: readonly WebModuleDefinition[] }) {
   const isWide = useMediaQuery(WIDE_MODULE_NAVIGATION_QUERY, true)
+  const navigate = useNavigate()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const compactTriggerRef = useRef<HTMLButtonElement>(null)
   const placeholderReturnFocusRef = useRef<HTMLElement | null>(null)
   const [placeholderModule, setPlaceholderModule] = useState<string | null>(null)
-  const currentItem = items.find((item) => item.isCurrent) ?? items[0]
+  const currentItem = items.find((item) => isWebModuleActive(item, pathname))
 
-  if (!currentItem) return null
+  if (items.length === 0) return null
 
   const openPlaceholder = (label: string, returnFocus: HTMLElement | null) => {
     placeholderReturnFocusRef.current = returnFocus
@@ -44,6 +35,22 @@ function ModuleNavigation({
   const closePlaceholder = () => {
     setPlaceholderModule(null)
     window.setTimeout(() => placeholderReturnFocusRef.current?.focus(), 0)
+  }
+
+  const navigateToModule = (event: React.MouseEvent<Element>, path: `/${string}`) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.defaultPrevented
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    void navigate({ href: path })
   }
 
   return (
@@ -58,16 +65,17 @@ function ModuleNavigation({
       {isWide ? (
         <div className="inline-flex items-center gap-1 rounded-xl bg-border/70 p-1">
           {items.map((item) =>
-            item.href ? (
+            item.availability === 'available' ? (
               <LinkButton
-                aria-current={item.isCurrent ? 'page' : undefined}
+                aria-current={item.id === currentItem?.id ? 'page' : undefined}
                 className={cn(
                   'h-8 px-3 text-sm text-foreground/70 hover:bg-background/60 hover:text-foreground',
-                  item.isCurrent &&
+                  item.id === currentItem?.id &&
                     'bg-background text-foreground shadow-sm ring-1 ring-foreground/5 hover:bg-background',
                 )}
-                href={item.href}
+                href={item.path}
                 key={item.id}
+                onClick={(event) => navigateToModule(event, item.path)}
                 variant="ghost"
               >
                 {item.label}
@@ -94,28 +102,32 @@ function ModuleNavigation({
         <DropdownMenuTrigger>
           <Button
             ref={compactTriggerRef}
-            aria-label={`Wybierz moduł, aktualnie: ${currentItem.label}`}
+            aria-label={
+              currentItem
+                ? `Wybierz moduł, aktualnie: ${currentItem.label}`
+                : 'Wybierz moduł, brak aktywnego modułu'
+            }
             className="w-full justify-between bg-background"
             type="button"
             variant="outline"
           >
-            <span className="truncate">{currentItem.label}</span>
+            <span className="truncate">{currentItem?.label ?? 'Wybierz moduł'}</span>
             <RiArrowDownSLine aria-hidden="true" />
           </Button>
           <DropdownMenu
             aria-label="Wybierz moduł"
             className="min-w-56"
-            selectedKeys={new Set([currentItem.id])}
+            selectedKeys={new Set(currentItem ? [currentItem.id] : [])}
             selectionMode="single"
             shouldCloseOnSelect
           >
             {items.map((item) =>
-              item.href ? (
+              item.availability === 'available' ? (
                 <DropdownMenuItem
-                  aria-current={item.isCurrent ? 'page' : undefined}
-                  href={item.href}
+                  aria-current={item.id === currentItem?.id ? 'page' : undefined}
                   id={item.id}
                   key={item.id}
+                  onAction={() => void navigate({ href: item.path })}
                 >
                   {item.label}
                 </DropdownMenuItem>
@@ -149,4 +161,4 @@ function ModuleNavigation({
   )
 }
 
-export { ModuleNavigation, type ModuleNavigationItem }
+export { ModuleNavigation }

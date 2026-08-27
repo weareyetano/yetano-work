@@ -26,6 +26,8 @@ Prove the changed behavior without turning skipped checks into a green result.
   previous stack; otherwise report runtime-dependent gates as `NOT RUN` with that reason.
 - Do not start Docker, apply migrations, install browsers, or change external state unless the task
   authorizes that setup. Report the blocked gate and the exact prerequisite instead.
+- API or database behavior requires an explicit, dedicated `TEST_DATABASE_URL`; verification rejects
+  reuse of `DATABASE_URL`. Use `pnpm db:test:setup` only for the authorized local Docker database.
 - A passing unrelated test does not compensate for a required gate that was not run.
 
 ## Gate profiles
@@ -46,8 +48,9 @@ If `TEST_DATABASE_URL` or the database is unavailable, a required integration ga
 never infer success from Vitest skips. Generated API diffs fail until reviewed and intentionally
 included.
 
-The full gate checks `TEST_DATABASE_URL` before running lint, agent asset validation, typecheck,
-unit and integration tests, generated API and module catalog consistency, build, and end-to-end tests.
+The full gate loads the workspace `.env` and validates `TEST_DATABASE_URL` before running lint,
+agent asset validation, typecheck, unit and integration tests, generated API and module catalog
+consistency, build, and end-to-end tests.
 
 ## Report format
 
@@ -68,5 +71,5 @@ Overall status is `INCOMPLETE` whenever a required gate is `NOT RUN`.
 ## Example
 
 For a database-backed API endpoint with no UI change, run the quick gate and integration profile.
-Report end-to-end tests as not required, not as passed. If `TEST_DATABASE_URL` is missing, the final
-status is incomplete even when `pnpm check` passes.
+Report end-to-end tests as not required, not as passed. If a dedicated test database is unavailable,
+the final status is incomplete even when `pnpm check` passes.
