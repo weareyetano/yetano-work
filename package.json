@@ -25,6 +25,7 @@
     "modules:check": "pnpm modules:generate && git diff --exit-code -- docs/modules",
     "modules:generate": "pnpm --filter @yetano/contracts build && node --import tsx apps/api/scripts/export-module-catalog.ts",
     "start": "pnpm --filter @yetano/api start",
+    "start:e2e": "node --import tsx scripts/start-e2e-server.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test",
