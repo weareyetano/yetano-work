@@ -794,13 +794,19 @@ function CaseDetail({
   }
 
   const updateConflict = isCaseVersionConflict(updateError)
+  const transitionConflict = isCaseVersionConflict(transitionError)
 
   return (
     <article aria-labelledby="selected-case-title">
       <Heading className="sr-only" id="selected-case-title">
         {caseItem.title}
       </Heading>
-      {transitionError ? <ErrorNotice error={transitionError} retry={onRetryTransition} /> : null}
+      {transitionError ? (
+        <ErrorNotice
+          error={transitionError}
+          {...(transitionConflict ? {} : { retry: onRetryTransition })}
+        />
+      ) : null}
       {updateConflict ? (
         <CaseConflictNotice
           draft={draftState.draft}
@@ -1460,7 +1466,7 @@ function caseListEmptyState(view: CaseListView, search: string) {
 
 function readError(error: unknown) {
   if (isCaseVersionConflict(error)) {
-    return 'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i spróbuj ponownie.'
+    return 'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i wybierz właściwą akcję.'
   }
   if (error instanceof Error && error.message) return error.message
   return 'Nie udało się wykonać operacji. Odśwież dane i spróbuj ponownie.'
