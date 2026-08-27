@@ -874,9 +874,10 @@ describe('CasesPage', () => {
     )
   })
 
-  it('refreshes the selected case after a transition conflict', async () => {
+  it('refreshes the selected case after a transition conflict without offering stale retry', async () => {
     const refreshed = {
       ...caseItem,
+      status: 'working' as const,
       updatedAt: '2026-08-19T11:00:00.000Z',
       version: 2,
     }
@@ -891,7 +892,42 @@ describe('CasesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Pracuj' }))
 
     await waitFor(() => expect(listCases).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('button', { name: 'Pracuj' })).toBeEnabled()
+    expect(
+      screen.getByText(
+        'Sprawa została zmieniona w innym miejscu. Sprawdź odświeżone dane i wybierz właściwą akcję.',
+      ),
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Spróbuj ponownie' })).not.toBeInTheDocument()
+    expect(transitionCase).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Pracuj' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Oczekuj' })).toBeEnabled()
+  })
+
+  it('retries a network failure with the same transition command and transition ID', async () => {
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
+    vi.mocked(transitionCase)
+      .mockRejectedValueOnce(new TypeError('Brak połączenia z serwerem.'))
+      .mockResolvedValueOnce(apiResult(statusChange('working')))
+    const user = userEvent.setup()
+    renderCasesPage()
+
+    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    await user.click(screen.getByRole('button', { name: 'Pracuj' }))
+
+    expect(await screen.findByText('Brak połączenia z serwerem.')).toBeVisible()
+    const firstBody = vi.mocked(transitionCase).mock.calls[0]?.[0].body
+    expect(firstBody).toEqual({
+      expectedVersion: 1,
+      fromStatus: 'new',
+      toStatus: 'working',
+      transitionId: expect.any(String),
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Spróbuj ponownie' }))
+
+    await waitFor(() => expect(transitionCase).toHaveBeenCalledTimes(2))
+    const secondBody = vi.mocked(transitionCase).mock.calls[1]?.[0].body
+    expect(secondBody).toEqual(firstBody)
   })
 })
 
