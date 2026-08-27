@@ -1,4 +1,4 @@
-import { createRuntime } from './runtime.js'
+import { createRuntime, disposeRuntime } from './runtime.js'
 
 const runtime = await createRuntime({ migrationSnapshot: false })
 
@@ -8,5 +8,5 @@ try {
     migrations: migrations.map((migration) => migration.name),
   })
 } finally {
-  await runtime.orm.close(true)
+  await disposeRuntime(runtime)
 }

@@ -83,7 +83,9 @@ export function createRootContainer({
     outboxDispatcher: asFunction(
       ({ logger, moduleCatalog, orm }: Pick<Cradle, 'logger' | 'moduleCatalog' | 'orm'>) =>
         createOutboxDispatcher({ logger, moduleCatalog, orm, rootContainer: container }),
-    ).singleton(),
+    )
+      .singleton()
+      .disposer((dispatcher) => dispatcher.stop()),
     outboxWriter: asFunction(createOutboxWriter).singleton(),
   })
 

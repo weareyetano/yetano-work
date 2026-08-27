@@ -74,7 +74,11 @@ export function createApp({
     })
     context.set('scope', scope)
 
-    return RequestContext.create(entityManager, next)
+    try {
+      return await RequestContext.create(entityManager, next)
+    } finally {
+      await scope.dispose()
+    }
   })
 
   const apiRoutes = new Hono<AppEnvironment>()
