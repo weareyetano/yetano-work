@@ -108,6 +108,87 @@ describeWithDatabase('database migrations', () => {
       await orm.migrator.up()
     }
   })
+
+  it('enforces organization-scoped case history and unique runtime versions', async () => {
+    const connection = orm.em.getConnection()
+    const caseId = '44444444-4444-4444-8444-444444444444'
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const otherOrganizationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+    await connection.execute(`insert into cases (
+      id, closed_at, created_at, customer_id, description, organization_id, status, status_note,
+      title, updated_at, version
+    ) values (
+      '${caseId}', null, now(), null, null, '${organizationId}', 'new', null,
+      'Organization constraint', now(), 1
+    )`)
+
+    try {
+      await expect(
+        connection.execute(`insert into case_status_changes (
+          id, actor_id, actor_type, case_id, case_version, changed_at, expected_version,
+          from_status, note, organization_id, source, to_status, transition_id, type
+        ) values (
+          '55555555-5555-4555-8555-555555555555', 'migration', 'system', '${caseId}', 1, now(), null,
+          null, null, '${otherOrganizationId}', 'migration', 'new', null, 'created'
+        )`),
+      ).rejects.toThrow()
+
+      await connection.execute(`insert into case_status_changes (
+        id, actor_id, actor_type, case_id, case_version, changed_at, expected_version,
+        from_status, note, organization_id, source, to_status, transition_id, type
+      ) values (
+        '66666666-6666-4666-8666-666666666666', 'system', 'system', '${caseId}', 1, now(), null,
+        null, null, '${organizationId}', 'runtime', 'new', null, 'created'
+      )`)
+
+      await expect(
+        connection.execute(`insert into case_status_changes (
+          id, actor_id, actor_type, case_id, case_version, changed_at, expected_version,
+          from_status, note, organization_id, source, to_status, transition_id, type
+        ) values (
+          '77777777-7777-4777-8777-777777777777', 'system', 'system', '${caseId}', 1, now(), null,
+          null, null, '${organizationId}', 'runtime', 'new', null, 'created'
+        )`),
+      ).rejects.toThrow()
+    } finally {
+      await connection.execute(`delete from case_status_changes where case_id = '${caseId}'`)
+      await connection.execute(`delete from cases where id = '${caseId}'`)
+    }
+  })
+
+  it('rejects ambiguous organization data before adding history constraints', async () => {
+    const connection = orm.em.getConnection()
+    const caseId = '88888888-8888-4888-8888-888888888888'
+    const organizationId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const otherOrganizationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+    await orm.migrator.down({ to: 'Migration20260823190000' })
+    await connection.execute(`insert into cases (
+      id, closed_at, created_at, customer_id, description, organization_id, status, status_note,
+      title, updated_at, version
+    ) values (
+      '${caseId}', null, now(), null, null, '${organizationId}', 'new', null,
+      'Migration preflight', now(), 1
+    )`)
+    await connection.execute(`insert into case_status_changes (
+      id, actor_id, actor_type, case_id, case_version, changed_at, expected_version,
+      from_status, note, organization_id, source, to_status, transition_id, type
+    ) values (
+      '99999999-9999-4999-8999-999999999999', 'migration', 'system', '${caseId}', 1, now(), null,
+      null, null, '${otherOrganizationId}', 'migration', 'new', null, 'created'
+    )`)
+
+    try {
+      await expect(orm.migrator.up()).rejects.toThrow(
+        'Cannot enforce organization-scoped case history: existing history belongs to a different organization than its case.',
+      )
+    } finally {
+      await connection.execute(`delete from case_status_changes where case_id = '${caseId}'`)
+      await connection.execute(`delete from cases where id = '${caseId}'`)
+      await orm.migrator.up()
+    }
+  })
 })
 
 async function tableNames(orm: Awaited<ReturnType<typeof MikroORM.init>>) {

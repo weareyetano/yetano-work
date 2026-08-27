@@ -31,6 +31,12 @@ export const CaseEntity = defineEntity({
     version: p.integer().version().default(1),
   },
   tableName: 'cases',
+  uniques: [
+    {
+      name: 'cases_org_id_unique',
+      properties: ['organizationId', 'id'],
+    },
+  ],
 })
 
 export type CaseRecord = InferEntity<typeof CaseEntity>

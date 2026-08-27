@@ -38,6 +38,11 @@ export const CaseStatusChangeEntity = defineEntity({
       name: 'case_status_changes_org_transition_unique',
       properties: ['organizationId', 'transitionId'],
     },
+    {
+      name: 'case_status_changes_org_case_version_runtime_unique',
+      properties: ['organizationId', 'caseId', 'caseVersion'],
+      where: { source: 'runtime' },
+    },
   ],
 })
 
