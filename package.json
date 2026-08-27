@@ -17,7 +17,8 @@
     "check": "pnpm lint && pnpm agents:check && pnpm typecheck && pnpm test && pnpm api:check && pnpm modules:check",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @yetano/api db:migrate",
-    "db:up": "docker compose up -d db",
+    "db:test:setup": "node --env-file-if-exists=.env scripts/setup-test-database.mjs",
+    "db:up": "docker compose up -d --wait db && pnpm db:test:setup",
     "dev": "pnpm api:generate && pnpm build:packages && pnpm --parallel --filter @yetano/contracts --filter @yetano/api-client --filter @yetano/api --filter @yetano/web dev",
     "format": "biome format --write .",
     "lint": "biome check .",
@@ -29,7 +30,7 @@
     "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "pnpm --filter @yetano/contracts build && pnpm --filter @yetano/api-client build && pnpm --recursive --if-present typecheck",
-    "verify:full": "node scripts/verify-full.mjs",
+    "verify:full": "node --env-file-if-exists=.env scripts/verify-full.mjs",
     "worktree:setup": "pnpm install --frozen-lockfile"
   },
   "devDependencies": {

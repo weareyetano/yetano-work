@@ -29,7 +29,8 @@
 ## Verification
 
 - Run `pnpm agents:check` for agent assets, `pnpm check` for code, and `pnpm verify:full` for CI
-  parity or pre-PR verification. The full gate requires `TEST_DATABASE_URL`.
+  parity or pre-PR verification. The full gate loads the workspace `.env`, requires an explicit,
+  dedicated `TEST_DATABASE_URL`, and rejects reuse of `DATABASE_URL`.
 - Add integration, generated API, build, and browser gates when the changed surface requires them.
 - Report each relevant gate as `PASS`, `FAIL`, or `NOT RUN`; skipped checks are never green.
 - Shared Docker, API, and web runtime commands may run only in the checkout that owns the runtime.

@@ -43,7 +43,9 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
   let rootContainer: AppContainer
 
   beforeAll(async () => {
-    orm = await MikroORM.init(createOrmOptions({ databaseUrl: databaseUrl as string }))
+    orm = await MikroORM.init(
+      createOrmOptions({ databaseUrl: databaseUrl as string }, { migrationSnapshot: false }),
+    )
     await orm.migrator.up()
     rootContainer = createContainer<Cradle>({ strict: true })
   })

@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { resolveTestDatabaseEnvironment } from './test-database.mjs'
+
 const gates = [
   ['lint', 'lint'],
   ['agent assets', 'agents:check'],
@@ -20,8 +22,10 @@ export function runFullVerification({
   log = console.log,
   run = spawnSync,
 } = {}) {
-  if (!environment.TEST_DATABASE_URL?.trim()) {
-    error('Full verification NOT RUN: TEST_DATABASE_URL is required.')
+  try {
+    resolveTestDatabaseEnvironment(environment)
+  } catch (configurationError) {
+    error(`Full verification NOT RUN: ${configurationError.message}`)
     return 2
   }
 

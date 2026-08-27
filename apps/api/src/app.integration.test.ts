@@ -17,7 +17,9 @@ describeWithDatabase('API with PostgreSQL', () => {
   let orm: Awaited<ReturnType<typeof MikroORM.init>>
 
   beforeAll(async () => {
-    orm = await MikroORM.init(createOrmOptions({ databaseUrl: databaseUrl as string }))
+    orm = await MikroORM.init(
+      createOrmOptions({ databaseUrl: databaseUrl as string }, { migrationSnapshot: false }),
+    )
     await orm.migrator.up()
   })
 

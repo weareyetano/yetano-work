@@ -8,7 +8,10 @@ import { applicationModules } from './modules/index.js'
 import { InboxEventEntity } from './platform/events/inbox.entity.js'
 import { OutboxEventEntity } from './platform/events/outbox.entity.js'
 
-export function createOrmOptions(config: Pick<AppConfig, 'databaseUrl'>) {
+export function createOrmOptions(
+  config: Pick<AppConfig, 'databaseUrl'>,
+  { migrationSnapshot = true }: { migrationSnapshot?: boolean } = {},
+) {
   return defineConfig({
     clientUrl: config.databaseUrl,
     discovery: {
@@ -24,6 +27,7 @@ export function createOrmOptions(config: Pick<AppConfig, 'databaseUrl'>) {
       glob: 'Migration*.{js,ts}',
       path: resolve(import.meta.dirname, 'migrations'),
       pathTs: resolve(import.meta.dirname, 'migrations'),
+      snapshot: migrationSnapshot,
       transactional: true,
     },
   })

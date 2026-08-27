@@ -37,8 +37,12 @@ pnpm db:migrate
 pnpm dev
 ```
 
-If port 5432 is already in use, configure the same alternative port in `POSTGRES_PORT`
-and `DATABASE_URL`.
+`pnpm db:up` waits for PostgreSQL and idempotently creates the dedicated test database configured by
+the explicit `TEST_DATABASE_URL`. The setup and verification commands fail before touching the
+database when that variable is missing or points to the same database as `DATABASE_URL`.
+
+If port 5432 is already in use, configure the same alternative port in `POSTGRES_PORT`,
+`DATABASE_URL`, and `TEST_DATABASE_URL`.
 
 The frontend runs at `http://localhost:5173`, the API at `http://localhost:3000`, and
 the Scalar documentation at `http://localhost:3000/api/docs`.
@@ -58,13 +62,14 @@ pnpm modules:check
 
 ```bash
 pnpm check
-TEST_DATABASE_URL=postgresql://yetano:yetano@localhost:5432/yetano_work pnpm verify:full
+pnpm verify:full
 ```
 
 `pnpm check` is the quick local gate. `pnpm verify:full` runs the same lint, typecheck,
 unit, integration, generated API, generated module catalog, build, and end-to-end gates as CI. The
-full gate fails early unless `TEST_DATABASE_URL` is set, so a skipped integration suite cannot look
-green.
+full gate loads the workspace `.env`, requires a dedicated test database, and refuses to run when
+`TEST_DATABASE_URL` points to the same database as `DATABASE_URL`, so a skipped or destructive
+integration suite cannot look green or touch development data.
 
 ## AI-assisted development
 
