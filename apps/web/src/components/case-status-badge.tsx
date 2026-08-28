@@ -7,50 +7,32 @@ import {
   RiPlayLine,
 } from '@remixicon/react'
 import type { ListCasesResponse } from '@yetano/api-client'
+import type { ComponentProps } from 'react'
 
 import { Badge } from '#components/ui/badge'
-import { cn } from '#lib/utils'
 
 type CaseStatus = ListCasesResponse['items'][number]['status']
+type StatusBadgeVariant = NonNullable<ComponentProps<typeof Badge>['variant']>
 
 export function CaseStatusBadge({ className, status }: { className?: string; status: CaseStatus }) {
-  const StatusIcon = {
-    canceled: RiCloseCircleLine,
-    new: RiAddCircleLine,
-    postponed: RiArchiveLine,
-    resolved: RiCheckboxCircleLine,
-    waiting: RiPauseLine,
-    working: RiPlayLine,
-  }[status]
+  const { icon: StatusIcon, label, variant } = statusPresentation[status]
 
   return (
-    <Badge
-      className={cn('h-6 px-2.5 text-sm', statusBadgeTone(status), className)}
-      variant="outline"
-    >
+    <Badge className={className} variant={variant}>
       <StatusIcon aria-hidden="true" data-icon="inline-start" />
-      {caseStatusLabel(status)}
+      {label}
     </Badge>
   )
 }
 
-function statusBadgeTone(status: CaseStatus) {
-  if (status === 'waiting') {
-    return 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200'
-  }
-  if (status === 'working') {
-    return 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200'
-  }
-  return 'bg-background'
-}
-
-function caseStatusLabel(status: CaseStatus) {
-  return {
-    canceled: 'Anulowana',
-    new: 'Nowa',
-    postponed: 'Odłożona',
-    resolved: 'Rozwiązana',
-    waiting: 'Czekamy',
-    working: 'Pracujemy',
-  }[status]
-}
+const statusPresentation = {
+  canceled: { icon: RiCloseCircleLine, label: 'Anulowana', variant: 'danger' },
+  new: { icon: RiAddCircleLine, label: 'Nowa', variant: 'info' },
+  postponed: { icon: RiArchiveLine, label: 'Odłożona', variant: 'neutral' },
+  resolved: { icon: RiCheckboxCircleLine, label: 'Rozwiązana', variant: 'success' },
+  waiting: { icon: RiPauseLine, label: 'Czekamy', variant: 'notice' },
+  working: { icon: RiPlayLine, label: 'Pracujemy', variant: 'warning' },
+} as const satisfies Record<
+  CaseStatus,
+  { icon: typeof RiAddCircleLine; label: string; variant: StatusBadgeVariant }
+>

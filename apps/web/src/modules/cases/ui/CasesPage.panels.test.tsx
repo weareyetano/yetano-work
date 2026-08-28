@@ -137,8 +137,8 @@ describe('CasesPage leaf panels', () => {
     const caseButton = await screen.findByRole('button', { name: /Invoice access/ })
     const listStatusBadge = within(caseButton).getByText('Nowa')
     expect(listStatusBadge).toHaveAttribute('data-slot', 'badge')
-    expect(listStatusBadge).toHaveAttribute('data-variant', 'outline')
-    expect(listStatusBadge).toHaveClass('h-6', 'bg-background', 'px-2.5', 'text-sm')
+    expect(listStatusBadge).toHaveAttribute('data-variant', 'info')
+    expect(listStatusBadge).toHaveClass('h-7', 'bg-status-info', 'px-2.5', 'text-sm')
     expect(listStatusBadge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
 
     await user.click(caseButton)
@@ -151,7 +151,7 @@ describe('CasesPage leaf panels', () => {
     expect(within(detail).getByText('Status sprawy:')).toBeVisible()
     const statusBadge = within(detail).getByText('Nowa')
     expect(statusBadge).toHaveAttribute('data-slot', 'badge')
-    expect(statusBadge).toHaveClass('h-6', 'px-2.5', 'text-sm')
+    expect(statusBadge).toHaveClass('h-7', 'bg-status-info', 'px-2.5', 'text-sm')
     expect(statusBadge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     expect(within(detail).getByRole('time')).toHaveAttribute('datetime', caseItem.updatedAt)
     expect(within(detail).getByRole('button', { name: 'Pokaż aktywność' })).toBeVisible()
@@ -191,10 +191,11 @@ describe('CasesPage leaf panels', () => {
     const detail = screen.getByRole('article')
     expect(within(detail).getByText('Status sprawy:')).toBeVisible()
     expect(within(detail).getByText('Pracujemy')).toHaveAttribute('data-slot', 'badge')
+    expect(within(detail).getByText('Pracujemy')).toHaveAttribute('data-variant', 'warning')
     expect(within(detail).getByText('Pracujemy')).toHaveClass(
-      'border-amber-300',
-      'bg-amber-50',
-      'text-amber-900',
+      'border-status-warning-foreground/30',
+      'bg-status-warning',
+      'text-status-warning-foreground',
     )
     expect(within(detail).getByRole('time')).toHaveAttribute('datetime', '2026-08-19T11:00:00.000Z')
     expect(within(detail).queryByText('Status: Pracujemy')).not.toBeInTheDocument()
@@ -278,33 +279,34 @@ describe('CasesPage leaf panels', () => {
     const rows = within(activityList).getAllByRole('listitem')
     expect(rows).toHaveLength(2)
     expect(within(timeline).getByRole('heading', { name: 'Aktywność' })).toBeVisible()
-    expect(rows[0]).toHaveClass('rounded-xl', 'bg-muted/50', 'px-3', 'py-2.5')
+    expect(rows[0]).toHaveClass('rounded-xl', 'bg-muted', 'px-3', 'py-3', 'ring-1', 'ring-border')
     expect(rows[0]).not.toHaveClass('border', 'border-border')
-    expect(rows[1]).toHaveClass('rounded-xl', 'bg-muted/50')
+    expect(rows[1]).toHaveClass('rounded-xl', 'bg-muted')
     expect(rows[0]?.parentElement).toHaveClass('grid', 'gap-2')
     expect(rows[0]).toHaveTextContent(
       'Użytkownik zmienił status na Czekamy i dodał: „Odpowiedź klienta”',
     )
     expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveAttribute(
       'data-variant',
-      'outline',
+      'notice',
     )
     expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass(
-      'border-sky-300',
-      'bg-sky-50',
-      'text-sky-800',
+      'border-status-notice-foreground/30',
+      'bg-status-notice',
+      'text-status-notice-foreground',
     )
     expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass(
       '-translate-y-0.5',
-      'h-6',
+      'h-7',
       'px-2.5',
       'text-sm',
     )
-    expect(rows[0]?.querySelector('p')).toHaveClass('text-sm')
+    expect(rows[0]?.querySelector('p')).toHaveClass('text-base', 'leading-relaxed')
     expect(within(rows[0] as HTMLElement).getByRole('time')).toHaveClass(
       'shrink-0',
       'text-right',
-      'text-xs',
+      'font-mono',
+      'text-sm',
     )
     expect(within(rows[0] as HTMLElement).getByRole('time').parentElement).toHaveClass(
       'flex',

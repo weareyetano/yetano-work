@@ -50,7 +50,7 @@ function RootLayout() {
     <div className="mx-auto w-[calc(100%_-_2.5rem)] max-w-[100rem] max-[720px]:w-[calc(100%_-_1.75rem)]">
       <header className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-4 max-[720px]:grid-cols-1 max-[720px]:gap-2 max-[720px]:py-3">
         <a
-          className="font-heading text-base font-semibold text-foreground no-underline"
+          className="font-heading text-lg font-semibold text-foreground no-underline"
           href={defaultWebModule.path}
           aria-label={appName}
         >
@@ -79,7 +79,7 @@ function RootLayout() {
             <DropdownMenuItem id="login" isDisabled textValue="Zaloguj się — wkrótce">
               <RiLoginBoxLine aria-hidden="true" />
               <span>Zaloguj się</span>
-              <span className="ml-auto text-xs text-muted-foreground">Wkrótce</span>
+              <span className="ml-auto text-sm text-muted-foreground">Wkrótce</span>
             </DropdownMenuItem>
           </DropdownMenu>
         </DropdownMenuTrigger>

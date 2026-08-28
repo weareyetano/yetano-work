@@ -159,18 +159,18 @@ export function CaseListPanel({
                       }}
                       aria-pressed={selectedRow}
                       className={cn(
-                        'h-auto w-full justify-between gap-3 border-0 px-3 py-2.5 text-left whitespace-normal',
-                        selectedRow ? 'bg-muted text-foreground' : 'bg-transparent',
+                        'h-auto w-full justify-between gap-3 border-0 px-3 py-3 text-left whitespace-normal',
+                        selectedRow
+                          ? 'bg-accent text-foreground ring-1 ring-primary/40 ring-inset'
+                          : 'bg-transparent',
                       )}
                       onPress={() => onOpenCase(item.id)}
                       type="button"
                       variant="ghost"
                     >
                       <span className="grid min-w-0 gap-1">
-                        <strong className="truncate">{item.title}</strong>
-                        <small
-                          className={selectedRow ? 'text-foreground/70' : 'text-muted-foreground'}
-                        >
+                        <strong className="truncate text-base font-semibold">{item.title}</strong>
+                        <small className="font-mono text-sm text-muted-foreground">
                           Aktualizacja {formatDate(item.updatedAt)}
                         </small>
                       </span>

@@ -46,6 +46,37 @@ test('populated cases workspace supports keyboard selection and WCAG checks', as
   await expectNoWcagViolations(page)
 })
 
+test('case activity view has no detectable WCAG A or AA violations', async ({ page }) => {
+  await mockCaseList(page, { items: [caseItem], nextCursor: null })
+  await page.route('**/api/v1/activities/**', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      json: {
+        items: [
+          {
+            actorId: 'development-user',
+            actorType: 'user',
+            caseId: caseItem.id,
+            content: 'Czytelna notatka dostępności.',
+            id: '47e5db5f-184a-4ae5-984f-585865b04a1a',
+            occurredAt: '2026-08-20T09:00:00.000Z',
+            type: 'note',
+          },
+        ],
+        nextCursor: null,
+      },
+    }),
+  )
+  await page.goto('/cases')
+
+  await page.getByRole('button', { name: /Dostępna sprawa/ }).click()
+  await page.getByRole('button', { name: 'Pokaż aktywność' }).click()
+
+  await expect(page.getByRole('region', { name: 'Aktywność' })).toBeVisible()
+  await expect(page.getByText('Czytelna notatka dostępności.')).toBeVisible()
+  await expectNoWcagViolations(page)
+})
+
 test('case creation panel supports keyboard entry and WCAG checks', async ({ page }) => {
   await mockCaseList(page, { items: [], nextCursor: null })
   await page.goto('/cases')

@@ -91,9 +91,12 @@ describe('CasesPage navigation and drafts', () => {
 
     expect(secondCase).toHaveFocus()
     expect(secondCase).toHaveAttribute('aria-pressed', 'true')
-    expect(secondCase).toHaveClass('border-0', 'bg-muted', 'text-foreground')
-    expect(secondCase).not.toHaveClass('border-border', 'bg-accent')
-    expect(within(secondCase).getByText(/Aktualizacja/)).toHaveClass('text-foreground/70')
+    expect(secondCase).toHaveClass('border-0', 'bg-accent', 'text-foreground', 'ring-primary/40')
+    expect(secondCase).not.toHaveClass('border-border', 'bg-muted')
+    expect(within(secondCase).getByText(/Aktualizacja/)).toHaveClass(
+      'font-mono',
+      'text-muted-foreground',
+    )
     expect(await screen.findByDisplayValue('Second case')).toBeVisible()
   })
 
