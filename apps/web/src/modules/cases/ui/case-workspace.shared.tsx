@@ -86,21 +86,6 @@ export function LoadingStatus({ className, label }: { className?: string; label:
   )
 }
 
-export function isOpenStatus(status: CaseItem['status']) {
-  return status === 'new' || status === 'working' || status === 'waiting'
-}
-
-export function statusLabel(status: CaseItem['status']) {
-  return {
-    canceled: 'Anulowana',
-    new: 'Nowa',
-    postponed: 'Odłożona',
-    resolved: 'Rozwiązana',
-    waiting: 'Czekamy',
-    working: 'Pracujemy',
-  }[status]
-}
-
 export function caseListViewForStatus(status: CaseItem['status']): CaseListView {
   if (status === 'canceled' || status === 'resolved') return 'closed'
   return status === 'postponed' ? 'postponed' : 'open'

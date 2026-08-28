@@ -134,7 +134,14 @@ describe('CasesPage leaf panels', () => {
     expect(getViewSelect()).toBeVisible()
     expect(screen.queryByLabelText('Id klienta (opcjonalnie)')).not.toBeInTheDocument()
 
-    await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    const caseButton = await screen.findByRole('button', { name: /Invoice access/ })
+    const listStatusBadge = within(caseButton).getByText('Nowa')
+    expect(listStatusBadge).toHaveAttribute('data-slot', 'badge')
+    expect(listStatusBadge).toHaveAttribute('data-variant', 'outline')
+    expect(listStatusBadge).toHaveClass('h-6', 'bg-background', 'px-2.5', 'text-sm')
+    expect(listStatusBadge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+
+    await user.click(caseButton)
 
     const detail = screen.getByRole('article')
     const save = within(detail).getByRole('button', { name: 'Zapisz' })

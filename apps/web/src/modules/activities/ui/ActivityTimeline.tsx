@@ -1,13 +1,4 @@
-import {
-  RiAddCircleLine,
-  RiAddLine,
-  RiArchiveLine,
-  RiCheckboxCircleLine,
-  RiCloseCircleLine,
-  RiErrorWarningLine,
-  RiPauseLine,
-  RiPlayLine,
-} from '@remixicon/react'
+import { RiAddLine, RiErrorWarningLine } from '@remixicon/react'
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -16,17 +7,15 @@ import {
 } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 
+import { CaseStatusBadge } from '#components/case-status-badge'
 import { Alert, AlertAction, AlertDescription } from '#components/ui/alert'
-import { Badge } from '#components/ui/badge'
 import { Button } from '#components/ui/button'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
-import { cn } from '#lib/utils'
 
 import {
   type ActivityItem,
   type ActivityPage,
-  type ActivityStatus,
   activityQueryKeys,
   appendActivityNote,
   fetchCaseActivities,
@@ -215,10 +204,7 @@ function ActivitySentence({ entry }: { entry: ActivityItem }) {
   return (
     <>
       <strong>{actor}</strong> zmienił status na{' '}
-      <ActivityStatusBadge
-        className="mx-0.5 -translate-y-0.5 align-middle"
-        status={entry.toStatus}
-      />
+      <CaseStatusBadge className="mx-0.5 -translate-y-0.5 align-middle" status={entry.toStatus} />
       {entry.note ? (
         <>
           {' '}
@@ -229,54 +215,6 @@ function ActivitySentence({ entry }: { entry: ActivityItem }) {
       )}
     </>
   )
-}
-
-export function ActivityStatusBadge({
-  className,
-  status,
-}: {
-  className?: string
-  status: ActivityStatus
-}) {
-  const StatusIcon = {
-    canceled: RiCloseCircleLine,
-    new: RiAddCircleLine,
-    postponed: RiArchiveLine,
-    resolved: RiCheckboxCircleLine,
-    waiting: RiPauseLine,
-    working: RiPlayLine,
-  }[status]
-
-  return (
-    <Badge
-      className={cn('h-6 px-2.5 text-sm', statusBadgeTone(status), className)}
-      variant="outline"
-    >
-      <StatusIcon aria-hidden="true" data-icon="inline-start" />
-      {statusLabel(status)}
-    </Badge>
-  )
-}
-
-function statusBadgeTone(status: ActivityStatus) {
-  if (status === 'waiting') {
-    return 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200'
-  }
-  if (status === 'working') {
-    return 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200'
-  }
-  return 'bg-background'
-}
-
-export function statusLabel(status: ActivityStatus) {
-  return {
-    canceled: 'Anulowana',
-    new: 'Nowa',
-    postponed: 'Odłożona',
-    resolved: 'Rozwiązana',
-    waiting: 'Czekamy',
-    working: 'Pracujemy',
-  }[status]
 }
 
 export function formatActivityDate(value: string) {
