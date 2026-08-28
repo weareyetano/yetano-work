@@ -1,7 +1,7 @@
 import { RiAddLine, RiCloseLine, RiSearchLine } from '@remixicon/react'
 import type { MutableRefObject, Ref } from 'react'
 
-import { Badge } from '#components/ui/badge'
+import { CaseStatusBadge } from '#components/case-status-badge'
 import { Button } from '#components/ui/button'
 import { Card, CardContent } from '#components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#components/ui/empty'
@@ -22,13 +22,7 @@ import { Spinner } from '#components/ui/spinner'
 import { cn } from '#lib/utils'
 
 import type { CaseItem, CaseListView } from '../cases.api'
-import {
-  ErrorNotice,
-  formatDate,
-  isOpenStatus,
-  LoadingStatus,
-  statusLabel,
-} from './case-workspace.shared'
+import { ErrorNotice, formatDate, LoadingStatus } from './case-workspace.shared'
 
 interface CaseListQueryState {
   error: Error | null
@@ -180,9 +174,7 @@ export function CaseListPanel({
                           Aktualizacja {formatDate(item.updatedAt)}
                         </small>
                       </span>
-                      <Badge variant={isOpenStatus(item.status) ? 'default' : 'secondary'}>
-                        {statusLabel(item.status)}
-                      </Badge>
+                      <CaseStatusBadge status={item.status} />
                     </Button>
                   </li>
                 )

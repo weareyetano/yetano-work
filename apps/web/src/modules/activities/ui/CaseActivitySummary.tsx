@@ -2,6 +2,7 @@ import { RiHistoryLine } from '@remixicon/react'
 import { useQuery } from '@tanstack/react-query'
 import type { Ref } from 'react'
 
+import { CaseStatusBadge } from '#components/case-status-badge'
 import { Button } from '#components/ui/button'
 
 import {
@@ -9,7 +10,7 @@ import {
   activityQueryKeys,
   fetchCurrentStatusActivity,
 } from '../activities.api'
-import { ActivityStatusBadge, formatActivityDate } from './ActivityTimeline'
+import { formatActivityDate } from './ActivityTimeline'
 
 const ACTIVITY_REFRESH_MS = 2_000
 
@@ -40,7 +41,7 @@ export function CaseActivitySummary({
     <div className="mt-6 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2.5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">Status sprawy:</span>{' '}
-        <ActivityStatusBadge status={status} />
+        <CaseStatusBadge status={status} />
       </div>
       <time className="ml-auto text-right text-xs text-muted-foreground" dateTime={occurredAt}>
         {formatActivityDate(occurredAt)}
