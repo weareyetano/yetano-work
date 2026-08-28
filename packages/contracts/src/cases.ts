@@ -222,34 +222,6 @@ export const CaseStatusChangeSchema = Type.Object(
 
 export type CaseStatusChange = Type.Static<typeof CaseStatusChangeSchema>
 
-export const CaseStatusHistoryQuerySchema = Type.Object(
-  {
-    cursor: Type.Optional(CaseCursorSchema),
-    limit: Type.Optional(CaseListLimitSchema),
-  },
-  {
-    additionalProperties: false,
-    description: 'Cursor pagination for a case status history.',
-    title: 'CaseStatusHistoryQuery',
-  },
-)
-
-export type CaseStatusHistoryQuery = Type.Static<typeof CaseStatusHistoryQuerySchema>
-
-export const CaseStatusHistorySchema = Type.Object(
-  {
-    items: Type.Array(CaseStatusChangeSchema),
-    nextCursor: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
-  },
-  {
-    additionalProperties: false,
-    description: 'A cursor-paginated case status history.',
-    title: 'CaseStatusHistory',
-  },
-)
-
-export type CaseStatusHistory = Type.Static<typeof CaseStatusHistorySchema>
-
 export const CasePathParametersSchema = Type.Object(
   { caseId: CaseIdSchema },
   { additionalProperties: false, title: 'CasePathParameters' },

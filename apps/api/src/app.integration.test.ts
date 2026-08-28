@@ -1,6 +1,11 @@
 import { EntityManager } from '@mikro-orm/core'
 import { MikroORM } from '@mikro-orm/postgresql'
-import type { Case, CaseStatusChange, ChangeCaseStatusRequest } from '@yetano/contracts'
+import type {
+  ActivityList,
+  Case,
+  CaseStatusChange,
+  ChangeCaseStatusRequest,
+} from '@yetano/contracts'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from './app.js'
@@ -27,7 +32,7 @@ describeWithDatabase('API with PostgreSQL', () => {
     await orm.em
       .getConnection()
       .execute(
-        'truncate table case_status_changes, cases, platform_event_inbox, platform_outbox_events restart identity',
+        'truncate table activities, case_status_changes, cases, platform_event_inbox, platform_outbox_events restart identity',
       )
   })
 
@@ -121,13 +126,13 @@ describeWithDatabase('API with PostgreSQL', () => {
 
     const secondApp = createTestApp(secondOrganization)
     const crossOrganizationRead = await secondApp.request(`/api/v1/cases/${created.id}`)
-    const crossOrganizationHistory = await secondApp.request(
-      `/api/v1/cases/${created.id}/status-history`,
+    const crossOrganizationActivities = await secondApp.request(
+      `/api/v1/activities/cases/${created.id}`,
     )
     const secondOrganizationList = await secondApp.request('/api/v1/cases')
 
     expect(crossOrganizationRead.status).toBe(404)
-    expect(crossOrganizationHistory.status).toBe(404)
+    expect(crossOrganizationActivities.status).toBe(404)
     await expect(secondOrganizationList.json()).resolves.toEqual({ items: [], nextCursor: null })
   })
 
@@ -209,10 +214,13 @@ describeWithDatabase('API with PostgreSQL', () => {
       code: 'case_transition_id_conflict',
     })
 
-    const historyResponse = await app.request(`/api/v1/cases/${created.id}/status-history`)
-    const history = (await historyResponse.json()) as { items: CaseStatusChange[] }
-    expect(history.items).toHaveLength(2)
-    expect(history.items.map((entry) => entry.type)).toEqual(['transitioned', 'created'])
+    const history = await orm.em
+      .getConnection()
+      .execute<Array<{ type: string }>>(
+        'select type from case_status_changes where case_id = ? order by changed_at desc, id desc',
+        [created.id],
+      )
+    expect(history.map((entry) => entry.type)).toEqual(['transitioned', 'created'])
 
     const eventCounts = await orm.em
       .getConnection()
@@ -246,6 +254,87 @@ describeWithDatabase('API with PostgreSQL', () => {
       },
       schema_version: 3,
     })
+  })
+
+  it('projects case events and appends idempotent organization-scoped notes', async () => {
+    const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
+    const { app, container } = createTestRuntime(organizationId)
+    const createResponse = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Activity projection test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+
+    await app.request(`/api/v1/cases/${created.id}`, {
+      body: JSON.stringify({ expectedVersion: created.version, title: 'Updated without activity' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'PATCH',
+    })
+    await container.resolve('outboxDispatcher').dispatchOnce()
+
+    const afterUpdate = await readActivities(app, created.id)
+    expect(afterUpdate.items).toHaveLength(1)
+    expect(afterUpdate.items[0]).toMatchObject({
+      actorId: 'local-dev',
+      caseId: created.id,
+      caseVersion: 1,
+      type: 'case_created',
+    })
+
+    const transitionResponse = await app.request(`/api/v1/cases/${created.id}/transition`, {
+      body: JSON.stringify({
+        expectedVersion: 2,
+        fromStatus: 'new',
+        note: 'Work started.',
+        toStatus: 'working',
+        transitionId: crypto.randomUUID(),
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(transitionResponse.status).toBe(200)
+    await container.resolve('outboxDispatcher').dispatchOnce()
+    await container.resolve('outboxDispatcher').dispatchOnce()
+
+    const afterTransition = await readActivities(app, created.id)
+    expect(afterTransition.items).toHaveLength(2)
+    expect(afterTransition.items[0]).toMatchObject({
+      fromStatus: 'new',
+      note: 'Work started.',
+      toStatus: 'working',
+      type: 'case_status_changed',
+    })
+
+    const activityId = crypto.randomUUID()
+    const appendNote = () =>
+      app.request(`/api/v1/activities/cases/${created.id}/notes`, {
+        body: JSON.stringify({ activityId, content: '  Call the customer.  ' }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+    const noteResponses = await withConcurrentFlushes(() =>
+      Promise.all([appendNote(), appendNote()]),
+    )
+    const notes = await Promise.all(noteResponses.map((response) => response.json()))
+
+    expect(noteResponses.map((response) => response.status).sort()).toEqual([200, 201])
+    expect(notes[0]).toEqual(notes[1])
+    expect(notes[0]).toMatchObject({ content: 'Call the customer.', id: activityId, type: 'note' })
+
+    const conflict = await app.request(`/api/v1/activities/cases/${created.id}/notes`, {
+      body: JSON.stringify({ activityId, content: 'Different note' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(conflict.status).toBe(409)
+    await expect(conflict.json()).resolves.toMatchObject({ code: 'activity_id_conflict' })
+    expect((await readActivities(app, created.id)).items).toHaveLength(3)
+
+    const otherOrganization = createTestApp('98b5d140-f720-4e64-89c3-59adc699cfe0')
+    expect((await otherOrganization.request(`/api/v1/activities/cases/${created.id}`)).status).toBe(
+      404,
+    )
   })
 
   it('keeps concurrent lifecycle transitions idempotent', async () => {
@@ -638,6 +727,10 @@ describeWithDatabase('API with PostgreSQL', () => {
   })
 
   function createTestApp(organizationId: string, actorResolver?: ActorResolver) {
+    return createTestRuntime(organizationId, actorResolver).app
+  }
+
+  function createTestRuntime(organizationId: string, actorResolver?: ActorResolver) {
     const config: AppConfig = {
       appVersion: 'test',
       databaseUrl: databaseUrl as string,
@@ -653,7 +746,13 @@ describeWithDatabase('API with PostgreSQL', () => {
       logger,
       orm,
     })
-    return createApp({ container })
+    return { app: createApp({ container }), container }
+  }
+
+  async function readActivities(app: ReturnType<typeof createApp>, caseId: string) {
+    const response = await app.request(`/api/v1/activities/cases/${caseId}`)
+    expect(response.status).toBe(200)
+    return (await response.json()) as ActivityList
   }
 })
 

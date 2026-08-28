@@ -11,9 +11,6 @@ import {
   CaseStatusChangeSchema,
   CaseStatusFilterSchema,
   CaseStatusGroupSchema,
-  type CaseStatusHistoryQuery,
-  CaseStatusHistoryQuerySchema,
-  CaseStatusHistorySchema,
   CaseTransitionIdConflictSchema,
   CaseVersionConflictSchema,
   type ChangeCaseStatusRequest,
@@ -48,7 +45,6 @@ const createCaseValidator = Compile(CreateCaseRequestSchema)
 const updateCaseValidator = Compile(UpdateCaseRequestSchema)
 const transitionCaseValidator = Compile(ChangeCaseStatusRequestSchema)
 const listCasesValidator = Compile(ListCasesQuerySchema)
-const statusHistoryValidator = Compile(CaseStatusHistoryQuerySchema)
 
 const errorResponses = {
   400: problemResponse('The request is invalid.'),
@@ -121,40 +117,6 @@ export function createCasesRoutes() {
         context.json(
           await resolveCasesService(context).list(
             query as ListCasesQuery,
-            context.get('executionContext'),
-          ),
-          200,
-        ),
-      )
-    },
-  )
-
-  routes.get(
-    '/:caseId/status-history',
-    describeRoute({
-      description: 'Lists immutable status history for one organization-scoped case.',
-      operationId: 'listCaseStatusHistory',
-      parameters: [
-        pathParameter('caseId'),
-        queryParameter('cursor', CaseCursorSchema),
-        queryParameter('limit', CaseListLimitSchema),
-      ],
-      responses: {
-        ...errorResponses,
-        200: jsonResponse(CaseStatusHistorySchema, 'A cursor-paginated case status history.'),
-        404: problemResponse('The case does not exist in the active organization.'),
-      },
-      tags: ['Cases'],
-    }),
-    async (context) => {
-      const caseId = readCaseId(context)
-      const query = parseHistoryQuery(context)
-      if (!caseId || !query || !statusHistoryValidator.Check(query)) return invalidRequest(context)
-      return runCaseAction(context, async () =>
-        context.json(
-          await resolveCasesService(context).history(
-            caseId,
-            query as CaseStatusHistoryQuery,
             context.get('executionContext'),
           ),
           200,
@@ -337,17 +299,6 @@ function parseListQuery(context: {
     ...(searchValue !== undefined ? { search: searchValue } : {}),
     ...(statuses ? { status: statuses } : {}),
     ...(context.req.query('statusGroup') ? { statusGroup: context.req.query('statusGroup') } : {}),
-  }
-}
-
-function parseHistoryQuery(context: {
-  req: { query(name: string): string | undefined }
-}): Record<string, unknown> | null {
-  const limitValue = context.req.query('limit')
-  if (limitValue && !/^\d+$/.test(limitValue)) return null
-  return {
-    ...(context.req.query('cursor') ? { cursor: context.req.query('cursor') } : {}),
-    ...(limitValue ? { limit: Number(limitValue) } : {}),
   }
 }
 

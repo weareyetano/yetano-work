@@ -1,10 +1,11 @@
 import { type Ref, useCallback, useEffect, useRef, useState } from 'react'
 
+import { CaseActivitySummary, CaseActivityView } from '#modules/activities'
+
 import type { CaseItem, CaseTransitionIntent } from '../cases.api'
 import { isCaseVersionConflict } from '../cases.api'
 import { CaseConflictNotice, CaseForm } from './CaseForm'
 import { CaseLifecycleActions, StatusNoteDialog } from './CaseLifecycleActions'
-import { CaseStatusHistory } from './CaseStatusHistory'
 import {
   type CaseFormValue,
   caseFormValue,
@@ -49,9 +50,11 @@ export function CaseDetailPanel({
   updateError: Error | null
 }) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
+  const [activityOpen, setActivityOpen] = useState(false)
   const [notedStatus, setNotedStatus] = useState<'canceled' | 'waiting' | null>(null)
   const [draftState, setDraftState] = useState<CaseDraftState>(() => createCaseDraft(caseItem))
   const compactStatusTriggerRef = useRef<HTMLButtonElement>(null)
+  const activityTriggerRef = useRef<HTMLButtonElement>(null)
   const isDirty = !caseFormValuesEqual(draftState.draft, draftState.serverValue)
   const resetDraft = useCallback((serverCase: CaseItem) => {
     setDraftState(createCaseDraft(serverCase))
@@ -92,58 +95,79 @@ export function CaseDetailPanel({
       <Heading className="sr-only" id="selected-case-title">
         {caseItem.title}
       </Heading>
-      {transitionError ? (
-        <ErrorNotice
-          error={transitionError}
-          {...(transitionConflict ? {} : { retry: onRetryTransition })}
-        />
-      ) : null}
-      {updateConflict ? (
-        <CaseConflictNotice
-          draft={draftState.draft}
-          serverCase={caseItem}
-          serverVersion={draftState.serverVersion}
-          onLoadServerVersion={() => {
-            resetDraft(caseItem)
-            onResetUpdateError()
+      {activityOpen ? (
+        <CaseActivityView
+          caseId={caseItem.id}
+          caseTitle={caseItem.title}
+          disabled={mutationBusy}
+          onBack={() => {
+            setActivityOpen(false)
+            window.setTimeout(() => activityTriggerRef.current?.focus(), 0)
           }}
         />
-      ) : null}
-      <CaseForm
-        busy={mutationBusy}
-        error={updateConflict ? null : updateError}
-        footerActions={
-          <CaseLifecycleActions
+      ) : (
+        <>
+          {transitionError ? (
+            <ErrorNotice
+              error={transitionError}
+              {...(transitionConflict ? {} : { retry: onRetryTransition })}
+            />
+          ) : null}
+          {updateConflict ? (
+            <CaseConflictNotice
+              draft={draftState.draft}
+              serverCase={caseItem}
+              serverVersion={draftState.serverVersion}
+              onLoadServerVersion={() => {
+                resetDraft(caseItem)
+                onResetUpdateError()
+              }}
+            />
+          ) : null}
+          <CaseForm
             busy={mutationBusy}
-            caseItem={caseItem}
-            compactTriggerRef={compactStatusTriggerRef}
-            isDesktop={isDesktop}
-            onNotedTransition={(status) => onRequestDraftDiscard(() => setNotedStatus(status))}
-            onTransition={(status) => onRequestDraftDiscard(() => transition(status))}
+            error={updateConflict ? null : updateError}
+            footerActions={
+              <CaseLifecycleActions
+                busy={mutationBusy}
+                caseItem={caseItem}
+                compactTriggerRef={compactStatusTriggerRef}
+                isDesktop={isDesktop}
+                onNotedTransition={(status) => onRequestDraftDiscard(() => setNotedStatus(status))}
+                onTransition={(status) => onRequestDraftDiscard(() => transition(status))}
+              />
+            }
+            isDirty={isDirty}
+            value={draftState.draft}
+            onChange={(draft) => setDraftState((current) => ({ ...current, draft }))}
+            onSubmit={update}
+            submitLabel="Zapisz"
+            titleRef={titleRef}
           />
-        }
-        isDirty={isDirty}
-        value={draftState.draft}
-        onChange={(draft) => setDraftState((current) => ({ ...current, draft }))}
-        onSubmit={update}
-        submitLabel="Zapisz"
-        titleRef={titleRef}
-      />
-      <CaseStatusHistory caseId={caseItem.id} />
-      <StatusNoteDialog
-        busy={mutationBusy}
-        status={notedStatus}
-        onClose={() => {
-          setNotedStatus(null)
-          window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
-        }}
-        onSubmit={(note) => {
-          if (!notedStatus) return
-          transition(notedStatus, note)
-          setNotedStatus(null)
-          window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
-        }}
-      />
+          <CaseActivitySummary
+            caseId={caseItem.id}
+            caseVersion={caseItem.version}
+            fallbackOccurredAt={caseItem.closedAt ?? caseItem.updatedAt}
+            status={caseItem.status}
+            triggerRef={activityTriggerRef}
+            onOpen={() => setActivityOpen(true)}
+          />
+          <StatusNoteDialog
+            busy={mutationBusy}
+            status={notedStatus}
+            onClose={() => {
+              setNotedStatus(null)
+              window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
+            }}
+            onSubmit={(note) => {
+              if (!notedStatus) return
+              transition(notedStatus, note)
+              setNotedStatus(null)
+              window.setTimeout(() => compactStatusTriggerRef.current?.focus(), 0)
+            }}
+          />
+        </>
+      )}
     </article>
   )
 }

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import {
   createCase,
   getCase,
-  listCaseStatusHistory,
+  listCaseActivities,
   listCases,
   transitionCase,
   updateCase,
@@ -23,9 +23,10 @@ import {
 } from './CasesPage.test-harness'
 
 vi.mock('@yetano/api-client', () => ({
+  createActivityNote: vi.fn(),
   createCase: vi.fn(),
   getCase: vi.fn(),
-  listCaseStatusHistory: vi.fn(),
+  listCaseActivities: vi.fn(),
   listCases: vi.fn(),
   transitionCase: vi.fn(),
   updateCase: vi.fn(),
@@ -36,7 +37,7 @@ describe('CasesPage mutations and conflicts', () => {
     vi.clearAllMocks()
     localStorage.clear()
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
-    vi.mocked(listCaseStatusHistory).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
+    vi.mocked(listCaseActivities).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
   })
 
   it('creates a case through the generated client', async () => {
@@ -215,7 +216,9 @@ describe('CasesPage mutations and conflicts', () => {
       }),
     )
     expect(getViewSelect()).toHaveTextContent('Odłożone')
-    expect(await screen.findByText('Odłożona')).toBeVisible()
+    const detail = screen.getByRole('article')
+    expect(within(detail).getByText('Status sprawy:')).toBeVisible()
+    expect(within(detail).getByText('Odłożona')).toHaveAttribute('data-slot', 'badge')
     expect(screen.getByRole('button', { name: 'Przywróć' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Pracuj' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Oczekuj' })).not.toBeInTheDocument()

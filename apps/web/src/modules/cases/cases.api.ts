@@ -2,9 +2,7 @@ import {
   type CreateCaseResponse,
   createCase,
   getCase,
-  type ListCaseStatusHistoryResponse,
   type ListCasesResponse,
-  listCaseStatusHistory,
   listCases,
   type TransitionCaseData,
   type TransitionCaseResponse,
@@ -17,7 +15,6 @@ import {
 export type CaseItem = ListCasesResponse['items'][number]
 export type CaseListPage = ListCasesResponse
 export type CaseListView = 'closed' | 'open' | 'postponed'
-export type CaseStatusHistoryPage = ListCaseStatusHistoryResponse
 export type CaseTransitionInput = TransitionCaseData['body']
 export type CaseTransitionIntent = CaseTransitionInput extends infer Command
   ? Command extends CaseTransitionInput
@@ -30,9 +27,6 @@ export const caseQueryKeys = {
   all: ['cases'] as const,
   detail(caseId: string) {
     return [...this.all, 'detail', caseId] as const
-  },
-  history(caseId: string) {
-    return [...this.all, 'history', caseId] as const
   },
   list(view: CaseListView, search: string) {
     return [...this.all, 'list', view, search] as const
@@ -61,18 +55,6 @@ export async function fetchCases({
       ...(search ? { search } : {}),
       ...viewFilter,
     },
-    throwOnError: true,
-  })
-  return response.data
-}
-
-export async function fetchCaseStatusHistory(
-  caseId: string,
-  cursor: string | null,
-): Promise<ListCaseStatusHistoryResponse> {
-  const response = await listCaseStatusHistory({
-    path: { caseId },
-    query: { ...(cursor ? { cursor } : {}), limit: 50 },
     throwOnError: true,
   })
   return response.data

@@ -3,6 +3,12 @@ import { expect, type Page, test } from '@playwright/test'
 
 const wcagTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/activities/**', (route) =>
+    route.fulfill({ contentType: 'application/json', json: { items: [], nextCursor: null } }),
+  )
+})
+
 const caseItem = {
   closedAt: null,
   createdAt: '2026-08-20T08:00:00.000Z',
@@ -142,11 +148,7 @@ test('error state has no detectable WCAG A or AA violations on mobile', async ({
 async function mockCaseList(page: Page, response: unknown) {
   await page.route('**/api/v1/cases**', (route) =>
     route.fulfill({
-      body: JSON.stringify(
-        new URL(route.request().url()).pathname.endsWith('/status-history')
-          ? { items: [], nextCursor: null }
-          : response,
-      ),
+      body: JSON.stringify(response),
       contentType: 'application/json',
       status: 200,
     }),

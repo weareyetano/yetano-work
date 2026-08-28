@@ -278,131 +278,6 @@ export type CreateCaseResponses = {
 
 export type CreateCaseResponse = CreateCaseResponses[keyof CreateCaseResponses];
 
-export type ListCaseStatusHistoryData = {
-    body?: never;
-    path: {
-        /**
-         * CaseId
-         *
-         * Unique identifier of a case.
-         */
-        caseId: string;
-    };
-    query?: {
-        /**
-         * CaseCursor
-         *
-         * Opaque cursor returned by a previous case-list request.
-         */
-        cursor?: string;
-        /**
-         * CaseListLimit
-         *
-         * Maximum number of cases returned in one page.
-         */
-        limit?: number;
-    };
-    url: '/api/v1/cases/{caseId}/status-history';
-};
-
-export type ListCaseStatusHistoryErrors = {
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    400: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    401: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    403: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-    /**
-     * ProblemDetails
-     *
-     * RFC 9457 problem details returned by the Yetano Work API.
-     */
-    404: {
-        detail?: string;
-        instance?: string;
-        requestId?: string;
-        status: number;
-        title: string;
-        type: string;
-        [key: string]: unknown;
-    };
-};
-
-export type ListCaseStatusHistoryError = ListCaseStatusHistoryErrors[keyof ListCaseStatusHistoryErrors];
-
-export type ListCaseStatusHistoryResponses = {
-    /**
-     * CaseStatusHistory
-     *
-     * A cursor-paginated case status history.
-     */
-    200: {
-        items: Array<{
-            actorId: string;
-            actorType: 'system' | 'user';
-            /**
-             * CaseId
-             *
-             * Unique identifier of a case.
-             */
-            caseId: string;
-            caseVersion: number;
-            changedAt: string;
-            fromStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled' | null;
-            id: string;
-            note: string | null;
-            source: 'migration' | 'runtime';
-            /**
-             * CaseStatus
-             *
-             * Current lifecycle status of a case.
-             */
-            toStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
-            transitionId: string | null;
-            type: 'created' | 'transitioned';
-        }>;
-        nextCursor: string | null;
-    };
-};
-
-export type ListCaseStatusHistoryResponse = ListCaseStatusHistoryResponses[keyof ListCaseStatusHistoryResponses];
-
 export type GetCaseData = {
     body?: never;
     path: {
@@ -840,3 +715,322 @@ export type TransitionCaseResponses = {
 };
 
 export type TransitionCaseResponse = TransitionCaseResponses[keyof TransitionCaseResponses];
+
+export type ListCaseActivitiesData = {
+    body?: never;
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: {
+        /**
+         * ActivityCursor
+         *
+         * Opaque cursor returned by a previous case-activity request.
+         */
+        cursor?: string;
+        /**
+         * ActivityListLimit
+         *
+         * Maximum number of activities returned in one page.
+         */
+        limit?: number;
+    };
+    url: '/api/v1/activities/cases/{caseId}';
+};
+
+export type ListCaseActivitiesErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+};
+
+export type ListCaseActivitiesError = ListCaseActivitiesErrors[keyof ListCaseActivitiesErrors];
+
+export type ListCaseActivitiesResponses = {
+    /**
+     * ActivityList
+     *
+     * A cursor-paginated case activity timeline.
+     */
+    200: {
+        /**
+         * Activity
+         *
+         * An immutable item in a case activity timeline.
+         */
+        items: Array<{
+            actorId: string;
+            actorType: 'system' | 'user';
+            /**
+             * CaseId
+             *
+             * Unique identifier of a case.
+             */
+            caseId: string;
+            id: string;
+            occurredAt: string;
+            /**
+             * ActivityContent
+             *
+             * Trimmed, non-blank activity note content.
+             */
+            content: string;
+            type: 'note';
+        } | {
+            actorId: string;
+            actorType: 'system' | 'user';
+            /**
+             * CaseId
+             *
+             * Unique identifier of a case.
+             */
+            caseId: string;
+            id: string;
+            occurredAt: string;
+            caseVersion: number;
+            type: 'case_created';
+        } | {
+            actorId: string;
+            actorType: 'system' | 'user';
+            /**
+             * CaseId
+             *
+             * Unique identifier of a case.
+             */
+            caseId: string;
+            id: string;
+            occurredAt: string;
+            caseVersion: number;
+            /**
+             * CaseStatus
+             *
+             * Current lifecycle status of a case.
+             */
+            fromStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            note: string | null;
+            /**
+             * CaseStatus
+             *
+             * Current lifecycle status of a case.
+             */
+            toStatus: 'new' | 'postponed' | 'working' | 'waiting' | 'resolved' | 'canceled';
+            type: 'case_status_changed';
+        }>;
+        nextCursor: string | null;
+    };
+};
+
+export type ListCaseActivitiesResponse = ListCaseActivitiesResponses[keyof ListCaseActivitiesResponses];
+
+export type CreateActivityNoteData = {
+    /**
+     * CreateActivityNoteRequest
+     *
+     * An idempotent request to append a note to a case activity timeline.
+     */
+    body: {
+        activityId: string;
+        /**
+         * ActivityContent
+         *
+         * Trimmed, non-blank activity note content.
+         */
+        content: string;
+    };
+    path: {
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+    };
+    query?: never;
+    url: '/api/v1/activities/cases/{caseId}/notes';
+};
+
+export type CreateActivityNoteErrors = {
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    400: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    401: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    403: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ProblemDetails
+     *
+     * RFC 9457 problem details returned by the Yetano Work API.
+     */
+    404: {
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: number;
+        title: string;
+        type: string;
+        [key: string]: unknown;
+    };
+    /**
+     * ActivityIdConflict
+     *
+     * Problem details returned when an activity id is reused for another note.
+     */
+    409: {
+        code: 'activity_id_conflict';
+        detail?: string;
+        instance?: string;
+        requestId?: string;
+        status: 409;
+        title: string;
+        type: string;
+    };
+};
+
+export type CreateActivityNoteError = CreateActivityNoteErrors[keyof CreateActivityNoteErrors];
+
+export type CreateActivityNoteResponses = {
+    /**
+     * NoteActivity
+     *
+     * The previously stored activity note.
+     */
+    200: {
+        actorId: string;
+        actorType: 'system' | 'user';
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+        id: string;
+        occurredAt: string;
+        /**
+         * ActivityContent
+         *
+         * Trimmed, non-blank activity note content.
+         */
+        content: string;
+        type: 'note';
+    };
+    /**
+     * NoteActivity
+     *
+     * The created activity note.
+     */
+    201: {
+        actorId: string;
+        actorType: 'system' | 'user';
+        /**
+         * CaseId
+         *
+         * Unique identifier of a case.
+         */
+        caseId: string;
+        id: string;
+        occurredAt: string;
+        /**
+         * ActivityContent
+         *
+         * Trimmed, non-blank activity note content.
+         */
+        content: string;
+        type: 'note';
+    };
+};
+
+export type CreateActivityNoteResponse = CreateActivityNoteResponses[keyof CreateActivityNoteResponses];

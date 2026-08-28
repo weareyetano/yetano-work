@@ -47,7 +47,28 @@ The catalog is derived from the compile-time module descriptors used by the API 
 | `cases.create` | command | `cases.create` |
 | `cases.get` | query | `cases.read` |
 | `cases.list` | query | `cases.read` |
-| `cases.status-history` | query | `cases.read` |
 | `cases.reopen` | command | `cases.reopen` |
 | `cases.transition` | command | `cases.transition` |
 | `cases.update` | command | `cases.update` |
+
+## activities
+
+- HTTP: protected at `/activities`
+- Dependencies: `cases (casesReadPort)`
+- Entities: `Activity`
+- Public container registrations: None
+- Private container registrations: `activitiesService`, `caseCreatedActivityHandler`, `caseTransitionedActivityHandler`
+- Published events: None
+- Event subscriptions: `case.created`, `case.transitioned`
+- Extension points provided: None
+- Extension points used: None
+
+| Capability | Requires | Description |
+| --- | --- | --- |
+| `activities.read` | `cases.read` | Read activity timelines for accessible cases. |
+| `activities.create-note` | `activities.read` | Append notes to activity timelines. |
+
+| Operation | Kind | Capability |
+| --- | --- | --- |
+| `activities.create-note` | command | `activities.create-note` |
+| `activities.list-case` | query | `activities.read` |

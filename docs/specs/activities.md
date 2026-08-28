@@ -2,65 +2,121 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Draft |
-| Implementation | Not started |
-
-This document is a deliberate skeleton. It does not define implementation-ready activity behavior
-yet.
-
-Before Activities can be accepted for implementation, it must decide whether historical case
-changes are in scope. If they are, the accepted specification must choose a module-owned backfill
-source and mechanism plus an idempotent cutover to live events. A current-state case read cannot
-reconstruct the status history.
+| Status | Implemented |
+| Implementation | Activities module, API, generated client, and in-panel case timeline |
 
 ## Summary
 
-This specification will define what an activity represents and how it records or schedules work in
-Yetano Work.
+Activities provides an immutable, organization-scoped timeline reachable from case details. It
+combines case creation, case status transitions, and manually appended notes without introducing a
+separate page, navigation item, general activity feed, or task-planning model.
+
+The first release begins collecting entries when it is deployed. Existing case history is not
+backfilled.
 
 ## Terminology and scope
 
-The boundary between a user-created activity, a domain event, an audit entry, and a timeline item is
-not yet defined.
+- An **activity** is one immutable timeline entry belonging to a case.
+- A **system activity** is projected from a trusted Cases event.
+- A **note activity** is appended explicitly by a user and cannot be edited or deleted.
+- The **activity identifier** is the Cases event identifier for a system activity and a
+  client-generated UUID for a note.
+
+Activities are limited to `case_created`, `case_status_changed`, and `note`. Title, description, and
+customer-reference updates do not produce activity entries. Scheduling, completion, assignment,
+attachments, mentions, and a cross-case feed are outside this version.
 
 ## Behavior and workflows
 
-Activity creation, editing, completion, ordering, visibility, and retention remain to be decided.
+Below the case form, the detail panel shows only a compact row with the current status, the time of
+the latest lifecycle entry that established that status, and an icon action. The row has no section
+label and does not render activity entries. Activating the icon replaces the detail panel contents
+with the activity view; the case-title breadcrumb restores the case form without opening a dialog
+or changing the route.
+
+Activity entries are ordered newest first and older pages can be appended with an opaque cursor.
+While the case summary or activity view remains open, its current data refreshes every two seconds
+so projected outbox events appear without a page reload. Until the newest lifecycle entry is
+projected, the compact row uses the case timestamp as a temporary fallback.
+
+Users can append a note containing 1 to 10,000 characters. Outer whitespace is trimmed while
+internal whitespace and newlines are retained. The form keeps its content and activity identifier
+after a failed request so retrying is idempotent; it clears after success.
+
+The timeline exposes loading, error, empty, populated, note-submission, and pagination states. Actor
+identifiers are retained in the contract for auditing, while the web interface renders each entry
+as a human-readable sentence beginning with `Użytkownik` or `System`.
 
 ## Rules and invariants
 
-No activity invariants have been accepted yet.
+- Every activity stores its organization and case identifiers and every repository query scopes by
+  both values.
+- Activities are append-only and have no update or delete operation.
+- `case_created` stores the resulting case version and no status or body fields.
+- `case_status_changed` stores the resulting case version, source and target statuses, and the
+  normalized transition note when present.
+- `note` stores only normalized user content in its type-specific body fields.
+- The database constrains common enums and the allowed nullable-field shape for every activity
+  type.
+- System activities use the event envelope's identifier, actor, organization, and occurrence time.
+- Subscription inboxes and the activity primary key make repeated event delivery harmless.
+- No activity is written for `case.updated`.
 
 ## Relationships
 
-It remains undecided whether activities belong to [cases](cases.md), originate from
-[tasks](tasks.md), or can reference other future domain records.
+Activities depends only on the organization-scoped `CasesReadPort` to verify that a requested case
+exists. It subscribes to `case.created` version 1 and `case.transitioned` versions 1 through 3. It
+does not read or relate to the private Cases status ledger and defines no ORM relationship to Cases.
 
 ## Interface impact
 
-No activity entity, public TypeBox contract, API operation, or web route exists. An accepted version
-of this spec must describe interface behavior and link to exact contracts rather than duplicate
-them.
+The exact activity, note request, pagination, and conflict shapes are defined by the TypeBox schemas
+in [`packages/contracts/src/activities.ts`](../../packages/contracts/src/activities.ts).
+
+The HTTP API exposes:
+
+- `GET /api/v1/activities/cases/{caseId}` for a newest-first page, with a default limit of 25 and a
+  maximum of 100;
+- `POST /api/v1/activities/cases/{caseId}/notes` to append an idempotent note.
+
+The module declares `activities.read`, which requires `cases.read`, and
+`activities.create-note`, which requires `activities.read`. The first successful note request
+returns 201. An exact replay by the same actor returns the existing activity with 200. Reusing the
+identifier for another case, content, actor, actor type, or organization returns 409
+`activity_id_conflict`.
 
 ## Edge cases and failure behavior
 
-Ordering ties, edits to historical entries, deletion, actor removal, and visibility failures remain
-to be specified.
+- Invalid identifiers, bodies, pagination limits, and cursors return `400 ProblemDetails`.
+- Missing identity and insufficient capability return 401 and 403 respectively.
+- A missing case and a case outside the active organization both return 404.
+- An empty timeline is valid because deployment performs no historical backfill.
+- Events are projected asynchronously through the transactional outbox; temporary absence from the
+  newest page is expected until delivery completes.
+- Equal occurrence times are ordered deterministically by activity identifier and encoded together
+  in the cursor.
+- A failed list or note request is retryable without losing the current note draft.
 
 ## Acceptance criteria
 
-Acceptance criteria will be added after the activity model and retention behavior are approved.
+- Creating a case eventually adds exactly one creation activity with trusted envelope metadata.
+- Each status transition event version from 1 through 3 maps to exactly one status activity.
+- Updating a case title, description, or customer reference adds no activity.
+- Concurrent exact note retries yield one stored row and responses with one 201 and one 200.
+- Conflicting reuse of an activity identifier returns `activity_id_conflict` without exposing data
+  from another organization.
+- The compact case row exposes only the status, its timestamp, and an icon action. The in-panel
+  activity view supports all list and form states, older-page loading, retry, asynchronous status
+  entries, and keyboard focus restoration; no dialog, separate Activities route, or navigation item
+  exists.
+- OpenAPI, the generated client, and the generated module catalog expose Activities and omit the old
+  public Cases status-history operation.
 
 ## Open questions
 
-- Is an activity planned work, completed history, or a shared representation of both?
-- Which activity types are required initially?
-- Are activities mutable, append-only, or selectively editable?
-- Which actor and timestamp information must be retained?
-- Should system-generated changes and user-authored notes share the same timeline?
-- If Activities projects historical case changes, will its module-owned backfill read the
-  authoritative case status history through a narrow module port or build the initial projection in
-  a migration, and how will it cut over idempotently to live events without gaps or duplicates?
+- Should a future version resolve and display user names while retaining actor snapshots?
+- Which additional domain events, if any, belong in the case timeline?
+- Is retention or export required beyond the append-only application view?
 
 ## Related decisions and specifications
 
@@ -68,3 +124,4 @@ Acceptance criteria will be added after the activity model and retention behavio
 - [Tasks](tasks.md)
 - [Public module API](../architecture/decisions/2026-08-19-public-module-api.md)
 - [Transactional domain events](../architecture/decisions/2026-08-19-transactional-domain-events.md)
+- [Typed idempotent event subscriptions](../architecture/decisions/2026-08-23-typed-idempotent-event-subscriptions.md)
