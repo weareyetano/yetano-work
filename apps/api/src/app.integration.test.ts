@@ -1,6 +1,6 @@
 import { EntityManager } from '@mikro-orm/core'
 import { MikroORM } from '@mikro-orm/postgresql'
-import type { Case, CaseStatusChange } from '@yetano/contracts'
+import type { Case, CaseStatusChange, ChangeCaseStatusRequest } from '@yetano/contracts'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApp } from './app.js'
@@ -313,6 +313,80 @@ describeWithDatabase('API with PostgreSQL', () => {
     expect(eventCounts).toEqual([
       { count: 1, type: 'case.created' },
       { count: 2, type: 'case.transitioned' },
+    ])
+  })
+
+  it('returns a version conflict for distinct concurrent lifecycle commands', async () => {
+    const organizationId = 'ddbdc2cc-bbc9-4426-97bf-d99520983bbb'
+    const app = createTestApp(organizationId)
+    const createResponse = await app.request('/api/v1/cases', {
+      body: JSON.stringify({ title: 'Concurrent lifecycle conflict test' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    const created = (await createResponse.json()) as Case
+    const transition = (request: ChangeCaseStatusRequest) =>
+      app.request(`/api/v1/cases/${created.id}/transition`, {
+        body: JSON.stringify(request),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+
+    const responses = await withConcurrentFlushes(() =>
+      Promise.all([
+        transition({
+          expectedVersion: created.version,
+          fromStatus: 'new',
+          toStatus: 'working',
+          transitionId: crypto.randomUUID(),
+        }),
+        transition({
+          expectedVersion: created.version,
+          fromStatus: 'new',
+          note: 'Waiting for customer',
+          toStatus: 'waiting',
+          transitionId: crypto.randomUUID(),
+        }),
+      ]),
+    )
+    const results = await Promise.all(
+      responses.map(async (response) => ({ body: await response.json(), status: response.status })),
+    )
+
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409])
+    const stored = results.find((result) => result.status === 200)?.body as CaseStatusChange
+    const conflict = results.find((result) => result.status === 409)?.body
+    expect(stored).toMatchObject({
+      caseVersion: created.version + 1,
+      fromStatus: 'new',
+    })
+    expect(['waiting', 'working']).toContain(stored.toStatus)
+    expect(conflict).toMatchObject({
+      code: 'case_version_conflict',
+      currentVersion: created.version + 1,
+    })
+
+    const runtimeRows = await orm.em
+      .getConnection()
+      .execute<Array<{ case_version: number; to_status: string }>>(
+        `select case_version, to_status
+         from case_status_changes
+         where organization_id = ? and case_id = ? and case_version = ? and source = 'runtime'`,
+        [organizationId, created.id, created.version + 1],
+      )
+    expect(runtimeRows).toEqual([{ case_version: created.version + 1, to_status: stored.toStatus }])
+
+    const lifecycleEvents = await orm.em
+      .getConnection()
+      .execute<Array<{ aggregate_version: number; type: string }>>(
+        `select aggregate_version, type
+         from platform_outbox_events
+         where organization_id = ? and aggregate_id = ? and aggregate_version = ?
+           and type = 'case.transitioned'`,
+        [organizationId, created.id, created.version + 1],
+      )
+    expect(lifecycleEvents).toEqual([
+      { aggregate_version: created.version + 1, type: 'case.transitioned' },
     ])
   })
 

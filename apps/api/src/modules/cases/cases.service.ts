@@ -300,6 +300,16 @@ export function createCasesService({
               await readCurrentVersion(entityManager, executionContext.organizationId, caseId),
             )
           }
+          if (isRuntimeCaseVersionConstraint(error)) {
+            const currentVersion = await readCurrentVersion(
+              entityManager,
+              executionContext.organizationId,
+              caseId,
+            )
+            if (currentVersion !== normalizedRequest.expectedVersion) {
+              throw new CaseVersionConflictError(currentVersion)
+            }
+          }
         }
         throw error
       }
@@ -453,6 +463,15 @@ async function readCurrentVersion(
   )
   if (!record) throw new CaseNotFoundError('Case not found.')
   return record.version
+}
+
+function isRuntimeCaseVersionConstraint(
+  error: UniqueConstraintViolationException | OptimisticLockError,
+): error is UniqueConstraintViolationException {
+  return (
+    error instanceof UniqueConstraintViolationException &&
+    Reflect.get(error, 'constraint') === 'case_status_changes_org_case_version_runtime_unique'
+  )
 }
 
 function isTerminalStatus(status: CaseStatus): status is 'canceled' | 'resolved' {
