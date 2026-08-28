@@ -1,12 +1,15 @@
-import type { EntityManager, MikroORM } from '@mikro-orm/postgresql'
+import type { MikroORM } from '@mikro-orm/postgresql'
 import { type AwilixContainer, asFunction, asValue, createContainer, InjectionMode } from 'awilix'
 
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
-import type { CasesReadPort } from './modules/cases/index.js'
 import type { ModuleCatalog } from './modules/catalog.js'
-import type { HealthService } from './modules/health/index.js'
 import { applicationModuleCatalog, applicationModules } from './modules/index.js'
+import {
+  type ModulePlatformCradle,
+  type ModulesCradle,
+  moduleRegistrations,
+} from './modules/module.js'
 import { createOutboxDispatcher, type OutboxDispatcher } from './platform/events/dispatcher.js'
 import { createOutboxWriter, type OutboxWriter } from './platform/events/outbox.js'
 import type {
@@ -15,7 +18,7 @@ import type {
   ExecutionContextFactory,
   OrganizationResolver,
 } from './platform/execution/context.js'
-import { createOperationExecutor, type OperationExecutor } from './platform/execution/operation.js'
+import { createOperationExecutor } from './platform/execution/operation.js'
 import {
   createDevActorResolver,
   createDevCapabilityResolver,
@@ -23,23 +26,20 @@ import {
   createSingleOrganizationResolver,
 } from './platform/execution/resolvers.js'
 
-export interface Cradle {
+interface PlatformCradle extends ModulePlatformCradle {
   actorResolver: ActorResolver
   capabilityResolver: CapabilityResolver
-  casesReadPort: CasesReadPort
-  casesService: unknown
-  config: AppConfig
-  entityManager: EntityManager
   executionContextFactory: ExecutionContextFactory
-  healthService: HealthService
-  logger: Logger
   moduleCatalog: ModuleCatalog
-  operationExecutor: OperationExecutor
   organizationResolver: OrganizationResolver
   orm: MikroORM
   outboxDispatcher: OutboxDispatcher
   outboxWriter: OutboxWriter
 }
+
+export type Cradle = PlatformCradle &
+  ModulesCradle<typeof applicationModules> &
+  Record<string, unknown>
 
 export type AppContainer = AwilixContainer<Cradle>
 
@@ -83,11 +83,13 @@ export function createRootContainer({
     outboxDispatcher: asFunction(
       ({ logger, moduleCatalog, orm }: Pick<Cradle, 'logger' | 'moduleCatalog' | 'orm'>) =>
         createOutboxDispatcher({ logger, moduleCatalog, orm, rootContainer: container }),
-    ).singleton(),
+    )
+      .singleton()
+      .disposer((dispatcher) => dispatcher.stop()),
     outboxWriter: asFunction(createOutboxWriter).singleton(),
   })
 
-  for (const module of applicationModules) container.register(module.registrations)
+  for (const module of applicationModules) container.register(moduleRegistrations(module))
 
   return container
 }

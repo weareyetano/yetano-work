@@ -37,3 +37,4 @@ product behavior.
 | 2026-08-22 | [Declare HTTP access in module descriptors](2026-08-22-declarative-module-http-access.md) | Accepted |
 | 2026-08-23 | [Process module events through typed idempotent subscriptions](2026-08-23-typed-idempotent-event-subscriptions.md) | Accepted |
 | 2026-08-27 | [Compose web module navigation through a static registry](2026-08-27-static-web-module-registry.md) | Accepted |
+| 2026-08-28 | [Enforce module collaboration through static ports](2026-08-28-static-module-ports.md) | Accepted |

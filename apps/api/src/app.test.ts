@@ -89,6 +89,31 @@ describe('module HTTP access composition', () => {
       title: 'Forbidden',
     })
   })
+
+  it.each([
+    ['a successful request', '/api/v1/public-test', 200],
+    ['a handled request error', '/api/v1/tasks-test/forbidden', 403],
+  ])('disposes the request scope after %s', async (_scenario, path, status) => {
+    const container = createTestContainer()
+    const createScope = container.createScope.bind(container)
+    const dispose = vi.fn()
+    vi.spyOn(container, 'createScope').mockImplementation(() => {
+      const scope = createScope()
+      const disposeScope = scope.dispose.bind(scope)
+      scope.dispose = async () => {
+        dispose()
+        return disposeScope()
+      }
+      return scope
+    })
+    const app = createApp({ container, moduleCatalog: testModuleCatalog })
+
+    const response = await app.request(path)
+
+    expect(response.status).toBe(status)
+    expect(dispose).toHaveBeenCalledOnce()
+    await container.dispose()
+  })
 })
 
 describe('runtime event wiring', () => {
@@ -100,6 +125,16 @@ describe('runtime event wiring', () => {
       start: expect.any(Function),
       stop: expect.any(Function),
     })
+  })
+
+  it('stops a resolved dispatcher when the root container is disposed', async () => {
+    const container = createTestContainer()
+    const dispatcher = container.resolve('outboxDispatcher')
+    const stop = vi.spyOn(dispatcher, 'stop')
+
+    await container.dispose()
+
+    expect(stop).toHaveBeenCalledOnce()
   })
 })
 
@@ -113,7 +148,7 @@ const testModules = [
     http: { access: 'public', path: '/public-test' },
     id: 'public-test',
     operations: [],
-    registrations: {},
+    registrations: { private: {}, public: {} },
     routes: () =>
       new Hono<AppEnvironment>().get('', (context) =>
         context.json({ access: 'public' as const }, 200),
@@ -128,7 +163,7 @@ const testModules = [
     http: { access: 'protected', path: '/tasks-test' },
     id: 'tasks-test',
     operations: [],
-    registrations: {},
+    registrations: { private: {}, public: {} },
     routes: () =>
       new Hono<AppEnvironment>()
         .get('', (context) =>

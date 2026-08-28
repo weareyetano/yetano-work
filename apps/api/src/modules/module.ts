@@ -1,12 +1,37 @@
 import type { EntitySchema } from '@mikro-orm/core'
+import type { EntityManager } from '@mikro-orm/postgresql'
 import type { OrganizationId } from '@yetano/contracts'
-import type { Resolver } from 'awilix'
+import {
+  type AwilixContainer,
+  asFunction,
+  Lifetime,
+  type LifetimeType,
+  type Resolver,
+} from 'awilix'
 import type { Hono } from 'hono'
 import type { Static, TSchema } from 'typebox'
 
+import type { AppConfig } from '../config.js'
 import type { AppEnvironment } from '../http-types.js'
+import type { Logger } from '../logger.js'
 import type { Actor } from '../platform/execution/context.js'
-import type { OperationDefinition } from '../platform/execution/operation.js'
+import type { OperationDefinition, OperationExecutor } from '../platform/execution/operation.js'
+
+const moduleRegistrationMetadata = Symbol('moduleRegistrationMetadata')
+
+export interface ModulePlatformCradle {
+  config: AppConfig
+  entityManager: EntityManager
+  logger: Logger
+  operationExecutor: OperationExecutor
+}
+
+export const modulePlatformRegistrationIds = [
+  'config',
+  'entityManager',
+  'logger',
+  'operationExecutor',
+] as const satisfies readonly (keyof ModulePlatformCradle)[]
 
 export interface CapabilityDefinition {
   description: string
@@ -124,9 +149,35 @@ export interface ModuleHttpDefinition {
   path: `/${string}`
 }
 
-export interface ModuleDefinition {
-  capabilities: readonly CapabilityDefinition[]
+export interface ModuleDependency {
+  moduleId: string
+  ports: readonly string[]
+}
+
+interface ModuleRegistrationMetadata {
   dependencies: readonly string[]
+}
+
+export interface ModuleRegistration<Value = unknown> extends Resolver<Value> {
+  [moduleRegistrationMetadata]: ModuleRegistrationMetadata
+}
+
+export type ModuleRegistrationMap = Record<string, ModuleRegistration<unknown>>
+
+export interface ModuleRegistrations<
+  Public extends ModuleRegistrationMap = ModuleRegistrationMap,
+  Private extends ModuleRegistrationMap = ModuleRegistrationMap,
+> {
+  private: Private
+  public: Public
+}
+
+export interface ModuleDefinition<
+  Public extends ModuleRegistrationMap = ModuleRegistrationMap,
+  Private extends ModuleRegistrationMap = ModuleRegistrationMap,
+> {
+  capabilities: readonly CapabilityDefinition[]
+  dependencies: readonly ModuleDependency[]
   entities: readonly EntitySchema[]
   events: {
     publishes: readonly EventDefinition[]
@@ -136,10 +187,87 @@ export interface ModuleDefinition {
   http: ModuleHttpDefinition
   id: string
   operations: readonly OperationDefinition<unknown, unknown>[]
-  registrations: Record<string, Resolver<unknown>>
+  registrations: ModuleRegistrations<Public, Private>
   routes(): Hono<AppEnvironment>
 }
 
 export function defineModule<const Definition extends ModuleDefinition>(definition: Definition) {
   return definition
+}
+
+type StringKeyOf<Value> = Extract<keyof Value, string>
+
+export function createModuleRegistrationBuilder<Available extends object>() {
+  const register = <const Dependencies extends readonly StringKeyOf<Available>[], Value>(
+    lifetime: LifetimeType,
+    dependencies: Dependencies,
+    factory: (cradle: Pick<Available, Dependencies[number]>) => Value,
+  ): ModuleRegistration<Value> => {
+    const resolver = asFunction((cradle: Available) => {
+      const allowed = {} as Pick<Available, Dependencies[number]>
+      for (const dependency of dependencies) allowed[dependency] = cradle[dependency]
+      return factory(allowed)
+    }).setLifetime(lifetime)
+    return Object.assign(resolver, {
+      [moduleRegistrationMetadata]: { dependencies },
+    })
+  }
+
+  return {
+    scoped: <const Dependencies extends readonly StringKeyOf<Available>[], Value>(
+      dependencies: Dependencies,
+      factory: (cradle: Pick<Available, Dependencies[number]>) => Value,
+    ) => register(Lifetime.SCOPED, dependencies, factory),
+    singleton: <const Dependencies extends readonly StringKeyOf<Available>[], Value>(
+      dependencies: Dependencies,
+      factory: (cradle: Pick<Available, Dependencies[number]>) => Value,
+    ) => register(Lifetime.SINGLETON, dependencies, factory),
+    transient: <const Dependencies extends readonly StringKeyOf<Available>[], Value>(
+      dependencies: Dependencies,
+      factory: (cradle: Pick<Available, Dependencies[number]>) => Value,
+    ) => register(Lifetime.TRANSIENT, dependencies, factory),
+  }
+}
+
+type RegistrationValue<Registration> = Registration extends Resolver<infer Value> ? Value : never
+
+type RegistrationCradle<Registrations extends ModuleRegistrationMap> = {
+  [Key in keyof Registrations]: RegistrationValue<Registrations[Key]>
+}
+
+export type ModuleCradle<Definition extends ModuleDefinition> = RegistrationCradle<
+  Definition['registrations']['public']
+> &
+  RegistrationCradle<Definition['registrations']['private']>
+
+type UnionToIntersection<Union> = (Union extends unknown ? (value: Union) => void : never) extends (
+  value: infer Intersection,
+) => void
+  ? Intersection
+  : never
+
+export type ModulesCradle<Modules extends readonly ModuleDefinition[]> = UnionToIntersection<
+  ModuleCradle<Modules[number]>
+>
+
+export function createModuleResolver<const Registrations extends ModuleRegistrations>(
+  _registrations: Registrations,
+) {
+  type Cradle = RegistrationCradle<Registrations['public']> &
+    RegistrationCradle<Registrations['private']>
+
+  return function resolveModuleRegistration<
+    ContainerCradle extends object,
+    Key extends StringKeyOf<Cradle>,
+  >(container: AwilixContainer<ContainerCradle>, key: Key): Cradle[Key] {
+    return container.resolve<Cradle[Key]>(key)
+  }
+}
+
+export function moduleRegistrations(module: ModuleDefinition) {
+  return { ...module.registrations.public, ...module.registrations.private }
+}
+
+export function moduleRegistrationDependencies(registration: ModuleRegistration) {
+  return registration[moduleRegistrationMetadata].dependencies
 }

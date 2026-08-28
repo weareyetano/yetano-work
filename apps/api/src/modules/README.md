@@ -12,6 +12,7 @@ modules/<module>/
   <module>.capabilities.ts authorization vocabulary
   <module>.operations.ts   typed application operations
   <module>.events.ts       published event contracts
+  <module>.registrations.ts typed private services and public collaboration ports
   <entity>.entity.ts       owned persistence model
   <entity>.repository.ts   organization-scoped persistence access
   <module>.service.ts      application behavior
@@ -28,6 +29,11 @@ trusted execution context for every protected module, so adding a module never r
 security middleware registration.
 
 Module descriptors are composed explicitly in `modules/index.ts` and validated by the catalog.
+Registrations declare their factory dependencies through the module builder. Cross-module
+dependencies name the provider and the public ports consumed from it; private registrations remain
+resolvable only through the owning module's typed resolver. Platform services available to module
+factories are intentionally allowlisted.
+
 Run `pnpm modules:generate` after changing a descriptor and inspect the generated
 [`docs/modules`](../../../../../docs/modules/README.md) fact sheet. `pnpm modules:check` detects
 stale generated documentation.

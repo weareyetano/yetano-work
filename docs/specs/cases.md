@@ -116,6 +116,9 @@ and the single-panel list-to-detail flow.
 - Reopening a resolved or canceled case moves it to `working`.
 - Status history entries are append-only and record the actor, time, source, resulting case version,
   and optional note.
+- The database requires every status-history entry to belong to the same organization as its case.
+- Runtime status history contains at most one entry for each organization, case, and case version;
+  migration-authored history is excluded from this uniqueness rule.
 - Creating a case appends a `created` history entry from no prior status to `new`, while publishing
   only the public `case.created` event.
 - Migrated history entries have migration source, document their legacy mapping, and neither run

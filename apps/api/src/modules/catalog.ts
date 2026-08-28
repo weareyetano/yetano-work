@@ -5,6 +5,9 @@ import {
   type EventDefinition,
   eventSubscriptionId,
   type ModuleDefinition,
+  modulePlatformRegistrationIds,
+  moduleRegistrationDependencies,
+  moduleRegistrations,
 } from './module.js'
 
 export interface ModuleCatalog {
@@ -19,6 +22,11 @@ interface PublishedEventRegistration {
   moduleId: string
 }
 
+interface RegistrationOwner {
+  moduleId: string
+  visibility: 'private' | 'public'
+}
+
 export function createModuleCatalog(modules: readonly ModuleDefinition[]): ModuleCatalog {
   const moduleIds = new Set<string>()
   const capabilities = new Map<string, CapabilityDefinition>()
@@ -27,6 +35,7 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
   const extensionPoints = new Set<string>()
   const httpPaths = new Map<string, string>()
   const registrations = new Set<string>()
+  const registrationOwners = new Map<string, RegistrationOwner>()
   const subscriptions = new Set<string>()
 
   for (const module of modules) {
@@ -40,8 +49,13 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
       assertEventDefinition(event)
     }
     for (const operation of module.operations) assertUnique(operations, operation.id, 'operation')
-    for (const registration of Object.keys(module.registrations)) {
+    for (const registration of Object.keys(module.registrations.public)) {
       assertUnique(registrations, registration, 'container registration')
+      registrationOwners.set(registration, { moduleId: module.id, visibility: 'public' })
+    }
+    for (const registration of Object.keys(module.registrations.private)) {
+      assertUnique(registrations, registration, 'container registration')
+      registrationOwners.set(registration, { moduleId: module.id, visibility: 'private' })
     }
     for (const point of module.extensions.provides) {
       assertUnique(extensionPoints, point, 'extension point')
@@ -49,11 +63,35 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
   }
 
   for (const module of modules) {
+    const dependencyIds = new Set<string>()
+    const importedPorts = new Set<string>()
     for (const dependency of module.dependencies) {
-      if (!moduleIds.has(dependency)) {
-        throw new Error(`Module ${module.id} depends on unknown module ${dependency}`)
+      assertUnique(dependencyIds, dependency.moduleId, `dependency in module ${module.id}`)
+      if (!moduleIds.has(dependency.moduleId)) {
+        throw new Error(`Module ${module.id} depends on unknown module ${dependency.moduleId}`)
+      }
+      const dependencyPorts = new Set<string>()
+      for (const port of dependency.ports) {
+        assertUnique(
+          dependencyPorts,
+          port,
+          `port in dependency ${module.id}:${dependency.moduleId}`,
+        )
+        const owner = registrationOwners.get(port)
+        if (owner?.visibility !== 'public') {
+          throw new Error(
+            `Module ${module.id} imports unknown or private port ${port} from ${dependency.moduleId}`,
+          )
+        }
+        if (owner.moduleId !== dependency.moduleId) {
+          throw new Error(
+            `Module ${module.id} imports port ${port} from ${dependency.moduleId}, but it belongs to ${owner.moduleId}`,
+          )
+        }
+        importedPorts.add(port)
       }
     }
+    assertRegistrationDependencies(module, registrationOwners, importedPorts)
     for (const capability of module.capabilities) {
       for (const requirement of capability.requires ?? []) {
         if (!capabilities.has(requirement)) {
@@ -77,7 +115,7 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
     }
     for (const subscription of module.events.subscribes) {
       const subscriptionId = eventSubscriptionId(module.id, subscription.event.id)
-      const handlerRegistration = module.registrations[subscription.handlerRegistration]
+      const handlerRegistration = moduleRegistrations(module)[subscription.handlerRegistration]
       if (!handlerRegistration) {
         throw new Error(
           `Subscription ${subscriptionId} handler registration ${subscription.handlerRegistration} must belong to module ${module.id}`,
@@ -98,7 +136,10 @@ export function createModuleCatalog(modules: readonly ModuleDefinition[]): Modul
           `Module ${module.id} must subscribe through the published ${subscription.event.id} contract`,
         )
       }
-      if (published.moduleId !== module.id && !module.dependencies.includes(published.moduleId)) {
+      if (
+        published.moduleId !== module.id &&
+        !module.dependencies.some((dependency) => dependency.moduleId === published.moduleId)
+      ) {
         throw new Error(
           `Module ${module.id} must depend on ${published.moduleId} to subscribe to ${event.id}`,
         )
@@ -173,12 +214,51 @@ function assertAcyclic(modules: readonly ModuleDefinition[]) {
     if (visiting.has(moduleId)) throw new Error(`Cyclic module dependency involving ${moduleId}`)
     if (visited.has(moduleId)) return
     visiting.add(moduleId)
-    for (const dependency of byId.get(moduleId)?.dependencies ?? []) visit(dependency)
+    for (const dependency of byId.get(moduleId)?.dependencies ?? []) visit(dependency.moduleId)
     visiting.delete(moduleId)
     visited.add(moduleId)
   }
 
   for (const module of modules) visit(module.id)
+}
+
+function assertRegistrationDependencies(
+  module: ModuleDefinition,
+  registrationOwners: ReadonlyMap<string, RegistrationOwner>,
+  importedPorts: ReadonlySet<string>,
+) {
+  const ownRegistrations = new Set(Object.keys(moduleRegistrations(module)))
+  const allowedDependencies = new Set<string>([
+    ...modulePlatformRegistrationIds,
+    ...ownRegistrations,
+    ...importedPorts,
+  ])
+  const usedImportedPorts = new Set<string>()
+
+  for (const [registrationId, registration] of Object.entries(moduleRegistrations(module))) {
+    const dependencies = new Set<string>()
+    for (const dependency of moduleRegistrationDependencies(registration)) {
+      assertUnique(dependencies, dependency, `factory dependency in ${module.id}:${registrationId}`)
+      if (!allowedDependencies.has(dependency)) {
+        const owner = registrationOwners.get(dependency)
+        if (owner?.visibility === 'public' && owner.moduleId !== module.id) {
+          throw new Error(
+            `Module ${module.id} registration ${registrationId} injects undeclared port ${dependency}`,
+          )
+        }
+        throw new Error(
+          `Module ${module.id} registration ${registrationId} injects unavailable dependency ${dependency}`,
+        )
+      }
+      if (importedPorts.has(dependency)) usedImportedPorts.add(dependency)
+    }
+  }
+
+  for (const port of importedPorts) {
+    if (!usedImportedPorts.has(port)) {
+      throw new Error(`Module ${module.id} declares unused imported port ${port}`)
+    }
+  }
 }
 
 function assertHttpDefinition(module: ModuleDefinition, paths: Map<string, string>) {

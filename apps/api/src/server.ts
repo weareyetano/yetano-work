@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 
 import { createApp } from './app.js'
-import { createRuntime } from './runtime.js'
+import { createRuntime, disposeRuntime } from './runtime.js'
 
 const runtime = await createRuntime({ requireProtectedRuntime: true })
 const app = createApp({ container: runtime.container })
@@ -18,9 +18,16 @@ const shutdown = (signal: NodeJS.Signals) => {
 
   server.close(async (error) => {
     if (error) runtime.logger.error('HTTP server shutdown failed', { error: error.message })
-    await runtime.container.resolve('outboxDispatcher').stop()
-    await runtime.orm.close(true)
-    process.exitCode = error ? 1 : 0
+    let cleanupFailed = false
+    try {
+      await disposeRuntime(runtime)
+    } catch (cleanupError) {
+      cleanupFailed = true
+      runtime.logger.error('Runtime shutdown failed', {
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      })
+    }
+    process.exitCode = error || cleanupFailed ? 1 : 0
   })
 }
 

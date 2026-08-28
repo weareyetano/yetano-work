@@ -34,9 +34,9 @@ import { Compile } from 'typebox/compile'
 
 import type { AppEnvironment } from '../../http-types.js'
 import { problem } from '../../problem.js'
+import { resolveCasesRegistration } from './cases.registrations.js'
 import {
   CaseNotFoundError,
-  type CasesService,
   CaseTransitionIdConflictError,
   CaseValidationError,
   CaseVersionConflictError,
@@ -252,7 +252,7 @@ export function createCasesRoutes() {
 }
 
 function resolveCasesService(context: Context<AppEnvironment>) {
-  return context.get('scope').resolve('casesService') as CasesService
+  return resolveCasesRegistration(context.get('scope'), 'casesService')
 }
 
 async function runCaseAction<ResponseType extends Response>(

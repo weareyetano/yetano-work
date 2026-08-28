@@ -17,9 +17,20 @@ const lines = [
 for (const module of applicationModules as readonly ModuleDefinition[]) {
   lines.push(`## ${module.id}`, '')
   lines.push(`- HTTP: ${module.http.access} at \`${module.http.path}\``)
-  lines.push(`- Dependencies: ${format(module.dependencies)}`)
+  lines.push(
+    `- Dependencies: ${format(
+      module.dependencies.map(({ moduleId, ports }) =>
+        ports.length > 0 ? `${moduleId} (${ports.join(', ')})` : moduleId,
+      ),
+    )}`,
+  )
   lines.push(`- Entities: ${format(module.entities.map((entity) => String(entity.name)))}`)
-  lines.push(`- Container registrations: ${format(Object.keys(module.registrations))}`)
+  lines.push(
+    `- Public container registrations: ${format(Object.keys(module.registrations.public))}`,
+  )
+  lines.push(
+    `- Private container registrations: ${format(Object.keys(module.registrations.private))}`,
+  )
   lines.push(`- Published events: ${format(module.events.publishes.map((event) => event.id))}`)
   lines.push(
     `- Event subscriptions: ${format(module.events.subscribes.map((subscription) => subscription.event.id))}`,

@@ -1,12 +1,16 @@
 import type { AwilixContainer } from 'awilix'
 
-import type { Cradle } from './container.js'
-import type { ExecutionContext } from './platform/execution/context.js'
+import type { ExecutionContext, ExecutionContextFactory } from './platform/execution/context.js'
+
+interface HttpCradle {
+  [registration: string]: unknown
+  executionContextFactory: ExecutionContextFactory
+}
 
 export interface AppEnvironment {
   Variables: {
     executionContext: ExecutionContext
     requestId: string
-    scope: AwilixContainer<Cradle>
+    scope: AwilixContainer<HttpCradle>
   }
 }

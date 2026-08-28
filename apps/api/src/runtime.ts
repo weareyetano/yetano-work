@@ -19,3 +19,14 @@ export async function createRuntime({
 
   return { config, container, logger, orm }
 }
+
+export async function disposeRuntime({
+  container,
+  orm,
+}: Pick<Awaited<ReturnType<typeof createRuntime>>, 'container' | 'orm'>) {
+  try {
+    await container.dispose()
+  } finally {
+    await orm.close(true)
+  }
+}
