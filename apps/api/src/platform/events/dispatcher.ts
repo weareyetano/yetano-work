@@ -247,7 +247,10 @@ async function deliverToSubscription(
         schemaVersion: row.schema_version,
         type: registered.definition.id,
       }
-      const handler = scope.resolve<EventSubscriptionHandler>(registered.handlerRegistration)
+      const handler: unknown = scope.resolve(registered.handlerRegistration)
+      if (!isEventSubscriptionHandler(handler)) {
+        throw new Error(`Subscription ${registered.id} resolved an invalid handler`)
+      }
       await handler.handle(event, {
         actor: { id: row.actor_id, type: row.actor_type },
         correlationId: row.correlation_id,
@@ -263,6 +266,15 @@ async function deliverToSubscription(
       [inboxMarker.id],
     )
   })
+}
+
+function isEventSubscriptionHandler(value: unknown): value is EventSubscriptionHandler {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'handle' in value &&
+    typeof value.handle === 'function'
+  )
 }
 
 function parseOccurredAt(value: Date | string) {

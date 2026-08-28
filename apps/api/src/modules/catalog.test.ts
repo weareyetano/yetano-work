@@ -120,31 +120,23 @@ describe('module catalog', () => {
   })
 
   it('accepts a subscriber that imports a named event contract and declares its versions', () => {
-    expect(() =>
-      createModuleCatalog([
-        casesModule,
-        subscriberModule(
-          defineSubscription({
-            event: caseTransitionedEvent,
-            handlerRegistration: 'caseTransitionedActivityProjector',
-            supportedVersions: [3],
-          }),
-        ),
-      ]),
-    ).not.toThrow()
+    expect(() => createModuleCatalog([casesModule, subscriberModule()])).not.toThrow()
   })
 
   it('fails fast when a subscriber declares an unknown schema version', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
+    const subscriber = subscriberModule()
+    const [subscription] = subscriber.events.subscribes
 
     expect(() =>
       createModuleCatalog([
         casesModule,
-        subscriberModule({ ...subscription, supportedVersions: [4] }),
+        {
+          ...subscriber,
+          events: {
+            publishes: [],
+            subscribes: [{ ...subscription, supportedVersions: [4] }],
+          },
+        },
       ]),
     ).toThrow(
       'Subscription activities:case.transitioned references unknown case.transitioned schema version 4',
@@ -152,16 +144,19 @@ describe('module catalog', () => {
   })
 
   it('fails fast when a subscriber omits the current schema version', () => {
+    const subscriber = subscriberModule()
+    const [subscription] = subscriber.events.subscribes
+
     expect(() =>
       createModuleCatalog([
         casesModule,
-        subscriberModule(
-          defineSubscription({
-            event: caseTransitionedEvent,
-            handlerRegistration: 'caseTransitionedActivityProjector',
-            supportedVersions: [2],
-          }),
-        ),
+        {
+          ...subscriber,
+          events: {
+            publishes: [],
+            subscribes: [{ ...subscription, supportedVersions: [2] }],
+          },
+        },
       ]),
     ).toThrow(
       'Subscription activities:case.transitioned must support current case.transitioned schema version 3',
@@ -169,28 +164,16 @@ describe('module catalog', () => {
   })
 
   it('requires the subscribing module to declare its publisher dependency', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
-
     expect(() =>
-      createModuleCatalog([casesModule, { ...subscriberModule(subscription), dependencies: [] }]),
+      createModuleCatalog([casesModule, { ...subscriberModule(), dependencies: [] }]),
     ).toThrow('Module activities must depend on cases to subscribe to case.transitioned')
   })
 
   it('requires the handler registration to belong to the subscribing module', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
-
     expect(() =>
       createModuleCatalog([
         casesModule,
-        { ...subscriberModule(subscription), registrations: emptyRegistrations },
+        { ...subscriberModule(), registrations: emptyRegistrations },
       ]),
     ).toThrow(
       'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must belong to module activities',
@@ -198,59 +181,25 @@ describe('module catalog', () => {
   })
 
   it('requires the subscription handler registration to be scoped', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
-
     expect(() =>
-      createModuleCatalog([
-        casesModule,
-        {
-          ...subscriberModule(subscription),
-          registrations: {
-            private: {
-              caseTransitionedActivityProjector: registerTest.transient([], () => ({
-                handle: async () => {},
-              })),
-            },
-            public: {},
-          },
-        },
-      ]),
+      createModuleCatalog([casesModule, subscriberModule({ handlerLifetime: 'transient' })]),
     ).toThrow(
       'Subscription activities:case.transitioned handler registration caseTransitionedActivityProjector must be scoped',
     )
   })
 
   it('accepts a declared public port consumed by a module registration', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
-
     expect(() =>
-      createModuleCatalog([
-        casesModule,
-        subscriberModule(subscription, { consumeCasesReadPort: true }),
-      ]),
+      createModuleCatalog([casesModule, subscriberModule({ consumeCasesReadPort: true })]),
     ).not.toThrow()
   })
 
   it('rejects private ports and undeclared public port injection', () => {
-    const subscription = defineSubscription({
-      event: caseTransitionedEvent,
-      handlerRegistration: 'caseTransitionedActivityProjector',
-      supportedVersions: [3],
-    })
-
     expect(() =>
       createModuleCatalog([
         casesModule,
         {
-          ...subscriberModule(subscription),
+          ...subscriberModule(),
           dependencies: [{ moduleId: 'cases', ports: ['casesService'] }],
         },
       ]),
@@ -259,7 +208,7 @@ describe('module catalog', () => {
     expect(() =>
       createModuleCatalog([
         casesModule,
-        subscriberModule(subscription, { injectCasesReadPortWithoutDeclaration: true }),
+        subscriberModule({ injectCasesReadPortWithoutDeclaration: true }),
       ]),
     ).toThrow(
       'Module activities registration caseTransitionedActivityProjector injects undeclared port casesReadPort',
@@ -267,35 +216,38 @@ describe('module catalog', () => {
   })
 })
 
-function subscriberModule(
-  subscription:
-    | (typeof casesModule.events.subscribes)[number]
-    | ReturnType<typeof defineSubscription>,
-  {
-    consumeCasesReadPort = false,
-    injectCasesReadPortWithoutDeclaration = false,
-  }: {
-    consumeCasesReadPort?: boolean
-    injectCasesReadPortWithoutDeclaration?: boolean
-  } = {},
-) {
+function subscriberModule({
+  consumeCasesReadPort = false,
+  handlerLifetime = 'scoped',
+  injectCasesReadPortWithoutDeclaration = false,
+}: {
+  consumeCasesReadPort?: boolean
+  handlerLifetime?: 'scoped' | 'transient'
+  injectCasesReadPortWithoutDeclaration?: boolean
+} = {}) {
   const injectCasesReadPort = consumeCasesReadPort || injectCasesReadPortWithoutDeclaration
+  const handlerFactory = injectCasesReadPort
+    ? registerTest[handlerLifetime](['casesReadPort'], ({ casesReadPort }) => ({
+        casesReadPort,
+        handle: async () => {},
+      }))
+    : registerTest[handlerLifetime]([], () => ({ handle: async () => {} }))
+  const registrations = {
+    private: { caseTransitionedActivityProjector: handlerFactory },
+    public: {},
+  }
+  const subscription = defineSubscription(registrations.private, {
+    event: caseTransitionedEvent,
+    handlerRegistration: 'caseTransitionedActivityProjector',
+    supportedVersions: [3],
+  })
+
   return {
     ...healthModule,
     dependencies: [{ moduleId: 'cases', ports: consumeCasesReadPort ? ['casesReadPort'] : [] }],
     events: { publishes: [], subscribes: [subscription] },
     http: { access: 'public' as const, path: '/activities' as const },
     id: 'activities',
-    registrations: {
-      private: {
-        [subscription.handlerRegistration]: injectCasesReadPort
-          ? registerTest.scoped(['casesReadPort'], ({ casesReadPort }) => ({
-              casesReadPort,
-              handle: async () => {},
-            }))
-          : registerTest.scoped([], () => ({ handle: async () => {} })),
-      },
-      public: {},
-    },
+    registrations,
   }
 }
