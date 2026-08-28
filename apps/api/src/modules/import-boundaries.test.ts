@@ -1,4 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, extname, join, normalize, relative, resolve, sep } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
@@ -23,6 +24,11 @@ interface ImportViolation {
   specifier: string
 }
 
+interface MissingEntrypointViolation {
+  message: string
+  moduleId: string
+}
+
 describe('module import boundaries', () => {
   it('keeps every repository consumer on module public entrypoints', async () => {
     const workspace = resolve(import.meta.dirname, '../../../..')
@@ -45,6 +51,7 @@ describe('module import boundaries', () => {
     ]
     const files = [...(await readSourceFiles(apiSource)), ...(await readSourceFiles(webSource))]
 
+    expect(findMissingEntrypoints(files, boundaries)).toEqual([])
     expect(findImportViolations(files, boundaries)).toEqual([])
   })
 
@@ -65,14 +72,17 @@ describe('module import boundaries', () => {
     expect(findImportViolations(files, boundaries)).toEqual([])
   })
 
-  it('rejects deep imports, re-exports, dynamic imports, and undeclared module dependencies', () => {
+  it('rejects every form of deep import and undeclared module dependencies', () => {
     const boundaries = fixtureBoundaries({ activitiesDependencies: [] })
     const files = fixtureFiles({
       '/repo/apps/api/src/modules/activities/service.ts': `
         import { internal } from '../cases/internal.js'
+        import InternalService = require('../cases/cases.service.js')
         export { value } from '../cases/index.js'
         const lazy = import('../cases/private.js')
+        type InternalServiceType = import('../cases/cases.service.js').CasesService
       `,
+      '/repo/apps/api/src/modules/cases/cases.service.ts': 'export class CasesService {}',
       '/repo/apps/api/src/modules/cases/index.ts': 'export const value = true',
       '/repo/apps/api/src/modules/cases/internal.ts': 'export const internal = true',
       '/repo/apps/api/src/modules/cases/private.ts': 'export const privateValue = true',
@@ -81,10 +91,41 @@ describe('module import boundaries', () => {
 
     expect(findImportViolations(files, boundaries).map(({ message }) => message)).toEqual([
       'Module activities must import cases through its public index.ts',
+      'Module activities must import cases through its public index.ts',
       'Module activities must declare a dependency on cases',
+      'Module activities must import cases through its public index.ts',
       'Module activities must import cases through its public index.ts',
       'Web module imports must use #modules/cases without a deep path',
     ])
+  })
+
+  it('discovers and rejects a module directory without a public entrypoint', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yetano-import-boundaries-'))
+    const tasksDirectory = join(root, 'tasks')
+
+    try {
+      await mkdir(tasksDirectory)
+      await writeFile(join(tasksDirectory, 'tasks.module.ts'), 'export const tasksModule = {}')
+
+      const discovered = await discoverModules(root, 'api')
+      expect(discovered).toEqual([
+        {
+          directory: tasksDirectory,
+          id: 'tasks',
+          kind: 'api',
+        },
+      ])
+
+      const boundaries = discovered.map((module) => ({ ...module, dependencies: [] }))
+      expect(findMissingEntrypoints(await readSourceFiles(root), boundaries)).toEqual([
+        {
+          message: 'API module tasks must expose a public index.ts',
+          moduleId: 'tasks',
+        },
+      ])
+    } finally {
+      await rm(root, { recursive: true })
+    }
   })
 })
 
@@ -94,8 +135,6 @@ async function discoverModules(root: string, kind: ModuleBoundary['kind']) {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     const directory = join(root, entry.name)
-    const children = await readdir(directory)
-    if (!children.includes('index.ts')) continue
     modules.push({ directory, id: entry.name, kind })
   }
   return modules
@@ -116,6 +155,23 @@ async function readSourceFiles(root: string): Promise<SourceFile[]> {
   }
   await visit(root)
   return files
+}
+
+function findMissingEntrypoints(
+  files: readonly SourceFile[],
+  boundaries: readonly ModuleBoundary[],
+): MissingEntrypointViolation[] {
+  const paths = new Set(files.map((file) => normalize(file.path)))
+  return boundaries.flatMap((boundary) =>
+    paths.has(normalize(join(boundary.directory, 'index.ts')))
+      ? []
+      : [
+          {
+            message: `${boundary.kind === 'api' ? 'API' : 'Web'} module ${boundary.id} must expose a public index.ts`,
+            moduleId: boundary.id,
+          },
+        ],
+  )
 }
 
 function findImportViolations(
@@ -187,6 +243,19 @@ function importSpecifiers(file: SourceFile) {
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       specifiers.push(node.moduleSpecifier.text)
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      specifiers.push(node.moduleReference.expression.text)
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      specifiers.push(node.argument.literal.text)
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
