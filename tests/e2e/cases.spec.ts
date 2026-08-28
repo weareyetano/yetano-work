@@ -35,14 +35,15 @@ test('uses the preset select for case views', async ({ page }) => {
 
   const view = page.getByRole('button', { name: /Widok spraw/ })
   await expect(view).toContainText('Otwarte')
+  await expect(view).toHaveCSS('height', '40px')
   await view.click()
 
   const content = page.locator('[data-slot="select-content"]')
   await expect(content).toBeVisible()
-  await expect(content).toHaveClass(/dark/)
+  await expect(content).not.toHaveClass(/dark/)
   await expect(content).toHaveClass(/rounded-lg/)
-  await expect(content).toHaveClass(/bg-popover\/70/)
-  await expect(content).toHaveClass(/ring-foreground\/10/)
+  await expect(content).toHaveClass(/bg-popover/)
+  await expect(content).toHaveClass(/ring-border/)
   expect(await content.getByRole('option').allTextContents()).toEqual([
     'Otwarte',
     'Odłożone',
@@ -139,15 +140,18 @@ test('creates, postpones, restores, and resolves a case through the generated AP
   await page.goto('/cases')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sprawy' })).toBeVisible()
-  await expect(page.locator('body')).toHaveCSS('background-color', 'oklch(0.967 0.001 286.375)')
+  await expect(page.locator('body')).toHaveCSS('background-color', 'oklch(0.965 0.007 250)')
+  expect(
+    await page.locator('body').evaluate((body) => getComputedStyle(body).fontFamily),
+  ).toContain('Instrument Sans Variable')
   expect(
     await page
       .locator(':root')
       .evaluate((root) => getComputedStyle(root).getPropertyValue('--muted-foreground').trim()),
-  ).toBe('oklch(55.2% .016 285.938)')
+  ).toBe('oklch(43% .03 255)')
   await expect(page.locator('[data-slot="card"]').first()).toHaveCSS(
     'background-color',
-    'oklch(1 0 0)',
+    'oklch(0.995 0.002 250)',
   )
   await expect(page.locator('[data-slot="card-content"]').first()).toHaveClass(/p-4/)
   const view = page.getByRole('button', { name: /Widok spraw/ })
@@ -160,7 +164,7 @@ test('creates, postpones, restores, and resolves a case through the generated AP
 
   const caseRow = page.getByRole('button', { name: new RegExp(title) })
   await expect(caseRow).toBeVisible()
-  await expect(caseRow).toHaveCSS('background-color', 'oklch(0.967 0.001 286.375)')
+  await expect(caseRow).toHaveCSS('background-color', 'oklch(0.925 0.035 250)')
   await expect(caseRow).toHaveCSS('border-top-width', '0px')
   await expect(page).toHaveURL(/caseId=/)
   await expect(page.getByRole('article').getByLabel('Tytuł')).toHaveValue(title)
@@ -212,9 +216,9 @@ test('creates, postpones, restores, and resolves a case through the generated AP
   await expect(timeline.getByText('Ustalenie z testu przeglądarkowego')).toBeVisible()
   await expect(timelineRows).toHaveCount(5)
   await expect(page.getByText('Historia statusu')).toHaveCount(0)
-  await expect(timelineRows.first()).toHaveClass(/bg-muted\/50/)
+  await expect(timelineRows.first()).toHaveClass(/bg-muted/)
   await expect(timelineRows.first()).toHaveClass(/px-3/)
-  await expect(timelineRows.first()).toHaveClass(/py-2\.5/)
+  await expect(timelineRows.first()).toHaveClass(/py-3/)
   await expect(timelineRows.first()).toHaveCSS('border-top-width', '0px')
   await expect(timelineRows.first()).toHaveCSS('border-radius', '14px')
   await timeline.getByRole('button', { name: /Wróć do sprawy/ }).click()

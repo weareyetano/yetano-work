@@ -111,7 +111,7 @@ export function CaseForm({
           ) : null}
           {footerActions}
           {isDirty && !busy ? (
-            <span className="col-span-full text-sm text-muted-foreground" role="status">
+            <span className="col-span-full text-base text-muted-foreground" role="status">
               Niezapisane zmiany.
             </span>
           ) : null}
@@ -137,7 +137,7 @@ export function CaseConflictNotice({
   return (
     <Alert className="my-3.5" variant="destructive">
       <RiErrorWarningLine aria-hidden="true" />
-      <AlertDescription className="grid gap-2 text-destructive">
+      <AlertDescription className="grid gap-2 text-status-danger-foreground">
         <strong>Sprawa została zmieniona w innym miejscu. Lokalny szkic został zachowany.</strong>
         <span>
           Wersja serwera {serverCase.version}: {caseDraftSummary(caseFormValue(serverCase))}

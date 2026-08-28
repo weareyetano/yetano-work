@@ -2,8 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted |
+| Status | Superseded |
 | Date | 2026-08-20 |
+| Superseded by | [Adopt a readability-first light UI preset](2026-08-28-readability-first-ui-preset.md) |
 
 ## Context
 

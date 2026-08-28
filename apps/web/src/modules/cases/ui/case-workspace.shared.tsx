@@ -48,7 +48,7 @@ export function ErrorNotice({
   return (
     <Alert className={cn('my-3.5', retry ? 'pr-36' : undefined, className)} variant="destructive">
       <RiErrorWarningLine aria-hidden="true" />
-      <AlertDescription className="text-destructive">{readError(error)}</AlertDescription>
+      <AlertDescription>{readError(error)}</AlertDescription>
       {retry ? (
         <AlertAction>
           <Button onPress={() => retry()} size="sm" type="button" variant="outline">
@@ -75,7 +75,7 @@ export function LoadingStatus({ className, label }: { className?: string; label:
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground',
+        'flex items-center justify-center gap-2 py-10 text-base text-muted-foreground',
         className,
       )}
       role="status"

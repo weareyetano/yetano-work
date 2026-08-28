@@ -132,7 +132,7 @@ export function ActivityTimeline({
           <ErrorNotice error={activities.error} retry={() => activities.refetch()} />
         ) : null}
         {activities.isSuccess && entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Brak aktywności.</p>
+          <p className="text-base text-muted-foreground">Brak aktywności.</p>
         ) : null}
         {entries.length > 0 ? (
           <ol className="grid gap-2" aria-label="Oś czasu sprawy">
@@ -168,13 +168,13 @@ function submitNoteRetry(
 
 function ActivityEntry({ entry }: { entry: ActivityItem }) {
   return (
-    <li className="rounded-xl bg-muted/50 px-3 py-2.5">
+    <li className="rounded-xl bg-muted px-3 py-3 ring-1 ring-border">
       <div className="flex items-start justify-between gap-4">
-        <p className="min-w-0 whitespace-pre-wrap text-sm">
+        <p className="min-w-0 whitespace-pre-wrap text-base leading-relaxed">
           <ActivitySentence entry={entry} />
         </p>
         <time
-          className="shrink-0 text-right text-xs text-muted-foreground"
+          className="shrink-0 font-mono text-sm text-right text-muted-foreground"
           dateTime={entry.occurredAt}
         >
           {formatActivityDate(entry.occurredAt)}
@@ -227,7 +227,7 @@ export function formatActivityDate(value: string) {
 function LoadingStatus({ label }: { label: string }) {
   return (
     <div
-      className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"
+      className="flex items-center justify-center gap-2 py-10 text-base text-muted-foreground"
       role="status"
     >
       <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
@@ -248,7 +248,7 @@ function ErrorNotice({
   return (
     <Alert className="my-3.5 pr-36" variant="destructive">
       <RiErrorWarningLine aria-hidden="true" />
-      <AlertDescription className="text-destructive">{readError(error)}</AlertDescription>
+      <AlertDescription>{readError(error)}</AlertDescription>
       <AlertAction>
         <Button
           isDisabled={retryDisabled}

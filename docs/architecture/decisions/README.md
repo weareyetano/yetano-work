@@ -32,9 +32,10 @@ product behavior.
 | 2026-08-19 | [Compose the application as a compile-time modular monolith](2026-08-19-compile-time-modular-monolith.md) | Accepted |
 | 2026-08-19 | [Enforce authorization and organization scope through a trusted execution context](2026-08-19-trusted-execution-context.md) | Accepted |
 | 2026-08-19 | [Publish domain events through a transactional outbox](2026-08-19-transactional-domain-events.md) | Accepted |
-| 2026-08-20 | [Use shadcn/ui with React Aria for the web UI](2026-08-20-shadcn-react-aria-ui.md) | Accepted |
+| 2026-08-20 | [Use shadcn/ui with React Aria for the web UI](2026-08-20-shadcn-react-aria-ui.md) | Superseded |
 | 2026-08-21 | [Identify case lifecycle transitions with client-generated command IDs](2026-08-21-idempotent-case-lifecycle-transitions.md) | Accepted |
 | 2026-08-22 | [Declare HTTP access in module descriptors](2026-08-22-declarative-module-http-access.md) | Accepted |
 | 2026-08-23 | [Process module events through typed idempotent subscriptions](2026-08-23-typed-idempotent-event-subscriptions.md) | Accepted |
 | 2026-08-27 | [Compose web module navigation through a static registry](2026-08-27-static-web-module-registry.md) | Accepted |
 | 2026-08-28 | [Enforce module collaboration through static ports](2026-08-28-static-module-ports.md) | Accepted |
+| 2026-08-28 | [Adopt a readability-first light UI preset](2026-08-28-readability-first-ui-preset.md) | Accepted |

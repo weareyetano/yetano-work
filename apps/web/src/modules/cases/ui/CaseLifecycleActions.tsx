@@ -7,7 +7,6 @@ import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from '#components
 import { Field, FieldLabel } from '#components/ui/field'
 import { Spinner } from '#components/ui/spinner'
 import { Textarea } from '#components/ui/textarea'
-import { cn } from '#lib/utils'
 
 import type { CaseItem, CaseTransitionIntent } from '../cases.api'
 
@@ -66,9 +65,6 @@ export function CaseLifecycleActions({
     <div className="flex flex-wrap items-center gap-2">
       {actions.map((action) => (
         <Button
-          className={cn(
-            action.variant === 'destructive' && 'bg-destructive text-white hover:bg-destructive/90',
-          )}
           isDisabled={busy}
           key={action.toStatus}
           onPress={() => runAction(action)}

@@ -38,19 +38,22 @@ export function CaseActivitySummary({
   const occurredAt = currentStatus.data?.occurredAt ?? fallbackOccurredAt
 
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2.5">
+    <div className="mt-6 flex items-center gap-3 rounded-xl bg-muted px-3 py-3 ring-1 ring-border">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Status sprawy:</span>{' '}
+        <span className="text-base font-semibold">Status sprawy:</span>{' '}
         <CaseStatusBadge status={status} />
       </div>
-      <time className="ml-auto text-right text-xs text-muted-foreground" dateTime={occurredAt}>
+      <time
+        className="ml-auto font-mono text-sm text-right text-muted-foreground"
+        dateTime={occurredAt}
+      >
         {formatActivityDate(occurredAt)}
       </time>
       <Button
         ref={triggerRef}
         aria-label="Pokaż aktywność"
         onPress={onOpen}
-        size="icon-sm"
+        size="icon"
         type="button"
         variant="ghost"
       >

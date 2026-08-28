@@ -63,15 +63,15 @@ function ModuleNavigation({
       {...props}
     >
       {isWide ? (
-        <div className="inline-flex items-center gap-1 rounded-xl bg-border/70 p-1">
+        <div className="inline-flex items-center gap-1 rounded-xl bg-secondary p-1 ring-1 ring-border">
           {items.map((item) =>
             item.availability === 'available' ? (
               <LinkButton
                 aria-current={item.id === currentItem?.id ? 'page' : undefined}
                 className={cn(
-                  'h-8 px-3 text-sm text-foreground/70 hover:bg-background/60 hover:text-foreground',
+                  'h-10 px-4 text-base text-muted-foreground hover:bg-card hover:text-foreground',
                   item.id === currentItem?.id &&
-                    'bg-background text-foreground shadow-sm ring-1 ring-foreground/5 hover:bg-background',
+                    'bg-card text-foreground shadow-sm ring-1 ring-border hover:bg-card',
                 )}
                 href={item.path}
                 key={item.id}
@@ -82,7 +82,7 @@ function ModuleNavigation({
               </LinkButton>
             ) : (
               <Button
-                className="h-8 px-3 text-sm text-foreground/70 hover:bg-background/60 hover:text-foreground"
+                className="h-10 px-4 text-base text-muted-foreground hover:bg-card hover:text-foreground"
                 key={item.id}
                 onPress={(event) =>
                   openPlaceholder(
