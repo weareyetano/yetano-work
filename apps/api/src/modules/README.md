@@ -34,6 +34,12 @@ dependencies name the provider and the public ports consumed from it; private re
 resolvable only through the owning module's typed resolver. Platform services available to module
 factories are intentionally allowlisted.
 
+Declare an event subscription after its handler registrations and pass the relevant registration
+map to `defineSubscription`. The builder accepts only keys whose resolved value implements
+`EventSubscriptionHandler` for the selected event and supported schema versions. The dispatcher
+also validates the resolved handler shape before delivery so malformed runtime composition fails
+with the subscription identity instead of an indirect method-call error.
+
 Run `pnpm modules:generate` after changing a descriptor and inspect the generated
 [`docs/modules`](../../../../../docs/modules/README.md) fact sheet. `pnpm modules:check` detects
 stale generated documentation.

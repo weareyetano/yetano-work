@@ -18,6 +18,7 @@ import type { Actor } from '../platform/execution/context.js'
 import type { OperationDefinition, OperationExecutor } from '../platform/execution/operation.js'
 
 const moduleRegistrationMetadata = Symbol('moduleRegistrationMetadata')
+const eventSubscriptionMetadata = Symbol('eventSubscriptionMetadata')
 
 export interface ModulePlatformCradle {
   config: AppConfig
@@ -112,27 +113,30 @@ export interface EventSubscriptionHandler<
   SupportedVersions extends
     readonly VersionNumberOf<Definition>[] = readonly VersionNumberOf<Definition>[],
 > {
-  handle(
+  handle: (
     event: PublishedEvent<Definition, SupportedVersions>,
     context: EventSubscriptionContext,
-  ): Promise<void>
+  ) => Promise<void>
+}
+
+interface EventSubscriptionConfiguration<
+  Definition extends EventDefinition = EventDefinition,
+  SupportedVersions extends
+    readonly VersionNumberOf<Definition>[] = readonly VersionNumberOf<Definition>[],
+  HandlerRegistration extends string = string,
+> {
+  event: Definition
+  handlerRegistration: HandlerRegistration
+  supportedVersions: SupportedVersions
 }
 
 export interface EventSubscription<
   Definition extends EventDefinition = EventDefinition,
   SupportedVersions extends
     readonly VersionNumberOf<Definition>[] = readonly VersionNumberOf<Definition>[],
-> {
-  event: Definition
-  handlerRegistration: string
-  supportedVersions: SupportedVersions
-}
-
-export function defineSubscription<
-  const Definition extends EventDefinition,
-  const SupportedVersions extends readonly VersionNumberOf<Definition>[],
->(subscription: EventSubscription<Definition, SupportedVersions>) {
-  return subscription
+  HandlerRegistration extends string = string,
+> extends EventSubscriptionConfiguration<Definition, SupportedVersions, HandlerRegistration> {
+  [eventSubscriptionMetadata]: true
 }
 
 export function eventSubscriptionId(moduleId: string, eventId: string) {
@@ -230,6 +234,27 @@ export function createModuleRegistrationBuilder<Available extends object>() {
 }
 
 type RegistrationValue<Registration> = Registration extends Resolver<infer Value> ? Value : never
+
+type RegistrationKeyForValue<Registrations extends ModuleRegistrationMap, Value> = {
+  [Key in StringKeyOf<Registrations>]: RegistrationValue<Registrations[Key]> extends Value
+    ? Key
+    : never
+}[StringKeyOf<Registrations>]
+
+export function defineSubscription<
+  const Registrations extends ModuleRegistrationMap,
+  const Definition extends EventDefinition,
+  const SupportedVersions extends readonly VersionNumberOf<Definition>[],
+  const HandlerRegistration extends RegistrationKeyForValue<
+    Registrations,
+    EventSubscriptionHandler<Definition, SupportedVersions>
+  >,
+>(
+  _registrations: Registrations,
+  subscription: EventSubscriptionConfiguration<Definition, SupportedVersions, HandlerRegistration>,
+) {
+  return Object.assign(subscription, { [eventSubscriptionMetadata]: true as const })
+}
 
 type RegistrationCradle<Registrations extends ModuleRegistrationMap> = {
   [Key in keyof Registrations]: RegistrationValue<Registrations[Key]>

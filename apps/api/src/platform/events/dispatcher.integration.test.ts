@@ -165,6 +165,24 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
     ])
   })
 
+  it('rejects a resolved registration with an invalid handler shape', async () => {
+    const event = await seedEvent(orm)
+    const dispatcher = dispatcherWithInvalidHandler()
+
+    await dispatcher.dispatchOnce()
+
+    await expect(inboxRows(orm)).resolves.toEqual([])
+    await expect(outboxRows(orm)).resolves.toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        id: event.id,
+        last_error: expect.stringContaining(
+          'Subscription consumer-0:test.deliver resolved an invalid handler',
+        ),
+      }),
+    ])
+  })
+
   it('does not repeat a completed subscriber when a later subscriber is retried', async () => {
     const first = vi.fn<TestHandler>(async () => {})
     const second = vi
@@ -294,6 +312,36 @@ describeWithDatabase('outbox dispatcher with PostgreSQL', () => {
       rootContainer,
     })
   }
+
+  function dispatcherWithInvalidHandler() {
+    const handlerRegistration = 'invalidTestDeliveryHandler'
+    const declaredRegistrations = {
+      [handlerRegistration]: registerTest.scoped([], () => ({
+        handle: async (_event: TestEvent, _context: EventSubscriptionContext) => {},
+      })),
+    }
+    const subscription = defineSubscription(declaredRegistrations, {
+      event: testEvent,
+      handlerRegistration,
+      supportedVersions: [1],
+    })
+    const moduleCatalog = createModuleCatalog([
+      testModule('publisher', '/publisher', { publishes: [testEvent], subscribes: [] }),
+      testModule(
+        'consumer-0',
+        '/consumer-0',
+        { publishes: [], subscribes: [subscription] },
+        {
+          private: {
+            [handlerRegistration]: registerTest.scoped([], () => ({ run: async () => {} })),
+          },
+          public: {},
+        },
+      ),
+    ])
+    for (const module of moduleCatalog.modules) rootContainer.register(moduleRegistrations(module))
+    return createOutboxDispatcher({ logger, moduleCatalog, orm, rootContainer })
+  }
 })
 
 function catalogWithHandlers(handlers: readonly TestHandler[]) {
@@ -304,27 +352,32 @@ function catalogWithHandlers(handlers: readonly TestHandler[]) {
     }),
     ...handlers.map((handle, index) => {
       const handlerRegistration = `testDeliveryHandler${index}`
+      const registrations = {
+        private: {
+          [handlerRegistration]: registerTest.scoped(
+            ['entityManager', 'logger'],
+            ({ entityManager, logger: scopedLogger }) => ({
+              handle: (event: TestEvent, context: EventSubscriptionContext) =>
+                handle(event, context, { entityManager, logger: scopedLogger }),
+            }),
+          ),
+        },
+        public: {},
+      }
       return testModule(
         `consumer-${index}`,
         `/consumer-${index}`,
         {
           publishes: [],
           subscribes: [
-            defineSubscription({ event: testEvent, handlerRegistration, supportedVersions: [1] }),
+            defineSubscription(registrations.private, {
+              event: testEvent,
+              handlerRegistration,
+              supportedVersions: [1],
+            }),
           ],
         },
-        {
-          private: {
-            [handlerRegistration]: registerTest.scoped(
-              ['entityManager', 'logger'],
-              ({ entityManager, logger: scopedLogger }) => ({
-                handle: (event: TestEvent, context: EventSubscriptionContext) =>
-                  handle(event, context, { entityManager, logger: scopedLogger }),
-              }),
-            ),
-          },
-          public: {},
-        },
+        registrations,
       )
     }),
   ])
