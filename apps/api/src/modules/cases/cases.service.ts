@@ -8,8 +8,6 @@ import type {
   CaseList,
   CaseStatus,
   CaseStatusChange,
-  CaseStatusHistory,
-  CaseStatusHistoryQuery,
   ChangeCaseStatusRequest,
   CreateCaseRequest,
   ListCasesQuery,
@@ -21,17 +19,13 @@ import type { OperationDefinition, OperationExecutor } from '../../platform/exec
 import { CaseEntity, type CaseRecord } from './case.entity.js'
 import { type CaseCursor, createCaseRepository } from './case.repository.js'
 import { CaseStatusChangeEntity, type CaseStatusChangeRecord } from './case-status-change.entity.js'
-import {
-  type CaseStatusHistoryCursor,
-  createCaseStatusChangeRepository,
-} from './case-status-change.repository.js'
+import { createCaseStatusChangeRepository } from './case-status-change.repository.js'
 import { caseCreatedEvent, caseTransitionedEvent, caseUpdatedEvent } from './cases.events.js'
 import {
   type CaseMutationInput,
   closeCaseOperation,
   createCaseOperation,
   getCaseOperation,
-  listCaseStatusHistoryOperation,
   listCasesOperation,
   reopenCaseOperation,
   transitionCaseOperation,
@@ -62,11 +56,6 @@ export class InvalidCaseCursorError extends Error {}
 export interface CasesService {
   create(request: CreateCaseRequest, context: ExecutionContext): Promise<Case>
   get(caseId: CaseId, context: ExecutionContext): Promise<Case>
-  history(
-    caseId: CaseId,
-    request: CaseStatusHistoryQuery,
-    context: ExecutionContext,
-  ): Promise<CaseStatusHistory>
   list(request: ListCasesQuery, context: ExecutionContext): Promise<CaseList>
   transition(
     caseId: CaseId,
@@ -153,34 +142,6 @@ export function createCasesService({
         async (id, context) => {
           const repository = createCaseRepository(context.entityManager)
           return toCase(await requireCase(repository, context.executionContext.organizationId, id))
-        },
-      )
-    },
-    history(caseId, request, executionContext) {
-      return operationExecutor.execute(
-        listCaseStatusHistoryOperation,
-        executionContext,
-        { caseId, request },
-        async (input, context) => {
-          const caseRepository = createCaseRepository(context.entityManager)
-          await requireCase(caseRepository, context.executionContext.organizationId, input.caseId)
-          const limit = input.request.limit ?? 50
-          const historyRepository = createCaseStatusChangeRepository(context.entityManager)
-          const result = await historyRepository.list(
-            context.executionContext.organizationId,
-            input.caseId,
-            {
-              ...(input.request.cursor
-                ? { cursor: decodeHistoryCursor(input.request.cursor) }
-                : {}),
-              limit,
-            },
-          )
-          const last = result.items.at(-1)
-          return {
-            items: result.items.map(toStatusChange),
-            nextCursor: result.hasMore && last ? encodeHistoryCursor(last) : null,
-          }
         },
       )
     },
@@ -522,18 +483,7 @@ function decodeCaseCursor(value: string): CaseCursor {
   return { id: decoded.id as CaseId, updatedAt: decoded.date }
 }
 
-function encodeHistoryCursor(record: Pick<CaseStatusChangeRecord, 'changedAt' | 'id'>) {
-  return Buffer.from(
-    JSON.stringify({ changedAt: record.changedAt.toISOString(), id: record.id }),
-  ).toString('base64url')
-}
-
-function decodeHistoryCursor(value: string): CaseStatusHistoryCursor {
-  const decoded = decodeCursor(value, 'changedAt')
-  return { changedAt: decoded.date, id: decoded.id }
-}
-
-function decodeCursor(value: string, dateKey: 'changedAt' | 'updatedAt') {
+function decodeCursor(value: string, dateKey: 'updatedAt') {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
     if (!parsed || typeof parsed !== 'object') throw new Error('Invalid cursor')

@@ -11,10 +11,11 @@ const emptyRegistrations = { private: {}, public: {} }
 
 describe('module catalog', () => {
   it('exposes the explicit application modules and inherited capability requirements', () => {
-    expect(applicationModules.map((module) => module.id)).toEqual(['health', 'cases'])
+    expect(applicationModules.map((module) => module.id)).toEqual(['health', 'cases', 'activities'])
     expect(applicationModules.map((module) => [module.http.path, module.http.access])).toEqual([
       ['/health', 'public'],
       ['/cases', 'protected'],
+      ['/activities', 'protected'],
     ])
     expect(applicationModuleCatalog.events.get('case.transitioned')).toBe(caseTransitionedEvent)
     expect(applicationModuleCatalog.requiredCapabilities('cases.close')).toEqual([
@@ -27,6 +28,11 @@ describe('module catalog', () => {
     ])
     expect(applicationModuleCatalog.requiredCapabilities('cases.reopen')).toEqual([
       'cases.reopen',
+      'cases.read',
+    ])
+    expect(applicationModuleCatalog.requiredCapabilities('activities.create-note')).toEqual([
+      'activities.create-note',
+      'activities.read',
       'cases.read',
     ])
   })

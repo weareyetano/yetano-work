@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { getCase, listCaseStatusHistory, listCases } from '@yetano/api-client'
+import { getCase, listCaseActivities, listCases } from '@yetano/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CasesPage } from './CasesPage'
@@ -18,9 +18,10 @@ import {
 } from './CasesPage.test-harness'
 
 vi.mock('@yetano/api-client', () => ({
+  createActivityNote: vi.fn(),
   createCase: vi.fn(),
   getCase: vi.fn(),
-  listCaseStatusHistory: vi.fn(),
+  listCaseActivities: vi.fn(),
   listCases: vi.fn(),
   transitionCase: vi.fn(),
   updateCase: vi.fn(),
@@ -31,7 +32,7 @@ describe('CasesPage navigation and drafts', () => {
     vi.clearAllMocks()
     localStorage.clear()
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
-    vi.mocked(listCaseStatusHistory).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
+    vi.mocked(listCaseActivities).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
   })
   it('selects the case requested in the URL before the last viewed case', async () => {
     localStorage.setItem('yetano:last-viewed-case-id', caseItem.id)

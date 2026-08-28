@@ -1,5 +1,11 @@
 import { expect, type Locator, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/activities/**', (route) =>
+    route.fulfill({ contentType: 'application/json', json: { items: [], nextCursor: null } }),
+  )
+})
+
 test('redirects the former home page to cases', async ({ page }) => {
   await page.goto('/')
 
@@ -145,11 +151,7 @@ test('keeps desktop creation in the URL and cancels back to the previous case', 
   const caseItem = mobileCase(1)
   await page.route('**/api/v1/cases**', (route) =>
     route.fulfill({
-      body: JSON.stringify(
-        new URL(route.request().url()).pathname.endsWith('/status-history')
-          ? { items: [], nextCursor: null }
-          : { items: [caseItem], nextCursor: null },
-      ),
+      body: JSON.stringify({ items: [caseItem], nextCursor: null }),
       contentType: 'application/json',
       status: 200,
     }),
@@ -218,11 +220,7 @@ test('opens mobile case details in place and restores the list through both back
   const cases = Array.from({ length: 12 }, (_, index) => mobileCase(index + 1))
   await page.route('**/api/v1/cases**', (route) =>
     route.fulfill({
-      body: JSON.stringify(
-        new URL(route.request().url()).pathname.endsWith('/status-history')
-          ? { items: [], nextCursor: null }
-          : { items: cases, nextCursor: null },
-      ),
+      body: JSON.stringify({ items: cases, nextCursor: null }),
       contentType: 'application/json',
       status: 200,
     }),

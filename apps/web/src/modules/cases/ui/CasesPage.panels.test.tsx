@@ -2,7 +2,7 @@
 
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { listCaseStatusHistory, listCases } from '@yetano/api-client'
+import { listCaseActivities, listCases } from '@yetano/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -12,13 +12,14 @@ import {
   mockDesktopViewport,
   renderCasesPage,
   selectView,
-  statusChange,
+  statusActivity,
 } from './CasesPage.test-harness'
 
 vi.mock('@yetano/api-client', () => ({
+  createActivityNote: vi.fn(),
   createCase: vi.fn(),
   getCase: vi.fn(),
-  listCaseStatusHistory: vi.fn(),
+  listCaseActivities: vi.fn(),
   listCases: vi.fn(),
   transitionCase: vi.fn(),
   updateCase: vi.fn(),
@@ -29,7 +30,7 @@ describe('CasesPage leaf panels', () => {
     vi.clearAllMocks()
     localStorage.clear()
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
-    vi.mocked(listCaseStatusHistory).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
+    vi.mocked(listCaseActivities).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
   })
   it('renders the deliberate empty state', async () => {
     renderCasesPage()
@@ -124,7 +125,7 @@ describe('CasesPage leaf panels', () => {
     expect(await screen.findByText('Brak odłożonych spraw.')).toBeVisible()
   })
 
-  it('omits the decorative labels and customer id field', async () => {
+  it('shows only the compact status row below the form', async () => {
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
     const user = userEvent.setup()
     renderCasesPage()
@@ -140,21 +141,36 @@ describe('CasesPage leaf panels', () => {
     const work = within(detail).getByRole('button', { name: 'Pracuj' })
     expect(screen.queryByText(/Szczegóły · wersja/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Id klienta (opcjonalnie)')).not.toBeInTheDocument()
-    expect(within(detail).queryByText('Nowa')).not.toBeInTheDocument()
+    expect(within(detail).getByText('Status sprawy:')).toBeVisible()
+    const statusBadge = within(detail).getByText('Nowa')
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge')
+    expect(statusBadge).toHaveClass('h-6', 'px-2.5', 'text-sm')
+    expect(statusBadge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(detail).getByRole('time')).toHaveAttribute('datetime', caseItem.updatedAt)
+    expect(within(detail).getByRole('button', { name: 'Pokaż aktywność' })).toBeVisible()
+    expect(within(detail).queryByText('Pokaż aktywność')).not.toBeInTheDocument()
+    expect(within(detail).queryByText('Informacje o sprawie')).not.toBeInTheDocument()
+    expect(within(detail).queryByRole('region', { name: 'Aktywność' })).not.toBeInTheDocument()
     expect(within(detail).queryByText('Historia statusu')).not.toBeInTheDocument()
     expect(within(detail).queryByText('local-dev')).not.toBeInTheDocument()
     expect(save.compareDocumentPosition(work) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
   })
 
-  it('marks only the newest history entry as current', async () => {
-    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
-    vi.mocked(listCaseStatusHistory).mockResolvedValue(
+  it('renders newest activity first without exposing the raw actor id', async () => {
+    const workingCase = {
+      ...caseItem,
+      status: 'working' as const,
+      updatedAt: '2026-08-19T11:00:00.000Z',
+      version: 2,
+    }
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [workingCase], nextCursor: null }))
+    vi.mocked(listCaseActivities).mockResolvedValue(
       apiResult({
         items: [
-          statusChange('working'),
+          statusActivity('working'),
           {
-            ...statusChange('resolved'),
-            changedAt: '2026-08-19T10:30:00.000Z',
+            ...statusActivity('resolved'),
+            occurredAt: '2026-08-19T10:30:00.000Z',
             id: '721317b8-e4e8-46b9-9ed8-1c34ad7448aa',
           },
         ],
@@ -165,12 +181,37 @@ describe('CasesPage leaf panels', () => {
     renderCasesPage()
 
     await user.click(await screen.findByRole('button', { name: /Invoice access/ }))
+    const detail = screen.getByRole('article')
+    expect(within(detail).getByText('Status sprawy:')).toBeVisible()
+    expect(within(detail).getByText('Pracujemy')).toHaveAttribute('data-slot', 'badge')
+    expect(within(detail).getByText('Pracujemy')).toHaveClass(
+      'border-amber-300',
+      'bg-amber-50',
+      'text-amber-900',
+    )
+    expect(within(detail).getByRole('time')).toHaveAttribute('datetime', '2026-08-19T11:00:00.000Z')
+    expect(within(detail).queryByText('Status: Pracujemy')).not.toBeInTheDocument()
 
-    const history = screen.getByRole('region', { name: 'Historia statusu' })
-    const entries = within(history).getAllByRole('listitem')
-    expect(within(history).queryByText('aktualny')).not.toBeInTheDocument()
-    expect(entries[0]).toHaveAttribute('aria-current', 'true')
-    expect(entries[1]).not.toHaveAttribute('aria-current')
+    await user.click(within(detail).getByRole('button', { name: 'Pokaż aktywność' }))
+
+    const timeline = screen.getByRole('region', { name: 'Aktywność' })
+    expect(within(detail).queryByLabelText('Tytuł')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const breadcrumbs = within(timeline).getByRole('navigation', { name: 'Ścieżka sprawy' })
+    expect(
+      within(breadcrumbs).getByRole('button', { name: 'Wróć do sprawy: Invoice access' }),
+    ).toBeVisible()
+    const activityList = within(timeline).getByRole('list', { name: 'Oś czasu sprawy' })
+    const entries = within(activityList).getAllByRole('listitem')
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toHaveTextContent('Użytkownik zmienił status na Pracujemy.')
+    expect(within(timeline).queryByText('development-user')).not.toBeInTheDocument()
+
+    await user.click(within(timeline).getByRole('button', { name: /Wróć do sprawy/ }))
+    expect(await within(detail).findByLabelText('Tytuł')).toBeVisible()
+    await waitFor(() =>
+      expect(within(detail).getByRole('button', { name: 'Pokaż aktywność' })).toHaveFocus(),
+    )
   })
 
   it('groups every available mobile status transition behind one menu', async () => {
@@ -201,31 +242,58 @@ describe('CasesPage leaf panels', () => {
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
-  it('renders status history as separate borderless muted cards', async () => {
-    const latestEntry = statusChange('waiting', 'Odpowiedź klienta')
+  it('renders activities as separate borderless muted cards in the activity view', async () => {
+    const latestEntry = statusActivity('waiting', 'Odpowiedź klienta')
     const olderEntry = {
-      ...statusChange('working'),
-      changedAt: '2026-08-19T10:30:00.000Z',
+      ...statusActivity('working'),
+      occurredAt: '2026-08-19T10:30:00.000Z',
       id: '75bb9ef0-b103-4df7-89ce-efcbd2f79728',
     }
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [caseItem], nextCursor: null }))
-    vi.mocked(listCaseStatusHistory).mockResolvedValue(
+    vi.mocked(listCaseActivities).mockResolvedValue(
       apiResult({ items: [latestEntry, olderEntry], nextCursor: null }),
     )
 
+    const waitingCase = {
+      ...caseItem,
+      status: 'waiting' as const,
+      updatedAt: latestEntry.occurredAt,
+      version: 2,
+    }
+    vi.mocked(listCases).mockResolvedValue(apiResult({ items: [waitingCase], nextCursor: null }))
+    const user = userEvent.setup()
     renderCasesPage()
 
-    const history = await screen.findByRole('region', { name: 'Historia statusu' })
-    const rows = await within(history).findAllByRole('listitem')
+    await user.click(await screen.findByRole('button', { name: 'Pokaż aktywność' }))
+
+    const timeline = await screen.findByRole('region', { name: 'Aktywność' })
+    const activityList = await within(timeline).findByRole('list', { name: 'Oś czasu sprawy' })
+    const rows = within(activityList).getAllByRole('listitem')
     expect(rows).toHaveLength(2)
-    expect(within(history).queryByRole('heading')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('article')).queryByRole('separator')).not.toBeInTheDocument()
+    expect(within(timeline).getByRole('heading', { name: 'Aktywność' })).toBeVisible()
     expect(rows[0]).toHaveClass('rounded-xl', 'bg-muted/50', 'px-3', 'py-2.5')
     expect(rows[0]).not.toHaveClass('border', 'border-border')
     expect(rows[1]).toHaveClass('rounded-xl', 'bg-muted/50')
     expect(rows[0]?.parentElement).toHaveClass('grid', 'gap-2')
-    expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass('text-sm')
-    expect(within(rows[0] as HTMLElement).queryByText(/→|Utworzono jako/)).not.toBeInTheDocument()
+    expect(rows[0]).toHaveTextContent(
+      'Użytkownik zmienił status na Czekamy i dodał: „Odpowiedź klienta”',
+    )
+    expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveAttribute(
+      'data-variant',
+      'outline',
+    )
+    expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass(
+      'border-sky-300',
+      'bg-sky-50',
+      'text-sky-800',
+    )
+    expect(within(rows[0] as HTMLElement).getByText('Czekamy')).toHaveClass(
+      '-translate-y-0.5',
+      'h-6',
+      'px-2.5',
+      'text-sm',
+    )
+    expect(rows[0]?.querySelector('p')).toHaveClass('text-sm')
     expect(within(rows[0] as HTMLElement).getByRole('time')).toHaveClass(
       'shrink-0',
       'text-right',
@@ -235,7 +303,6 @@ describe('CasesPage leaf panels', () => {
       'flex',
       'justify-between',
     )
-    expect(within(rows[0] as HTMLElement).getByText('Odpowiedź klienta')).toHaveClass('text-xs')
   })
 })
 

@@ -75,6 +75,24 @@ export function statusChange(
   }
 }
 
+export function statusActivity(
+  toStatus: 'canceled' | 'new' | 'postponed' | 'resolved' | 'waiting' | 'working',
+  note: string | null = null,
+) {
+  return {
+    actorId: 'development-user',
+    actorType: 'user' as const,
+    caseId: caseItem.id,
+    caseVersion: 2,
+    fromStatus: 'new' as const,
+    id: '1ddb62bc-cc28-442f-a324-0a8c0a4b48dd',
+    note,
+    occurredAt: '2026-08-19T11:00:00.000Z',
+    toStatus,
+    type: 'case_status_changed' as const,
+  }
+}
+
 export function mockDesktopViewport(matches: boolean) {
   vi.stubGlobal(
     'matchMedia',

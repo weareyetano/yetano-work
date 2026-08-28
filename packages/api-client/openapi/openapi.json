@@ -810,420 +810,6 @@
         ]
       }
     },
-    "/api/v1/cases/{caseId}/status-history": {
-      "get": {
-        "operationId": "listCaseStatusHistory",
-        "description": "Lists immutable status history for one organization-scoped case.",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "caseId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Unique identifier of a case.",
-              "format": "uuid",
-              "title": "CaseId"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Opaque cursor returned by a previous case-list request.",
-              "minLength": 1,
-              "title": "CaseCursor"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": "Maximum number of cases returned in one page.",
-              "maximum": 100,
-              "minimum": 1,
-              "title": "CaseListLimit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "items",
-                    "nextCursor"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "required": [
-                          "actorId",
-                          "actorType",
-                          "caseId",
-                          "caseVersion",
-                          "changedAt",
-                          "fromStatus",
-                          "id",
-                          "note",
-                          "source",
-                          "toStatus",
-                          "transitionId",
-                          "type"
-                        ],
-                        "properties": {
-                          "actorId": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "actorType": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "const": "system"
-                              },
-                              {
-                                "type": "string",
-                                "const": "user"
-                              }
-                            ]
-                          },
-                          "caseId": {
-                            "type": "string",
-                            "description": "Unique identifier of a case.",
-                            "format": "uuid",
-                            "title": "CaseId"
-                          },
-                          "caseVersion": {
-                            "type": "integer",
-                            "minimum": 1
-                          },
-                          "changedAt": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "fromStatus": {
-                            "anyOf": [
-                              {
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "const": "new"
-                                  },
-                                  {
-                                    "type": "string",
-                                    "const": "postponed"
-                                  },
-                                  {
-                                    "type": "string",
-                                    "const": "working"
-                                  },
-                                  {
-                                    "type": "string",
-                                    "const": "waiting"
-                                  },
-                                  {
-                                    "type": "string",
-                                    "const": "resolved"
-                                  },
-                                  {
-                                    "type": "string",
-                                    "const": "canceled"
-                                  }
-                                ],
-                                "description": "Current lifecycle status of a case.",
-                                "title": "CaseStatus"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "note": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "maxLength": 2000,
-                                "minLength": 1
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "source": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "const": "migration"
-                              },
-                              {
-                                "type": "string",
-                                "const": "runtime"
-                              }
-                            ]
-                          },
-                          "toStatus": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "const": "new"
-                              },
-                              {
-                                "type": "string",
-                                "const": "postponed"
-                              },
-                              {
-                                "type": "string",
-                                "const": "working"
-                              },
-                              {
-                                "type": "string",
-                                "const": "waiting"
-                              },
-                              {
-                                "type": "string",
-                                "const": "resolved"
-                              },
-                              {
-                                "type": "string",
-                                "const": "canceled"
-                              }
-                            ],
-                            "description": "Current lifecycle status of a case.",
-                            "title": "CaseStatus"
-                          },
-                          "transitionId": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "format": "uuid"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "type": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "const": "created"
-                              },
-                              {
-                                "type": "string",
-                                "const": "transitioned"
-                              }
-                            ]
-                          }
-                        },
-                        "additionalProperties": false,
-                        "description": "An immutable entry in a case status history.",
-                        "title": "CaseStatusChange"
-                      }
-                    },
-                    "nextCursor": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false,
-                  "description": "A cursor-paginated case status history.",
-                  "title": "CaseStatusHistory"
-                }
-              }
-            },
-            "description": "A cursor-paginated case status history."
-          },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status",
-                    "title",
-                    "type"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "maximum": 599,
-                      "minimum": 400
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "format": "uri-reference"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
-                  "title": "ProblemDetails"
-                }
-              }
-            },
-            "description": "The request is invalid."
-          },
-          "401": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status",
-                    "title",
-                    "type"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "maximum": 599,
-                      "minimum": 400
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "format": "uri-reference"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
-                  "title": "ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication is required."
-          },
-          "403": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status",
-                    "title",
-                    "type"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "maximum": 599,
-                      "minimum": 400
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "format": "uri-reference"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
-                  "title": "ProblemDetails"
-                }
-              }
-            },
-            "description": "The actor lacks a required capability."
-          },
-          "404": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status",
-                    "title",
-                    "type"
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "maximum": 599,
-                      "minimum": 400
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "format": "uri-reference"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
-                  "title": "ProblemDetails"
-                }
-              }
-            },
-            "description": "The case does not exist in the active organization."
-          }
-        },
-        "tags": [
-          "Cases"
-        ]
-      }
-    },
     "/api/v1/cases/{caseId}": {
       "get": {
         "operationId": "getCase",
@@ -2764,6 +2350,896 @@
         },
         "tags": [
           "Cases"
+        ]
+      }
+    },
+    "/api/v1/activities/cases/{caseId}": {
+      "get": {
+        "operationId": "listCaseActivities",
+        "description": "Lists immutable activities for one organization-scoped case.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor returned by a previous case-activity request.",
+              "minLength": 1,
+              "title": "ActivityCursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Maximum number of activities returned in one page.",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "ActivityListLimit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "actorId",
+                              "actorType",
+                              "caseId",
+                              "id",
+                              "occurredAt",
+                              "content",
+                              "type"
+                            ],
+                            "properties": {
+                              "actorId": {
+                                "type": "string",
+                                "maxLength": 255,
+                                "minLength": 1
+                              },
+                              "actorType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "system"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "user"
+                                  }
+                                ]
+                              },
+                              "caseId": {
+                                "type": "string",
+                                "description": "Unique identifier of a case.",
+                                "format": "uuid",
+                                "title": "CaseId"
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "occurredAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "content": {
+                                "type": "string",
+                                "description": "Trimmed, non-blank activity note content.",
+                                "maxLength": 10000,
+                                "minLength": 1,
+                                "pattern": "\\S",
+                                "title": "ActivityContent"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "note"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "title": "NoteActivity"
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "actorId",
+                              "actorType",
+                              "caseId",
+                              "id",
+                              "occurredAt",
+                              "caseVersion",
+                              "type"
+                            ],
+                            "properties": {
+                              "actorId": {
+                                "type": "string",
+                                "maxLength": 255,
+                                "minLength": 1
+                              },
+                              "actorType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "system"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "user"
+                                  }
+                                ]
+                              },
+                              "caseId": {
+                                "type": "string",
+                                "description": "Unique identifier of a case.",
+                                "format": "uuid",
+                                "title": "CaseId"
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "occurredAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "caseVersion": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "case_created"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "title": "CaseCreatedActivity"
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "actorId",
+                              "actorType",
+                              "caseId",
+                              "id",
+                              "occurredAt",
+                              "caseVersion",
+                              "fromStatus",
+                              "note",
+                              "toStatus",
+                              "type"
+                            ],
+                            "properties": {
+                              "actorId": {
+                                "type": "string",
+                                "maxLength": 255,
+                                "minLength": 1
+                              },
+                              "actorType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "system"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "user"
+                                  }
+                                ]
+                              },
+                              "caseId": {
+                                "type": "string",
+                                "description": "Unique identifier of a case.",
+                                "format": "uuid",
+                                "title": "CaseId"
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "occurredAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "caseVersion": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "fromStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "new"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "postponed"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "working"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "waiting"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "resolved"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "canceled"
+                                  }
+                                ],
+                                "description": "Current lifecycle status of a case.",
+                                "title": "CaseStatus"
+                              },
+                              "note": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2000,
+                                    "minLength": 1
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "toStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "new"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "postponed"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "working"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "waiting"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "resolved"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "canceled"
+                                  }
+                                ],
+                                "description": "Current lifecycle status of a case.",
+                                "title": "CaseStatus"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "case_status_changed"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "title": "CaseStatusChangedActivity"
+                          }
+                        ],
+                        "description": "An immutable item in a case activity timeline.",
+                        "title": "Activity"
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "A cursor-paginated case activity timeline.",
+                  "title": "ActivityList"
+                }
+              }
+            },
+            "description": "A cursor-paginated case activity timeline."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          }
+        },
+        "tags": [
+          "Activities"
+        ]
+      }
+    },
+    "/api/v1/activities/cases/{caseId}/notes": {
+      "post": {
+        "operationId": "createActivityNote",
+        "description": "Idempotently appends a user-authored note to a case activity timeline.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of a case.",
+              "format": "uuid",
+              "title": "CaseId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "activityId",
+                  "content"
+                ],
+                "properties": {
+                  "activityId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Trimmed, non-blank activity note content.",
+                    "maxLength": 10000,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "title": "ActivityContent"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "An idempotent request to append a note to a case activity timeline.",
+                "title": "CreateActivityNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "actorId",
+                    "actorType",
+                    "caseId",
+                    "id",
+                    "occurredAt",
+                    "content",
+                    "type"
+                  ],
+                  "properties": {
+                    "actorId": {
+                      "type": "string",
+                      "maxLength": 255,
+                      "minLength": 1
+                    },
+                    "actorType": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        {
+                          "type": "string",
+                          "const": "user"
+                        }
+                      ]
+                    },
+                    "caseId": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Trimmed, non-blank activity note content.",
+                      "maxLength": 10000,
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "title": "ActivityContent"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "note"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "NoteActivity"
+                }
+              }
+            },
+            "description": "The previously stored activity note."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "actorId",
+                    "actorType",
+                    "caseId",
+                    "id",
+                    "occurredAt",
+                    "content",
+                    "type"
+                  ],
+                  "properties": {
+                    "actorId": {
+                      "type": "string",
+                      "maxLength": 255,
+                      "minLength": 1
+                    },
+                    "actorType": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        {
+                          "type": "string",
+                          "const": "user"
+                        }
+                      ]
+                    },
+                    "caseId": {
+                      "type": "string",
+                      "description": "Unique identifier of a case.",
+                      "format": "uuid",
+                      "title": "CaseId"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Trimmed, non-blank activity note content.",
+                      "maxLength": 10000,
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "title": "ActivityContent"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "note"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "NoteActivity"
+                }
+              }
+            },
+            "description": "The created activity note."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The actor lacks a required capability."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "maximum": 599,
+                      "minimum": 400
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 9457 problem details returned by the Yetano Work API.",
+                  "title": "ProblemDetails"
+                }
+              }
+            },
+            "description": "The case does not exist in the active organization."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "status",
+                    "title",
+                    "type"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "const": "activity_id_conflict"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "number",
+                      "const": 409
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Problem details returned when an activity id is reused for another note.",
+                  "title": "ActivityIdConflict"
+                }
+              }
+            },
+            "description": "The activity id has already been used for another note."
+          }
+        },
+        "tags": [
+          "Activities"
         ]
       }
     }

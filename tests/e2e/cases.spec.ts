@@ -18,20 +18,15 @@ function workspaceCase(index: number) {
   }
 }
 
-function workspaceHistory(caseId: string) {
+function workspaceActivities(caseId: string) {
   return Array.from({ length: 30 }, (_, index) => ({
     actorId: 'development-user',
     actorType: 'user',
     caseId,
-    caseVersion: index + 1,
-    changedAt: new Date(Date.UTC(2026, 7, 21, 10, index)).toISOString(),
-    fromStatus: null,
+    content: `Wpis aktywności ${index + 1}`,
     id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
-    note: `Wpis historii ${index + 1}`,
-    source: 'runtime',
-    toStatus: 'new',
-    transitionId: null,
-    type: 'created',
+    occurredAt: new Date(Date.UTC(2026, 7, 21, 10, index)).toISOString(),
+    type: 'note',
   }))
 }
 
@@ -71,11 +66,11 @@ test('keeps the desktop case list and details in independent scroll panes', asyn
       status: 200,
     })
   })
-  await page.route(/\/api\/v1\/cases\/[^/]+\/status-history(?:\?.*)?$/, async (route) => {
-    const caseId = new URL(route.request().url()).pathname.split('/').at(-2) as string
+  await page.route(/\/api\/v1\/activities\/cases\/[^/]+(?:\?.*)?$/, async (route) => {
+    const caseId = new URL(route.request().url()).pathname.split('/').at(-1) as string
     await route.fulfill({
       contentType: 'application/json',
-      json: { items: workspaceHistory(caseId), nextCursor: null },
+      json: { items: workspaceActivities(caseId), nextCursor: null },
       status: 200,
     })
   })
@@ -90,6 +85,8 @@ test('keeps the desktop case list and details in independent scroll panes', asyn
   await expect
     .poll(() => listPanel.evaluate((element) => element.scrollHeight > element.clientHeight))
     .toBe(true)
+  await detailPanel.getByRole('button', { name: 'Pokaż aktywność' }).click()
+  await expect(detailPanel.getByRole('region', { name: 'Aktywność' })).toBeVisible()
   await expect
     .poll(() => detailPanel.evaluate((element) => element.scrollHeight > element.clientHeight))
     .toBe(true)
@@ -202,16 +199,35 @@ test('creates, postpones, restores, and resolves a case through the generated AP
   await page.getByRole('button', { name: 'Rozwiąż' }).click()
   await expect(view).toContainText('Zamknięte')
   await expect(page.getByRole('button', { name: 'Otwórz ponownie' })).toBeVisible()
-  const history = page.getByRole('region', { name: 'Historia statusu' })
-  const historyRows = history.getByRole('listitem')
-  await expect(historyRows).toHaveCount(4)
-  await expect(history.getByRole('heading')).toHaveCount(0)
-  await expect(page.getByRole('article').getByRole('separator')).toHaveCount(0)
-  await expect(historyRows.first()).toHaveClass(/bg-muted\/50/)
-  await expect(historyRows.first()).toHaveClass(/px-3/)
-  await expect(historyRows.first()).toHaveClass(/py-2\.5/)
-  await expect(historyRows.first()).toHaveCSS('border-top-width', '0px')
-  await expect(historyRows.first()).toHaveCSS('border-radius', '14px')
+  await expect(details).toContainText('Status sprawy: Rozwiązana')
+  await expect(details.getByRole('time')).toBeVisible()
+  await expect(details.getByRole('region', { name: 'Aktywność' })).toHaveCount(0)
+  await details.getByRole('button', { name: 'Pokaż aktywność' }).click()
+  const timeline = page.getByRole('region', { name: 'Aktywność' })
+  const timelineRows = timeline.getByRole('list', { name: 'Oś czasu sprawy' }).getByRole('listitem')
+  await expect(timelineRows).toHaveCount(4)
+  await expect(timeline.getByRole('heading', { name: 'Aktywność' })).toBeVisible()
+  await timeline.getByLabel('Treść notatki').fill('Ustalenie z testu przeglądarkowego')
+  await timeline.getByRole('button', { name: 'Dodaj notatkę' }).click()
+  await expect(timeline.getByText('Ustalenie z testu przeglądarkowego')).toBeVisible()
+  await expect(timelineRows).toHaveCount(5)
+  await expect(page.getByText('Historia statusu')).toHaveCount(0)
+  await expect(timelineRows.first()).toHaveClass(/bg-muted\/50/)
+  await expect(timelineRows.first()).toHaveClass(/px-3/)
+  await expect(timelineRows.first()).toHaveClass(/py-2\.5/)
+  await expect(timelineRows.first()).toHaveCSS('border-top-width', '0px')
+  await expect(timelineRows.first()).toHaveCSS('border-radius', '14px')
+  await timeline.getByRole('button', { name: /Wróć do sprawy/ }).click()
+  await expect(details.getByLabel('Tytuł')).toHaveValue(title)
+  await expect(details.getByRole('button', { name: 'Pokaż aktywność' })).toBeFocused()
+  await page.reload()
+  await expect(details).toContainText('Status sprawy: Rozwiązana')
+  await expect(details.getByRole('region', { name: 'Aktywność' })).toHaveCount(0)
+  await details.getByRole('button', { name: 'Pokaż aktywność' }).click()
+  await expect(timeline.getByText('Ustalenie z testu przeglądarkowego')).toBeVisible()
+  await expect(timeline).toContainText('Użytkownik zmienił status na Rozwiązana.')
+  await expect(timelineRows).toHaveCount(5)
+  await expect(page.getByText('Historia statusu')).toHaveCount(0)
   expect(browserErrors).toEqual([])
 })
 

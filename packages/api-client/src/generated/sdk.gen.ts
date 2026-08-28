@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateCaseData, CreateCaseErrors, CreateCaseResponses, GetCaseData, GetCaseErrors, GetCaseResponses, GetHealthData, GetHealthErrors, GetHealthResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListCaseStatusHistoryData, ListCaseStatusHistoryErrors, ListCaseStatusHistoryResponses, TransitionCaseData, TransitionCaseErrors, TransitionCaseResponses, UpdateCaseData, UpdateCaseErrors, UpdateCaseResponses } from './types.gen';
+import type { CreateActivityNoteData, CreateActivityNoteErrors, CreateActivityNoteResponses, CreateCaseData, CreateCaseErrors, CreateCaseResponses, GetCaseData, GetCaseErrors, GetCaseResponses, GetHealthData, GetHealthErrors, GetHealthResponses, ListCaseActivitiesData, ListCaseActivitiesErrors, ListCaseActivitiesResponses, ListCasesData, ListCasesErrors, ListCasesResponses, TransitionCaseData, TransitionCaseErrors, TransitionCaseResponses, UpdateCaseData, UpdateCaseErrors, UpdateCaseResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -41,11 +41,6 @@ export const createCase = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
- * Lists immutable status history for one organization-scoped case.
- */
-export const listCaseStatusHistory = <ThrowOnError extends boolean = false>(options: Options<ListCaseStatusHistoryData, ThrowOnError>): RequestResult<ListCaseStatusHistoryResponses, ListCaseStatusHistoryErrors, ThrowOnError> => (options.client ?? client).get<ListCaseStatusHistoryResponses, ListCaseStatusHistoryErrors, ThrowOnError>({ url: '/api/v1/cases/{caseId}/status-history', ...options });
-
-/**
  * Gets one organization-scoped case.
  */
 export const getCase = <ThrowOnError extends boolean = false>(options: Options<GetCaseData, ThrowOnError>): RequestResult<GetCaseResponses, GetCaseErrors, ThrowOnError> => (options.client ?? client).get<GetCaseResponses, GetCaseErrors, ThrowOnError>({ url: '/api/v1/cases/{caseId}', ...options });
@@ -67,6 +62,23 @@ export const updateCase = <ThrowOnError extends boolean = false>(options: Option
  */
 export const transitionCase = <ThrowOnError extends boolean = false>(options: Options<TransitionCaseData, ThrowOnError>): RequestResult<TransitionCaseResponses, TransitionCaseErrors, ThrowOnError> => (options.client ?? client).post<TransitionCaseResponses, TransitionCaseErrors, ThrowOnError>({
     url: '/api/v1/cases/{caseId}/transition',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Lists immutable activities for one organization-scoped case.
+ */
+export const listCaseActivities = <ThrowOnError extends boolean = false>(options: Options<ListCaseActivitiesData, ThrowOnError>): RequestResult<ListCaseActivitiesResponses, ListCaseActivitiesErrors, ThrowOnError> => (options.client ?? client).get<ListCaseActivitiesResponses, ListCaseActivitiesErrors, ThrowOnError>({ url: '/api/v1/activities/cases/{caseId}', ...options });
+
+/**
+ * Idempotently appends a user-authored note to a case activity timeline.
+ */
+export const createActivityNote = <ThrowOnError extends boolean = false>(options: Options<CreateActivityNoteData, ThrowOnError>): RequestResult<CreateActivityNoteResponses, CreateActivityNoteErrors, ThrowOnError> => (options.client ?? client).post<CreateActivityNoteResponses, CreateActivityNoteErrors, ThrowOnError>({
+    url: '/api/v1/activities/cases/{caseId}/notes',
     ...options,
     headers: {
         'Content-Type': 'application/json',

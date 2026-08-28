@@ -9,8 +9,9 @@
 
 A case is a lightweight organization-scoped record for work that needs a durable title, optional
 context, and an explicit lifecycle. It supports intake, active work, waiting, postponement,
-successful resolution, cancellation, and immutable status history without assignment, tasks,
-general activities, archival, or deletion.
+successful resolution, cancellation, and an internal immutable status ledger without assignment,
+tasks, archival, or deletion. User-visible lifecycle entries are provided by the in-panel Activities
+timeline.
 
 ## Terminology and scope
 
@@ -34,7 +35,7 @@ Users with the declared capabilities can:
 2. Get one case or list cases in the active organization.
 3. Update title, description, or customer reference using the last observed version.
 4. Move a case through new, postponed, working, waiting, resolved, and canceled statuses.
-5. Read its immutable status history.
+5. Open the in-panel activity view to read creation, status transition, and note entries.
 
 Status transitions use a client-generated transition identifier. Repeating the same command returns
 the first stored transition result without changing the case or publishing another event. Reusing
@@ -56,7 +57,7 @@ working, and waiting cases; postponed cases are queried by exact status; the clo
 resolved and canceled cases. Text search matches literal fragments of the title, description, or
 case identifier. When exact statuses and a status group are supplied together, results satisfy both
 filters. Results are ordered by most recent modification with the case identifier as a
-stable tie-breaker. Status history is independently cursor-paginated newest first.
+stable tie-breaker. The Activities module independently paginates its timeline newest first.
 
 The web workspace starts in the Open view and exposes three list views: Open, Postponed, and Closed.
 A created or restored case opens in Open. Postponing a new case follows it to Postponed; resolving or
@@ -77,12 +78,14 @@ canceled through in-app or browser back navigation. Title and description entere
 form a local draft; leaving a dirty creation form requires users to keep editing or explicitly
 discard the draft, and reloading the page triggers the browser's unsaved-changes warning. A
 successful creation replaces that transient URL state with the created case and exposes its normal
-lifecycle actions and status history.
+lifecycle actions and compact activity summary.
 
-The detail panel uses the editable title field as its only visible title and omits a separate current
-status badge. On wide screens, its Save action is followed by every lifecycle transition currently
-allowed for the case. On narrow screens, Save remains directly available while those transitions,
-including Cancel, are grouped under a Change status menu.
+The detail panel uses the editable title field as its only visible title. Below the form it shows a
+single compact row containing the current status, that status's timestamp, and an icon action. The
+action replaces the panel contents with the activity timeline, and the case-title breadcrumb
+restores the case form. On wide screens, the Save action is followed by every lifecycle transition
+currently allowed for the case. On narrow screens, Save remains directly available while those
+transitions, including Cancel, are grouped under a Change status menu.
 
 Title and description edits in the detail panel form a local draft tied to the selected case and
 the last server version observed when editing began. Selecting another case, changing the list view,
@@ -114,11 +117,11 @@ and the single-panel list-to-detail flow.
 - `waiting` and `canceled` require a non-blank status note.
 - Resolved and canceled cases have a close timestamp; reopened cases do not.
 - Reopening a resolved or canceled case moves it to `working`.
-- Status history entries are append-only and record the actor, time, source, resulting case version,
-  and optional note.
-- The database requires every status-history entry to belong to the same organization as its case.
-- Runtime status history contains at most one entry for each organization, case, and case version;
-  migration-authored history is excluded from this uniqueness rule.
+- The private status ledger is append-only and records the actor, time, source, resulting case
+  version, and optional note. It remains an internal audit and transition-idempotency mechanism.
+- The database requires every ledger entry to belong to the same organization as its case.
+- Runtime ledger entries contain at most one entry for each organization, case, and case version;
+  migration-authored entries are excluded from this uniqueness rule.
 - Creating a case appends a `created` history entry from no prior status to `new`, while publishing
   only the public `case.created` event.
 - Migrated history entries have migration source, document their legacy mapping, and neither run
@@ -130,15 +133,17 @@ and the single-panel list-to-detail flow.
 ## Relationships
 
 The customer identifier does not create an ORM relationship or require a customer module at
-runtime. Tasks and activities are not created implicitly and remain governed by their draft
-specifications.
+runtime. The Activities module projects case creation and status transitions from public events;
+Cases neither writes activity persistence nor depends on Activities. Tasks are not created
+implicitly and remain governed by their draft specification.
 
 ## Interface impact
 
-The exact request, response, query, history, and conflict shapes are defined by the TypeBox schemas
-in [`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). The HTTP API exposes
-create, get, list, update, transition, and status-history operations under `/api/v1/cases`. OpenAPI
-and the web client are generated from those routes.
+The exact request, response, query, transition-result, and conflict shapes are defined by the
+TypeBox schemas in [`packages/contracts/src/cases.ts`](../../packages/contracts/src/cases.ts). The
+HTTP API exposes create, get, list, update, and transition operations under `/api/v1/cases`.
+The private status ledger has no public list operation. OpenAPI and the web client are generated
+from the public routes.
 
 The module declares read, create, update, transition, close, and reopen capabilities. Movement among
 active statuses plus postponing or restoring requires transition, nonterminal-to-terminal movement
@@ -173,7 +178,7 @@ application service is private.
 - Aggregate changes and their event envelopes commit atomically with trusted organization and actor
   fields.
 - Repeated transition commands with the same transition identifier return the original result and
-  do not create duplicate history or lifecycle events.
+  do not create duplicate ledger entries or lifecycle events.
 - Concurrent stale updates return the documented conflict response.
 - Unsaved detail edits survive refreshes and version conflicts, and case selection, view changes,
   and status transitions require explicit confirmation before discarding them.
@@ -196,7 +201,7 @@ application service is private.
 - When should a soft customer reference become a validated cross-module lookup?
 - Which assignment or ownership model is needed?
 - Do cases later need archival distinct from closure?
-- How should tasks and activities attach to cases once their specifications are accepted?
+- How should tasks attach to cases once their specification is accepted?
 
 ## Related decisions and specifications
 

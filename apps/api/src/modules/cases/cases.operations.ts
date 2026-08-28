@@ -3,8 +3,6 @@ import type {
   CaseId,
   CaseList,
   CaseStatusChange,
-  CaseStatusHistory,
-  CaseStatusHistoryQuery,
   ChangeCaseStatusRequest,
   CreateCaseRequest,
   ListCasesQuery,
@@ -34,15 +32,6 @@ export const listCasesOperation = defineOperation<ListCasesQuery, CaseList>({
 export const getCaseOperation = defineOperation<CaseId, Case>({
   capability: CASES_CAPABILITIES.read,
   id: 'cases.get',
-  kind: 'query',
-})
-
-export const listCaseStatusHistoryOperation = defineOperation<
-  CaseMutationInput<CaseStatusHistoryQuery>,
-  CaseStatusHistory
->({
-  capability: CASES_CAPABILITIES.read,
-  id: 'cases.status-history',
   kind: 'query',
 })
 
@@ -84,7 +73,6 @@ export const casesOperations = [
   createCaseOperation,
   getCaseOperation,
   listCasesOperation,
-  listCaseStatusHistoryOperation,
   reopenCaseOperation,
   transitionCaseOperation,
   updateCaseOperation,

@@ -1,5 +1,5 @@
 import { RiErrorWarningLine } from '@remixicon/react'
-import { type FormEvent, type ReactNode, type Ref, useState } from 'react'
+import type { FormEvent, ReactNode, Ref } from 'react'
 
 import { Alert, AlertDescription } from '#components/ui/alert'
 import { Button } from '#components/ui/button'
@@ -39,18 +39,14 @@ export function CaseForm({
   titleRef?: Ref<HTMLInputElement>
   value: CaseFormValue
 }) {
-  const [submitted, setSubmitted] = useState(false)
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setSubmitted(false)
     try {
       await onSubmit({
         customerId: value.customerId,
         description: optionalText(value.description),
         title: value.title.trim(),
       })
-      setSubmitted(true)
     } catch {
       // The mutation exposes the error in the visible notice below.
     }
@@ -76,7 +72,6 @@ export function CaseForm({
             disabled={busy}
             value={value.title}
             onChange={(event) => {
-              setSubmitted(false)
               onChange({ ...value, title: event.target.value })
             }}
           />
@@ -91,7 +86,6 @@ export function CaseForm({
             disabled={busy}
             value={value.description ?? ''}
             onChange={(event) => {
-              setSubmitted(false)
               onChange({ ...value, description: event.target.value })
             }}
           />
@@ -119,11 +113,6 @@ export function CaseForm({
           {isDirty && !busy ? (
             <span className="col-span-full text-sm text-muted-foreground" role="status">
               Niezapisane zmiany.
-            </span>
-          ) : null}
-          {submitted && !error ? (
-            <span className="col-span-full text-sm font-medium text-muted-foreground" role="status">
-              Zapisano.
             </span>
           ) : null}
         </div>

@@ -2,10 +2,14 @@ import { Compile } from 'typebox/compile'
 import { describe, expect, it } from 'vitest'
 
 import {
+  ActivityListQuerySchema,
+  ActivityListSchema,
+  ActivitySchema,
   CaseListSchema,
   CaseSchema,
   CaseStatusChangeSchema,
   ChangeCaseStatusRequestSchema,
+  CreateActivityNoteRequestSchema,
   CreateCaseRequestSchema,
   HealthResponseSchema,
   ListCasesQuerySchema,
@@ -14,6 +18,49 @@ import {
 } from './index.js'
 
 describe('public API contracts', () => {
+  it('accepts every activity variant and rejects mismatched fields', () => {
+    const validator = Compile(ActivitySchema)
+    const common = {
+      actorId: 'local-dev',
+      actorType: 'user',
+      caseId: '8d19dfee-e908-4e4f-8450-ccbcd82f2319',
+      id: '099ec33b-0f7d-4d7c-bc4a-b7520217f96e',
+      occurredAt: '2026-08-19T11:00:00.000Z',
+    }
+
+    expect(validator.Check({ ...common, content: 'Called the customer.', type: 'note' })).toBe(true)
+    expect(validator.Check({ ...common, caseVersion: 1, type: 'case_created' })).toBe(true)
+    expect(
+      validator.Check({
+        ...common,
+        caseVersion: 2,
+        fromStatus: 'new',
+        note: null,
+        toStatus: 'working',
+        type: 'case_status_changed',
+      }),
+    ).toBe(true)
+    expect(
+      validator.Check({ ...common, caseVersion: 1, content: 'extra', type: 'case_created' }),
+    ).toBe(false)
+  })
+
+  it('bounds activity note input and pagination', () => {
+    const noteValidator = Compile(CreateActivityNoteRequestSchema)
+    const queryValidator = Compile(ActivityListQuerySchema)
+    const listValidator = Compile(ActivityListSchema)
+    const activityId = '099ec33b-0f7d-4d7c-bc4a-b7520217f96e'
+
+    expect(noteValidator.Check({ activityId, content: ' Follow up tomorrow. ' })).toBe(true)
+    expect(noteValidator.Check({ activityId, content: '   ' })).toBe(false)
+    expect(noteValidator.Check({ activityId, content: 'x'.repeat(10_001) })).toBe(false)
+    expect(noteValidator.Check({ activityId, content: 'Valid', extra: true })).toBe(false)
+    expect(queryValidator.Check({ limit: 100 })).toBe(true)
+    expect(queryValidator.Check({ limit: 101 })).toBe(false)
+    expect(listValidator.Check({ items: [], nextCursor: null })).toBe(true)
+    expect(listValidator.Check({ items: [], nextCursor: null, total: 0 })).toBe(false)
+  })
+
   it('accepts a valid health response and rejects additional fields', () => {
     const validator = Compile(HealthResponseSchema)
 

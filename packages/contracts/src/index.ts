@@ -1,5 +1,6 @@
 import Type from 'typebox'
 
+export * from './activities.js'
 export * from './cases.js'
 export * from './ids.js'
 

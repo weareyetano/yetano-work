@@ -41,6 +41,15 @@ describe('API application without runtime services', () => {
     })
   })
 
+  it('exports activities while omitting the removed case status-history operation', async () => {
+    const response = await app.request('/api/openapi.json')
+    const document = await response.json()
+
+    expect(document.paths).toHaveProperty('/api/v1/activities/cases/{caseId}')
+    expect(document.paths).toHaveProperty('/api/v1/activities/cases/{caseId}/notes')
+    expect(document.paths).not.toHaveProperty('/api/v1/cases/{caseId}/status-history')
+  })
+
   it('keeps liveness independent from the database', async () => {
     const response = await app.request('/health/live')
 
