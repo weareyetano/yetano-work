@@ -39,6 +39,9 @@
 
 - Use one task, writer, short-lived topic branch, and isolated worktree together. Read-only work
   needs no branch. Create worktrees from a fresh base, never from inside another worktree.
+- A Codex-managed Worktree chat already satisfies the isolation requirement; never create another
+  worktree from inside it. Use Open or the integrated terminal to inspect it, and use Handoff to
+  Local when work must continue in the primary checkout or use its shared runtime.
 - Reuse the current task's existing topic branch. Otherwise start from the latest verified
   `origin/main` without switching or repurposing the primary checkout, then run
   `pnpm worktree:setup`.
