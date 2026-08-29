@@ -139,7 +139,7 @@ export function CasesPage({
     <main className="flex min-h-0 flex-col pt-2 pb-24 min-[721px]:h-[calc(100dvh-4rem)] min-[721px]:overflow-hidden min-[721px]:pb-4">
       <section
         ref={workspaceRef}
-        className="mt-2 grid min-h-0 flex-1 grid-cols-1 items-start gap-4 min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)] min-[721px]:items-stretch"
+        className="mt-2 grid min-h-0 flex-1 grid-cols-1 items-start gap-4 min-[721px]:mx-px min-[721px]:grid-cols-[clamp(20rem,32vw,40rem)_minmax(0,1fr)] min-[721px]:items-stretch"
         aria-label="Sprawy"
       >
         <CaseListPanel

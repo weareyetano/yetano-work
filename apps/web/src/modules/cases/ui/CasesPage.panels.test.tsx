@@ -32,6 +32,12 @@ describe('CasesPage leaf panels', () => {
     vi.mocked(listCases).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
     vi.mocked(listCaseActivities).mockResolvedValue(apiResult({ items: [], nextCursor: null }))
   })
+  it('keeps desktop panel rings inside the clipped workspace', () => {
+    renderCasesPage()
+
+    expect(screen.getByRole('region', { name: 'Sprawy' })).toHaveClass('min-[721px]:mx-px')
+  })
+
   it('renders the deliberate empty state', async () => {
     renderCasesPage()
 
