@@ -106,7 +106,10 @@ Environment files and secrets are intentionally not copied into new worktrees. C
 stack. The primary checkout owns that runtime by default; stop it before transferring ownership.
 
 - In Codex, start a Worktree chat from a fresh base and configure `pnpm worktree:setup` as the
-  local environment setup command.
+  local environment setup command. The managed worktree is already the task's isolated checkout,
+  so do not create another worktree inside it. Use Open or the integrated terminal to inspect it,
+  and use Handoff to Local before continuing in the primary checkout or using its shared runtime.
+  Reserve permanent or manually managed worktrees for tasks that require a stable filesystem path.
 - In Claude Code, run `claude --worktree <task>`, then run `pnpm worktree:setup` in the new
   checkout.
 - In OpenCode or a regular terminal, use the optional Worktrunk fallback. After installing its
